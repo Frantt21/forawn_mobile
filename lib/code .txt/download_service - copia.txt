@@ -1,0 +1,173 @@
+// lib/services/download_service.dart
+import 'dart:io';
+import 'dart:async';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../services/saf_helper.dart';
+import '../services/youtube_fallback_service.dart';
+
+class DownloadService {
+  final Dio _dio = Dio();
+  final YoutubeFallbackService _youtubeFallback = YoutubeFallbackService();
+
+  /// Solicitar permisos de almacenamiento
+  Future<bool> requestStoragePermission() async {
+    if (Platform.isAndroid) {
+      if (await Permission.storage.isGranted) return true;
+      final status = await Permission.storage.request();
+      return status.isGranted;
+    }
+    return true;
+  }
+
+  /// Descarga a un archivo temporal y reporta progreso
+  Future<String> downloadToTempFile({
+    required String url,
+    required Function(double) onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    final tempDir = await getTemporaryDirectory();
+    final fileName = _sanitizeFileName(url.split('/').last);
+    final tempPath = '${tempDir.path}/$fileName';
+
+    try {
+      await _dio.download(
+        url,
+        tempPath,
+        onReceiveProgress: (received, total) {
+          if (total > 0) {
+            onProgress(received / total);
+          } else {
+            onProgress(0);
+          }
+        },
+        cancelToken: cancelToken,
+        options: Options(receiveTimeout: Duration.zero, sendTimeout: Duration.zero),
+      );
+      return tempPath;
+    } catch (e) {
+      // Si falla la descarga, intenta borrar el temp file parcial
+      try {
+        final f = File(tempPath);
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
+  /// Descarga desde YouTube como fallback
+  /// Retorna la ruta del archivo temporal
+  Future<String?> downloadFromYoutubeFallback({
+    required String trackTitle,
+    required String artistName,
+    required Function(double) onProgress,
+  }) async {
+    try {
+      print('[DownloadService] Intentando descarga desde YouTube (fallback)');
+      final tempPath = await _youtubeFallback.downloadAudioFromYoutube(
+        trackTitle: trackTitle,
+        artistName: artistName,
+        onProgress: onProgress,
+      );
+
+      if (tempPath != null) {
+        print('[DownloadService] Descarga desde YouTube exitosa');
+      }
+
+      return tempPath;
+    } catch (e, st) {
+      print('[DownloadService] Error en fallback de YouTube: $e');
+      print(st);
+      return null;
+    }
+  }
+
+  /// Descarga y guarda con fallback automático a YouTube
+  Future<void> downloadAndSave({
+    required String url,
+    required String fileName,
+    String? treeUri,
+    required Function(double) onProgress,
+    CancelToken? cancelToken,
+    // Nuevos parámetros para fallback
+    String? trackTitle,
+    String? artistName,
+    bool enableYoutubeFallback = true,
+  }) async {
+    String? tempPath;
+
+    try {
+      // 1) Intenta descargar desde la URL original
+      tempPath = await downloadToTempFile(
+        url: url,
+        onProgress: onProgress,
+        cancelToken: cancelToken,
+      );
+    } catch (e) {
+      print('[DownloadService] Error al descargar desde API: $e');
+
+      // 2) Si falla y el fallback está habilitado, intenta YouTube
+      if (enableYoutubeFallback && trackTitle != null && artistName != null) {
+        print('[DownloadService] Activando fallback de YouTube...');
+        tempPath = await downloadFromYoutubeFallback(
+          trackTitle: trackTitle,
+          artistName: artistName,
+          onProgress: onProgress,
+        );
+
+        if (tempPath == null) {
+          throw Exception('No se pudo descargar ni desde la API ni desde YouTube');
+        }
+      } else {
+        rethrow;
+      }
+    }
+
+    // 3) Guarda el archivo descargado
+    try {
+      if (treeUri != null) {
+        final savedUri = await SafHelper.saveFileFromPath(
+          treeUri: treeUri,
+          tempPath: tempPath,
+          fileName: fileName,
+        );
+        if (savedUri == null) {
+          throw Exception('No se pudo guardar el archivo en la carpeta seleccionada');
+        }
+      } else {
+        // Fallback: copiar a Download folder
+        final downloadsDir = Directory('/storage/emulated/0/Download');
+        if (!await downloadsDir.exists()) {
+          try {
+            await downloadsDir.create(recursive: true);
+          } catch (_) {}
+        }
+        final destPath = '${downloadsDir.path}/$fileName';
+        await File(tempPath).copy(destPath);
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      // 4) Limpia archivo temporal
+      try {
+        final tmp = File(tempPath);
+        if (await tmp.exists()) await tmp.delete();
+      } catch (_) {}
+    }
+  }
+
+  /// Cancelar descargas
+  void cancelDownloads() {
+    _dio.close(force: true);
+  }
+
+  /// Limpiar recursos
+  void dispose() {
+    _youtubeFallback.dispose();
+  }
+
+  String _sanitizeFileName(String name) {
+    return name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+  }
+}
