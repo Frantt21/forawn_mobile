@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import '../services/image_service.dart';
 import '../services/saf_helper.dart';
 import '../services/permission_helper.dart';
+import '../utils/safe_http_mixin.dart';
 
 class ImagesIAScreen extends StatefulWidget {
   const ImagesIAScreen({super.key});
@@ -16,7 +17,7 @@ class ImagesIAScreen extends StatefulWidget {
   State<ImagesIAScreen> createState() => _ImagesIAScreenState();
 }
 
-class _ImagesIAScreenState extends State<ImagesIAScreen> {
+class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
   final TextEditingController _promptController = TextEditingController();
   final ImageService _imageService = ImageService();
 
@@ -135,11 +136,11 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> {
           const SnackBar(content: Text('No se pudo generar la imagen')),
         );
       }
-      setState(() => _isGenerating = false);
+      safeSetState(() => _isGenerating = false);
       return;
     }
 
-    setState(() {
+    safeSetState(() {
       _imageUrl = url;
       _isGenerating = false;
     });
@@ -166,7 +167,7 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> {
     try {
       // 1) Descargar a temp
       final tempPath = await _imageService.downloadToTemp(_imageUrl!, (p) {
-        setState(() => _progress = p);
+        safeSetState(() => _progress = p);
       });
 
       if (tempPath == null) {
@@ -217,7 +218,7 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> {
         );
       }
     } finally {
-      setState(() {
+      safeSetState(() {
         _isDownloading = false;
         _progress = 0.0;
       });

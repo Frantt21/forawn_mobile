@@ -6,8 +6,15 @@ import 'screens/images_ia_screen.dart';
 import 'screens/translate_screen.dart';
 import 'screens/qr_generator_screen.dart';
 import 'screens/downloads_screen.dart';
+import 'services/global_download_manager.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar el gestor global de descargas
+  await GlobalDownloadManager().initialize();
+  await GlobalDownloadManager().requestNotificationPermissions();
+
   runApp(const ForawnApp());
 }
 

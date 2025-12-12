@@ -1,15 +1,15 @@
 // lib/screens/music_downloader_screen.dart
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/spotify_track.dart';
 import '../services/spotify_service.dart';
-import '../services/download_service.dart';
 import '../services/saf_helper.dart';
+import '../services/pinterest_service.dart';
+import '../services/global_download_manager.dart';
+import 'download_history_screen.dart';
 
 class MusicDownloaderScreen extends StatefulWidget {
   const MusicDownloaderScreen({super.key});
@@ -21,19 +21,16 @@ class MusicDownloaderScreen extends StatefulWidget {
 class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
   final TextEditingController _searchController = TextEditingController();
   final SpotifyService _spotifyService = SpotifyService();
-  final DownloadService _downloadService = DownloadService();
+  final GlobalDownloadManager _downloadManager = GlobalDownloadManager();
 
-  String? _downloadDirectory;
   String? _treeUri;
   List<SpotifyTrack> _searchResults = [];
   bool _isSearching = false;
-  final Map<String, double> _downloadProgress = {};
-  final Map<String, bool> _isDownloading = {};
+  final Map<String, String?> _pinterestImages = {}; // Cache de imágenes de Pinterest
 
   @override
   void initState() {
     super.initState();
-    _initDownloadDirectory();
     _loadSavedTreeUri();
   }
 
@@ -86,28 +83,6 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
     }
   }
 
-  Future<void> _initDownloadDirectory() async {
-    try {
-      Directory? directory;
-      if (Platform.isAndroid) {
-        directory = Directory('/storage/emulated/0/Download');
-        if (!await directory.exists()) {
-          directory = await getExternalStorageDirectory();
-        }
-      } else {
-        directory = await getApplicationDocumentsDirectory();
-      }
-
-      if (directory != null) {
-        setState(() {
-          _downloadDirectory = directory?.path ?? '';
-        });
-      }
-    } catch (e) {
-      print('Error initializing directory: $e');
-    }
-  }
-
   Future<void> _searchSongs() async {
     final query = _searchController.text.trim();
 
@@ -123,10 +98,13 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
     setState(() {
       _isSearching = true;
       _searchResults = [];
+      _pinterestImages.clear(); // Limpiar cache de imágenes anteriores
     });
 
     try {
       final results = await _spotifyService.searchSongs(query);
+      
+      // Mostrar resultados INMEDIATAMENTE
       setState(() {
         _searchResults = results;
         _isSearching = false;
@@ -136,7 +114,12 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No se encontraron resultados')),
         );
+        return;
       }
+
+      // Cargar imágenes de Pinterest de forma ASÍNCRONA (en segundo plano)
+      _loadPinterestImages(results);
+      
     } catch (e, st) {
       print('[MusicDownloaderScreen] _searchSongs error: $e');
       print(st);
@@ -147,186 +130,76 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Error al buscar canciones. Revisa la consola para más detalles.',
-            ),
+          SnackBar(
+            content: Text('Error al buscar: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
         );
+      }
+    }
+  }
+
+  /// Cargar imágenes de Pinterest de forma asíncrona
+  Future<void> _loadPinterestImages(List<SpotifyTrack> tracks) async {
+    for (final track in tracks) {
+      if (!mounted) break; // Detener si el widget fue destruido
+
+      try {
+        // Construir query: "artista canción portada"
+        final searchQuery = '${track.artists} ${track.title} portada';
+        
+        // Buscar imagen en Pinterest
+        final imageUrl = await PinterestService.getFirstImage(searchQuery);
+        
+        // Actualizar UI con la imagen encontrada
+        if (mounted && imageUrl != null) {
+          setState(() {
+            _pinterestImages[track.url] = imageUrl;
+          });
+        }
+      } catch (e) {
+        print('[MusicDownloaderScreen] Error loading Pinterest image for ${track.title}: $e');
+        // Continuar con la siguiente canción si falla
       }
     }
   }
 
   Future<void> _downloadTrack(SpotifyTrack track) async {
-    if (_downloadDirectory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inicializando directorio de descarga...'),
-        ),
-      );
-      await _initDownloadDirectory();
-      if (_downloadDirectory == null) return;
-    }
-
-    final hasPermission = await _downloadService.requestStoragePermission();
-    if (!hasPermission) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Se necesitan permisos de almacenamiento'),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      _isDownloading[track.url] = true;
-      _downloadProgress[track.url] = 0.0;
-    });
-
-    // IMPORTANTE: Guardamos los datos del track ANTES de intentar la API
-    // Estos datos vienen de la búsqueda inicial de Spotify y son confiables
-    String trackName = track.title.trim();
-    String artistName = track.artists.trim();
-
-    // Si no hay artista en el track, intentamos extraerlo del título
-    if (artistName.isEmpty && trackName.contains(' - ')) {
-      final parts = trackName.split(' - ');
-      if (parts.length >= 2) {
-        artistName = parts[0].trim();
-        trackName = parts.sublist(1).join(' - ').trim();
-      }
-    }
-
-    print(
-      '[MusicDownloaderScreen] Descargando: track="$trackName", artist="$artistName"',
-    );
-
-    String? downloadUrl;
-
     try {
-      // Paso 1: Intentar obtener URL desde tu API
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Obteniendo enlace de descarga...')),
-        );
-      }
-
-      try {
-        final downloadInfo = await _spotifyService.getDownloadUrl(
-          track.url,
-          trackName: trackName,
-          artistName: artistName,
-          // imageUrl: track.imageUrl, // Modelo no tiene imageUrl aún
-        );
-
-        // Verificar que la URL de descarga no esté vacía
-        if (downloadInfo.downloadUrl.isEmpty) {
-          throw Exception('API devolvió URL vacía');
-        }
-
-        downloadUrl = downloadInfo.downloadUrl;
-
-        // Actualizar nombre y artista si la API los proporciona (opcional)
-        if (downloadInfo.name.isNotEmpty) {
-          trackName = downloadInfo.name;
-        }
-        if (downloadInfo.artists.isNotEmpty) {
-          artistName = downloadInfo.artists;
-        }
-
-        print(
-          '[MusicDownloaderScreen] API exitosa, usando: track="$trackName", artist="$artistName"',
-        );
-      } catch (apiError) {
-        print('[MusicDownloaderScreen] API falló: $apiError');
-        // downloadUrl queda null, usaremos YouTube
-        // trackName y artistName ya están definidos desde el inicio
-        downloadUrl = null;
-      }
-
-      // Crear nombre de archivo limpio
-      final fileName = artistName.isNotEmpty
-          ? '$trackName - $artistName.mp3'
-          : '$trackName.mp3';
-      final cleanFileName = fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      // Agregar descarga al gestor global
+      final downloadId = await _downloadManager.addDownload(
+        track: track,
+        pinterestImageUrl: _pinterestImages[track.url],
+        treeUri: _treeUri,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              downloadUrl != null
-                  ? 'Descargando: $trackName...'
-                  : 'API no disponible, buscando en YouTube...',
+            content: Text('Descarga iniciada: ${track.title}'),
+            action: SnackBarAction(
+              label: 'Ver',
+              onPressed: () {
+                // TODO: Navegar a pantalla de descargas activas
+              },
             ),
           ),
         );
       }
 
-      // Paso 2: Descargar (API o YouTube fallback)
-      await _downloadService.downloadAndSave(
-        url: downloadUrl ?? '', // Si es null o vacío, activará YouTube
-        fileName: cleanFileName,
-        treeUri: _treeUri,
-        onProgress: (progress) {
-          setState(() {
-            _downloadProgress[track.url] = progress;
-          });
-        },
-        cancelToken: null,
-        trackTitle: trackName,
-        artistName: artistName,
-        enableYoutubeFallback: true,
-      );
-
-      setState(() {
-        _isDownloading[track.url] = false;
-        _downloadProgress.remove(track.url);
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✓ Guardado: $cleanFileName'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      print('[MusicDownloaderScreen] Download added with ID: $downloadId');
     } catch (e) {
-      print('[MusicDownloaderScreen] Error final: $e');
-
-      setState(() {
-        _isDownloading[track.url] = false;
-        _downloadProgress.remove(track.url);
-      });
-
+      print('[MusicDownloaderScreen] Error adding download: $e');
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: No se pudo descargar desde ninguna fuente'),
+            content: Text('Error al iniciar descarga: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
           ),
         );
       }
     }
-  }
-
-  Future<void> _download_service_downloadAndSaveWrapper({
-    required String url,
-    required String fileName,
-    String? treeUri,
-    required Function(double) onProgress,
-  }) async {
-    await _downloadService.downloadAndSave(
-      url: url,
-      fileName: fileName,
-      treeUri: treeUri,
-      onProgress: onProgress,
-      cancelToken: null,
-    );
   }
 
   @override
@@ -339,6 +212,20 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
       appBar: AppBar(
         title: const Text('Music Downloader'),
         actions: [
+          // Botón de historial
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DownloadHistoryScreen(),
+                ),
+              );
+            },
+            tooltip: 'Historial de descargas',
+          ),
+          // Botón de carpeta
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: GestureDetector(
@@ -404,45 +291,6 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                     padding: const EdgeInsets.all(16.0),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
-                        // Directory info + botón cambiar carpeta
-                        // Card(
-                        //   child: ListTile(
-                        //     leading: Icon(Icons.folder_shared, color: accentColor),
-                        //     title: Text(
-                        //       'Carpeta de Descargas',
-                        //       style: TextStyle(
-                        //         color: textColor,
-                        //         fontSize: 14,
-                        //         fontWeight: FontWeight.bold,
-                        //       ),
-                        //     ),
-                        //     subtitle: Text(
-                        //       _treeUri ?? _downloadDirectory ?? 'Cargando...',
-                        //       style: TextStyle(
-                        //         color: textColor.withOpacity(0.6),
-                        //         fontSize: 12,
-                        //       ),
-                        //       maxLines: 1,
-                        //       overflow: TextOverflow.ellipsis,
-                        //     ),
-                        //     trailing: TextButton.icon(
-                        //       onPressed: _pickFolder,
-                        //       icon: Icon(Icons.edit, color: accentColor),
-                        //       label: Text('Cambiar', style: TextStyle(color: accentColor)),
-                        //     ),
-                        //   ),
-                        // ),
-                        // const SizedBox(height: 16),
-
-                        // Search field
-                        // Text(
-                        //   'Buscar Música',
-                        //   style: TextStyle(
-                        //     color: textColor,
-                        //     fontSize: 16,
-                        //     fontWeight: FontWeight.bold,
-                        //   ),
-                        // ),
                         const SizedBox(height: 12),
                         Card(
                           child: Padding(
@@ -544,32 +392,44 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                               index,
                             ) {
                               final track = _searchResults[index];
-                              final isDownloading =
-                                  _isDownloading[track.url] ?? false;
-                              final progress =
-                                  _downloadProgress[track.url] ?? 0.0;
+                              final pinterestImage = _pinterestImages[track.url];
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: accentColor.withOpacity(
-                                      0.2,
-                                    ),
-                                    child: isDownloading
-                                        ? SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: CircularProgressIndicator(
-                                              value: progress,
-                                              strokeWidth: 3,
+                                  leading: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      width: 56,
+                                      height: 56,
+                                      color: accentColor.withOpacity(0.2),
+                                      child: pinterestImage != null
+                                          ? Image.network(
+                                              pinterestImage,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Icon(
+                                                Icons.music_note,
+                                                color: accentColor,
+                                              ),
+                                              loadingBuilder: (context, child, loadingProgress) {
+                                                if (loadingProgress == null) return child;
+                                                return Center(
+                                                  child: CircularProgressIndicator(
+                                                    value: loadingProgress.expectedTotalBytes != null
+                                                        ? loadingProgress.cumulativeBytesLoaded /
+                                                            loadingProgress.expectedTotalBytes!
+                                                        : null,
+                                                    strokeWidth: 2,
+                                                    color: accentColor,
+                                                  ),
+                                                );
+                                              },
+                                            )
+                                          : Icon(
+                                              Icons.music_note,
                                               color: accentColor,
                                             ),
-                                          )
-                                        : Icon(
-                                            Icons.music_note,
-                                            color: accentColor,
-                                          ),
+                                    ),
                                   ),
                                   title: Text(
                                     track.title,
@@ -584,25 +444,14 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                       color: textColor.withOpacity(0.6),
                                     ),
                                   ),
-                                  trailing: isDownloading
-                                      ? Text(
-                                          '${(progress * 100).toInt()}%',
-                                          style: TextStyle(
-                                            color: accentColor,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        )
-                                      : IconButton(
-                                          icon: Icon(
-                                            Icons.download,
-                                            color: accentColor,
-                                          ),
-                                          onPressed: () =>
-                                              _downloadTrack(track),
-                                        ),
-                                  onTap: isDownloading
-                                      ? null
-                                      : () => _downloadTrack(track),
+                                  trailing: IconButton(
+                                    icon: Icon(
+                                      Icons.download,
+                                      color: accentColor,
+                                    ),
+                                    onPressed: () => _downloadTrack(track),
+                                  ),
+                                  onTap: () => _downloadTrack(track),
                                 ),
                               );
                             }, childCount: _searchResults.length),

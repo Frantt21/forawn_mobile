@@ -225,6 +225,9 @@ class ApiConfig {
   // --- IMAGE GENERATION API ---
   static const String imageGenerationUrl = '$dorratzBaseUrl/v3/ai-image';
 
+  // --- PINTEREST IMAGE SEARCH API ---
+  static const String pinterestSearchUrl = '$dorratzBaseUrl/v2/pinterest';
+
   // --- TRANSLATION API ---
   static const String translationUrl = '$dorratzBaseUrl/v3/translate';
 
@@ -238,7 +241,7 @@ class ApiConfig {
   /// Construye URL de búsqueda de Spotify
   static String getSpotifySearchUrl(String query) {
     final encoded = Uri.encodeComponent(query);
-    return '$spotifySearchUrl?q=$encoded';
+    return '$spotifySearchUrl?query=$encoded';
   }
 
   /// Construye URL de descarga de Spotify
@@ -251,6 +254,12 @@ class ApiConfig {
   static String getImageGenerationUrl(String prompt, String ratio) {
     final encoded = Uri.encodeComponent(prompt);
     return '$imageGenerationUrl?prompt=$encoded&ratio=$ratio';
+  }
+
+  /// Construye URL de búsqueda de imágenes en Pinterest
+  static String getPinterestSearchUrl(String query) {
+    final encoded = Uri.encodeComponent(query);
+    return '$pinterestSearchUrl?q=$encoded';
   }
 
   /// Construye URL de traducción

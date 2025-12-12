@@ -495,9 +495,9 @@ class _HomeScreenState extends State<HomeScreen> {
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: AppBar(
               title: Text(
-                _selectedIndex == 2
-                    ? 'Ajustes'
-                    : (_selectedIndex == 3 ? 'ForaAI' : 'Forawn'),
+                _selectedIndex == 1
+                    ? 'ForaAI'
+                    : (_selectedIndex == 3 ? 'Ajustes' : 'Forawn'),
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w600,
@@ -509,7 +509,7 @@ class _HomeScreenState extends State<HomeScreen> {
               elevation: 0,
               scrolledUnderElevation: 0, // Evita cambio de color en Material 3
               surfaceTintColor: Colors.transparent, // Evita tinte morado
-              leading: _selectedIndex == 3
+              leading: _selectedIndex == 1
                   ? IconButton(
                       icon: const Icon(Icons.menu),
                       onPressed: () {
@@ -563,18 +563,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     physics: const BouncingScrollPhysics(),
                     children: [
                       _buildHomeContent(context),
+                      ForaaiScreen(key: _foraaiKey),
                       _buildPlaceholder(
                         'Notificaciones',
                         Icons.notifications_outlined,
                       ),
                       const SettingsScreen(),
-                      ForaaiScreen(key: _foraaiKey),
                     ],
                   ),
                 ),
               ),
             ), // Floating Navigation Bar
-            if (!_isKeyboardVisible && _selectedIndex != 3)
+            if (!_isKeyboardVisible && _selectedIndex != 1)
               Positioned(
                 left: 16,
                 right: 16,
@@ -610,13 +610,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             _buildNavItem(Icons.home, 0, accentColor),
+                            _buildNavItem(Icons.smart_toy, 1, accentColor),
                             _buildNavItem(
                               Icons.notifications_outlined,
-                              1,
+                              2,
                               accentColor,
                             ),
-                            _buildNavItem(Icons.settings, 2, accentColor),
-                            _buildNavItem(Icons.smart_toy, 3, accentColor),
+                            _buildNavItem(Icons.settings, 3, accentColor),
                           ],
                         ),
                       ),

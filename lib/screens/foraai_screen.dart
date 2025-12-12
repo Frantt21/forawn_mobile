@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import '../config/api_config.dart';
+import '../utils/safe_http_mixin.dart';
 
 /// Token para cancelar peticiones HTTP
 class CancelToken {
@@ -35,7 +36,7 @@ class ForaaiScreen extends StatefulWidget {
   State<ForaaiScreen> createState() => ForaaiScreenState();
 }
 
-class ForaaiScreenState extends State<ForaaiScreen> {
+class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
@@ -69,14 +70,21 @@ class ForaaiScreenState extends State<ForaaiScreen> {
 
   @override
   void dispose() {
+    // Cancelar todas las peticiones pendientes
     for (final token in _pendingRequests) {
       token.cancel();
     }
     _pendingRequests.clear();
+
+    // Cerrar cliente HTTP
     _httpClient?.close();
+
+    // Limpiar controladores
     _focusNode.dispose();
     _controller.dispose();
     _scrollController.dispose();
+
+    // SafeHttpMixin se encarga de limpiar sus recursos
     super.dispose();
   }
 
@@ -599,11 +607,11 @@ class ForaaiScreenState extends State<ForaaiScreen> {
 
       final hadImage = _selectedImage != null;
       if (_selectedImage != null) {
-        setState(() => _selectedImage = null);
+        safeSetState(() => _selectedImage = null);
       }
 
       if (mounted) {
-        setState(() {
+        safeSetState(() {
           session.messages.add(ChatMessage(role: 'ai', content: result));
           _isLoading = false;
         });
@@ -619,7 +627,7 @@ class ForaaiScreenState extends State<ForaaiScreen> {
         final isCancelled =
             e is TimeoutException && e.message == 'Request was cancelled';
 
-        setState(() {
+        safeSetState(() {
           session.messages.add(
             ChatMessage(
               role: 'ai',
