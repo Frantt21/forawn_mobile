@@ -531,6 +531,11 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
     final text = manualText ?? _controller.text.trim();
     if (text.isEmpty) return;
 
+    // Si no hay sesión, creamos una nueva automáticamente
+    if (_currentSession == null) {
+      _createNewSession();
+    }
+
     final session = _currentSession;
     if (session == null) return;
 
