@@ -95,6 +95,14 @@ class SpotifyService {
       '[SpotifyService] 🔄 Iniciando búsqueda de descarga para: $spotifyUrl',
     );
 
+    // Verificar si la canción requiere bypass de APIs de Spotify (ej. caché corrupto)
+    if (_shouldBypassSpotifyApis(trackName, artistName)) {
+      print(
+        '[SpotifyService] ⚠️ Track en lista de bypass: forzando fallback a YouTube/Foranly',
+      );
+      throw Exception('Track bypassing Spotify APIs (Cache issues)');
+    }
+
     // Intentar primero con la API de Dorratz
     try {
       print('[SpotifyService] Intentando Dorratz API...');
@@ -546,5 +554,24 @@ class SpotifyService {
     }
 
     return {'trackName': trackName, 'artistName': artistName};
+  }
+
+  /// Verifica si una canción debe saltarse las APIs de descarga directa de Spotify
+  /// y pasar directamente al fallback de YouTube (que usa Foranly).
+  /// Útil para canciones donde las APIs de Spotify devuelven audio incorrecto (caché corrupto).
+  bool _shouldBypassSpotifyApis(String? trackName, String? artistName) {
+    if (trackName == null || artistName == null) return false;
+
+    final t = trackName.toLowerCase();
+    final a = artistName.toLowerCase();
+
+    // Bad Bunny
+    if (a.contains('bad bunny')) {
+      // Casos específicos reportados
+      if (t.contains('un preview')) return true;
+      if (t.contains('kloufrens') || t.contains('close friends')) return true;
+    }
+
+    return false;
   }
 }

@@ -1,5 +1,6 @@
 // lib/screens/images_ia_screen.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +23,26 @@ class GeneratedImage {
     required this.ratio,
     required this.timestamp,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'prompt': prompt,
+      'imageUrl': imageUrl,
+      'ratio': ratio,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+
+  factory GeneratedImage.fromJson(Map<String, dynamic> json) {
+    return GeneratedImage(
+      prompt: json['prompt'] ?? '',
+      imageUrl: json['imageUrl'] ?? '',
+      ratio: json['ratio'] ?? '1:1',
+      timestamp: json['timestamp'] != null
+          ? DateTime.parse(json['timestamp'])
+          : DateTime.now(),
+    );
+  }
 }
 
 class ImagesIAScreen extends StatefulWidget {
@@ -37,15 +58,11 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
   final ImageService _imageService = ImageService();
 
   // Historial de chat
-  final List<GeneratedImage> _chatHistory = [];
+  List<GeneratedImage> _chatHistory = [];
 
   bool _isGenerating = false;
-  // Map para trackear qué imagen se está descargando (si quisiéramos múltiples descargas)
-  // Por ahora usaremos un estado simple global para la descarga activa o local al item si fuera widget complejo
   String? _downloadingUrl;
   double _downloadProgress = 0.0;
-
-  // Timer? _debounce; // Ya no necesitamos debounce si hay botón de enviar explícito
 
   // Ratios disponibles
   final List<String> _ratios = ['1:1', '9:16', '16:9', '9:19', '3:4'];
@@ -54,20 +71,83 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
   // SAF treeUri para esta screen
   String? _imagesTreeUri;
   static const _prefsKey = 'saf_tree_uri_images';
+  static const _historyKey = 'images_ia_history';
 
   @override
   void initState() {
     super.initState();
     _loadSavedTreeUri();
+    _loadHistory();
   }
 
   @override
   void dispose() {
-    // _debounce?.cancel();
     _promptController.dispose();
     _scrollController.dispose();
     _imageService.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? historyJson = prefs.getString(_historyKey);
+      if (historyJson != null) {
+        final List<dynamic> decoded = jsonDecode(historyJson);
+        setState(() {
+          _chatHistory = decoded
+              .map((e) => GeneratedImage.fromJson(e))
+              .toList();
+        });
+        // Scroll al final al cargar
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
+    } catch (e) {
+      print('[ImagesIA] Error loading history: $e');
+    }
+  }
+
+  Future<void> _saveHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String encoded = jsonEncode(
+        _chatHistory.map((e) => e.toJson()).toList(),
+      );
+      await prefs.setString(_historyKey, encoded);
+    } catch (e) {
+      print('[ImagesIA] Error saving history: $e');
+    }
+  }
+
+  Future<void> _clearHistory() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vaciar historial'),
+        content: const Text(
+          '¿Estás seguro de querer borrar todas las imágenes generadas?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Borrar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() {
+        _chatHistory.clear();
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_historyKey);
+    }
   }
 
   Future<void> _loadSavedTreeUri() async {
@@ -96,6 +176,16 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
     return await PermissionHelper.requestStoragePermission();
   }
 
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   Future<void> _generateImage() async {
     final prompt = _promptController.text.trim();
     if (prompt.isEmpty) {
@@ -113,6 +203,9 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
     setState(() {
       _isGenerating = true;
     });
+
+    // Scroll inmediatamente al final para ver el loader (aunque el loader se añade en chatHistory + 1)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
     final url = await _imageService.generateImage(
       prompt: prompt,
@@ -143,21 +236,13 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
       _promptController.clear();
     });
 
-    // Scroll al final después de agregar
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    _saveHistory(); // Guardar
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   Future<void> _downloadImage(String imageUrl) async {
-    if (_downloadingUrl != null)
-      return; // Evitar descargas paralelas por simplicidad
+    if (_downloadingUrl != null) return;
 
     final hasPerm = await _requestStoragePermission();
     if (!hasPerm) {
@@ -175,7 +260,6 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
     });
 
     try {
-      // 1) Descargar a temp
       final tempPath = await _imageService.downloadToTemp(imageUrl, (p) {
         safeSetState(() => _downloadProgress = p);
       });
@@ -186,7 +270,6 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
 
       final fileName = p.basename(tempPath);
 
-      // 2) Guardar usando SAF si hay treeUri
       if (_imagesTreeUri != null && _imagesTreeUri!.isNotEmpty) {
         final savedUri = await SafHelper.saveFileFromPath(
           treeUri: _imagesTreeUri!,
@@ -197,7 +280,6 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
           throw Exception('No se pudo guardar en la carpeta seleccionada');
         }
       } else {
-        // fallback: copiar a Download
         final downloadsDir = Directory('/storage/emulated/0/Download');
         if (!await downloadsDir.exists()) {
           try {
@@ -269,7 +351,6 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                   style: TextStyle(color: Colors.white),
                 ),
                 onTap: () {
-                  // Implementar copia al portapapeles si se desea
                   _promptController.text = item.prompt;
                   Navigator.pop(ctx);
                 },
@@ -283,9 +364,7 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     const accentColor = Colors.yellowAccent;
-    const cardBackgroundColor = Color(0xFF0F0F10);
     const bubbleColor = Color(0xFF1C1C1E);
 
     return Scaffold(
@@ -294,6 +373,11 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Borrar historial',
+            onPressed: _chatHistory.isEmpty ? null : _clearHistory,
+          ),
           IconButton(
             icon: Icon(
               Icons.folder_open,
@@ -318,13 +402,11 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
           ),
         ],
       ),
-      // Extend body to allow content behind transparent status/nav bars if needed
-      // but here we want input at bottom.
-      body: Column(
+      body: Stack(
         children: [
-          // Chat Area
-          Expanded(
-            child: _chatHistory.isEmpty
+          // Chat List
+          Positioned.fill(
+            child: _chatHistory.isEmpty && !_isGenerating
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -347,10 +429,8 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                   )
                 : ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 20,
-                    ),
+                    // Padding extra abajo para que el input flotante no tape el contenido
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
                     itemCount: _chatHistory.length + (_isGenerating ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == _chatHistory.length) {
@@ -380,12 +460,7 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                       return GestureDetector(
                         onLongPress: () => _showImageOptions(item),
                         child: Align(
-                          alignment: Alignment
-                              .centerRight, // O Left, dependiendo del estilo deseado
-                          // Vamos a usar estilo chat: Prompt (user) a la derecha, Imagen (bot) a la izquierda?
-                          // El usuario pidió "como si fuese un chat".
-                          // Típicamente: Prompt Usuario -> Derecha. Imagen AI -> Izquierda.
-                          // Vamos a hacerlo unificado en una burbuja por generación para simplificar la asociación.
+                          alignment: Alignment.centerRight,
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 24),
                             child: Column(
@@ -489,130 +564,122 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                   ),
           ),
 
-          // Input Area Flotante
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Color(0xFF0F0F10), // Fondo scuro para el input area
-              border: Border(top: BorderSide(color: Colors.white12)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black45,
-                  blurRadius: 10,
-                  offset: Offset(0, -4),
-                ),
-              ],
-            ),
+          // Input Flotante
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Text Field Area con Ratio Integrado
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1C1C1E),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.white10),
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                    padding: const EdgeInsets.only(
-                      left: 16,
-                      right: 8,
-                      top: 4,
-                      bottom: 4,
+                  ],
+                ),
+                padding: const EdgeInsets.only(
+                  left: 16,
+                  right: 8,
+                  top: 4,
+                  bottom: 4,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Campo de texto
+                    TextField(
+                      controller: _promptController,
+                      // Cuando envía desde teclado también debería generar
+                      onSubmitted: (_) =>
+                          _isGenerating ? null : _generateImage(),
+                      maxLines: null,
+                      minLines: 1,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: 'Describe tu imagen...',
+                        hintStyle: TextStyle(color: Colors.white38),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        isDense: true,
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+
+                    // Fila inferior: Ratio selector (Izquierda) + Send Button (Derecha)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Campo de texto
-                        TextField(
-                          controller: _promptController,
-                          // Cuando envía desde teclado también debería generar
-                          onSubmitted: (_) =>
-                              _isGenerating ? null : _generateImage(),
-                          maxLines: null,
-                          minLines: 1,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            hintText: 'Describe tu imagen...',
-                            hintStyle: TextStyle(color: Colors.white38),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 10),
-                            isDense: true,
+                        // Selector de Ratio integrado
+                        Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black26,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedRatio,
+                              dropdownColor: const Color(0xFF2C2C2E),
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down,
+                                size: 16,
+                                color: Colors.white60,
+                              ),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              onChanged: (val) {
+                                if (val != null)
+                                  setState(() => _selectedRatio = val);
+                              },
+                              items: _ratios.map((r) {
+                                return DropdownMenuItem(
+                                  value: r,
+                                  child: Text(r),
+                                );
+                              }).toList(),
+                            ),
                           ),
                         ),
 
-                        // Fila inferior: Ratio selector (Izquierda) + Send Button (Derecha)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // Selector de Ratio integrado
-                            Container(
-                              height: 32,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black26,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _selectedRatio,
-                                  dropdownColor: const Color(0xFF2C2C2E),
-                                  icon: const Icon(
-                                    Icons.keyboard_arrow_down,
-                                    size: 16,
-                                    color: Colors.white60,
+                        // Botón de enviar
+                        IconButton(
+                          onPressed: _isGenerating ? null : _generateImage,
+                          icon: _isGenerating
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: accentColor,
                                   ),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  onChanged: (val) {
-                                    if (val != null)
-                                      setState(() => _selectedRatio = val);
-                                  },
-                                  items: _ratios.map((r) {
-                                    return DropdownMenuItem(
-                                      value: r,
-                                      child: Text(r),
-                                    );
-                                  }).toList(),
+                                )
+                              : const Icon(
+                                  Icons.arrow_upward,
+                                  color: accentColor,
                                 ),
-                              ),
-                            ),
-
-                            // Botón de enviar
-                            IconButton(
-                              onPressed: _isGenerating ? null : _generateImage,
-                              icon: _isGenerating
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: accentColor,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.arrow_upward,
-                                      color: accentColor,
-                                    ),
-                              tooltip: 'Generar',
-                              style: IconButton.styleFrom(
-                                backgroundColor: _isGenerating
-                                    ? Colors.transparent
-                                    : Colors.white10,
-                                shape: const CircleBorder(),
-                              ),
-                            ),
-                          ],
+                          tooltip: 'Generar',
+                          style: IconButton.styleFrom(
+                            backgroundColor: _isGenerating
+                                ? Colors.transparent
+                                : Colors.white10,
+                            shape: const CircleBorder(),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

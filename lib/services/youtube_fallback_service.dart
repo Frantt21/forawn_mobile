@@ -64,30 +64,90 @@ class YoutubeFallbackService {
   Future<String?> _getDownloadUrlFromApi(String videoId) async {
     final videoUrl = 'https://www.youtube.com/watch?v=$videoId';
 
-    // OPCIÓN 1: Foranly API (custom - prioridad)
+    // OPCIÓN 1: Foranly API (Custom - Asíncrono)
     try {
-      print('[YoutubeFallback] [1/6] Intentando Foranly API...');
-      print('[YoutubeFallback] URL: http://api.foranly.space:24725/download');
+      print('[YoutubeFallback] [1/6] Intentando Foranly API (Async)...');
+      final startUrl =
+          'http://api.foranly.space:24725/download?url=$videoUrl&format=audio';
+      print('[YoutubeFallback] Iniciando Job: $startUrl');
 
-      final response = await http
-          .post(
-            Uri.parse('http://api.foranly.space:24725/download'),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({'url': videoUrl, 'format': 'mp3'}),
-          )
-          .timeout(const Duration(seconds: 30));
+      final startResp = await http
+          .get(Uri.parse(startUrl))
+          .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      print(
+        '[YoutubeFallback] Start Resp: ${startResp.statusCode} ${startResp.body}',
+      );
 
-        if (data['success'] == true && data['downloadUrl'] != null) {
-          print('[YoutubeFallback] ✓ Foranly API OK');
-          print('✅ [API SUCCESS] Usando API: Foranly API');
-          return data['downloadUrl'];
-        } else if (data['url'] != null) {
-          print('[YoutubeFallback] ✓ Foranly API OK (url field)');
-          print('✅ [API SUCCESS] Usando API: Foranly API (alt)');
-          return data['url'];
+      if (startResp.statusCode == 200) {
+        final startData = json.decode(startResp.body);
+        final jobId = startData['jobId'];
+
+        if (jobId != null) {
+          print('[YoutubeFallback] Job ID: $jobId. Esperando conversión...');
+
+          // Conectarse al SSE para esperar el estado 'ready'
+          final sseReq = http.Request(
+            'GET',
+            Uri.parse('http://api.foranly.space:24725/progress/$jobId'),
+          );
+
+          final sseResp = await sseReq.send();
+          final completer = Completer<String?>();
+          StreamSubscription? sub;
+
+          // Timeout de seguridad de 2 min para el proceso del backend
+          final timer = Timer(const Duration(minutes: 2), () {
+            sub?.cancel();
+            if (!completer.isCompleted) completer.complete(null);
+            print('[YoutubeFallback] Foranly Timeout esperando SSE');
+          });
+
+          sub = sseResp.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())
+              .listen(
+                (line) {
+                  if (line.startsWith('data: ')) {
+                    try {
+                      final jsonStr = line.substring(6);
+                      final d = json.decode(jsonStr);
+                      final status = d['status'];
+
+                      if (status == 'ready') {
+                        print('[YoutubeFallback] ✓ Foranly Job READY');
+                        sub?.cancel();
+                        timer.cancel();
+                        // Construir URL final
+                        final dlUrl =
+                            'http://api.foranly.space:24725/download-file/$jobId';
+                        if (!completer.isCompleted) completer.complete(dlUrl);
+                      } else if (status == 'error') {
+                        print(
+                          '[YoutubeFallback] Foranly Error: ${d['message']}',
+                        );
+                        sub?.cancel();
+                        timer.cancel();
+                        if (!completer.isCompleted) completer.complete(null);
+                      } else if (status == 'downloading') {
+                        // Opcional: Log de progreso del backend
+                        // print('[YoutubeFallback] Backend progress: ${d['progress']}%');
+                      }
+                    } catch (_) {}
+                  }
+                },
+                onError: (e) {
+                  print('[YoutubeFallback] SSE Error: $e');
+                  if (!completer.isCompleted) completer.complete(null);
+                },
+              );
+
+          final downloadUrl = await completer.future;
+          if (downloadUrl != null) {
+            print('[YoutubeFallback] ✓ Foranly Flow Completo');
+            print('✅ [API SUCCESS] Usando API: Foranly API (Async)');
+            return downloadUrl;
+          }
         }
       }
     } catch (e) {
