@@ -478,6 +478,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // Widget bodyContent no longer used with PageView
     // switch replaced by PageView logic
 
+    // Detectar si el teclado está visible
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    _isKeyboardVisible = keyboardHeight > 0;
+
     final theme = Theme.of(context);
     final accentColor = theme.colorScheme.primary;
 
@@ -564,61 +568,62 @@ class _HomeScreenState extends State<HomeScreen> {
                         Icons.notifications_outlined,
                       ),
                       const SettingsScreen(),
-                      const ForaaiScreen(),
+                      ForaaiScreen(key: _foraaiKey),
                     ],
                   ),
                 ),
               ),
             ), // Floating Navigation Bar
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 16,
-              child: SafeArea(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      height: 70,
-                      decoration: BoxDecoration(
-                        color: const Color.fromARGB(
-                          255,
-                          45,
-                          45,
-                          45,
-                        ).withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
-                          width: 1,
+            if (!_isKeyboardVisible)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 16,
+                child: SafeArea(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        height: 70,
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(
+                            255,
+                            45,
+                            45,
+                            45,
+                          ).withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildNavItem(Icons.home, 0, accentColor),
-                          _buildNavItem(
-                            Icons.notifications_outlined,
-                            1,
-                            accentColor,
-                          ),
-                          _buildNavItem(Icons.settings, 2, accentColor),
-                          _buildNavItem(Icons.download, 3, accentColor),
-                        ],
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildNavItem(Icons.home, 0, accentColor),
+                            _buildNavItem(
+                              Icons.notifications_outlined,
+                              1,
+                              accentColor,
+                            ),
+                            _buildNavItem(Icons.settings, 2, accentColor),
+                            _buildNavItem(Icons.smart_toy, 3, accentColor),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
