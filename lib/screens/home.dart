@@ -5,7 +5,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'downloads_screen.dart';
+import 'foraai_screen.dart';
 import 'settings_screen.dart';
 
 /// Servicio persistente para pantallas recientes
@@ -162,8 +162,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final RecentScreensService _recentScreensService = RecentScreensService();
+  final GlobalKey<_ForaaiScreenState> _foraaiKey =
+      GlobalKey<_ForaaiScreenState>();
   int _selectedIndex = 0;
   bool _isScrolled = false;
+  bool _isKeyboardVisible = false;
   late PageController _pageController;
 
   @override
@@ -490,7 +493,7 @@ class _HomeScreenState extends State<HomeScreen> {
               title: Text(
                 _selectedIndex == 2
                     ? 'Ajustes'
-                    : (_selectedIndex == 3 ? 'Descargas' : 'Forawn'),
+                    : (_selectedIndex == 3 ? 'ForaAI' : 'Forawn'),
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w600,
@@ -502,6 +505,14 @@ class _HomeScreenState extends State<HomeScreen> {
               elevation: 0,
               scrolledUnderElevation: 0, // Evita cambio de color en Material 3
               surfaceTintColor: Colors.transparent, // Evita tinte morado
+              leading: _selectedIndex == 3
+                  ? IconButton(
+                      icon: const Icon(Icons.menu),
+                      onPressed: () {
+                        _foraaiKey.currentState?.toggleSidebar();
+                      },
+                    )
+                  : null,
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh),
@@ -553,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Icons.notifications_outlined,
                       ),
                       const SettingsScreen(),
-                      const DownloadsScreen(),
+                      const ForaaiScreen(),
                     ],
                   ),
                 ),
