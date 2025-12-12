@@ -158,6 +158,18 @@ class DownloadService {
     } catch (e) {
       print('[DownloadService] Error al descargar desde API: $e');
 
+      // Si fue cancelado por el usuario, NO usar fallback y propagar el error
+      if (e is DioException && CancelToken.isCancel(e)) {
+        print('Error: Descarga cancelada por el usuario');
+        rethrow;
+      }
+
+      // También verificar si es un DioException de tipo cancel (redundante pero seguro)
+      if (e is DioException && e.type == DioExceptionType.cancel) {
+        print('Error: Descarga cancelada por el usuario (DioException)');
+        rethrow;
+      }
+
       // 3) Si falla y el fallback está habilitado, intenta YouTube
       if (enableYoutubeFallback) {
         // Validar que tengamos al menos el título de la canción

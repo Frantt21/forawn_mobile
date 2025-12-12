@@ -204,10 +204,34 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                       horizontal: 16,
                       vertical: 8,
                     ),
-                    leading: CircleAvatar(
-                      backgroundColor: color.withOpacity(0.2),
-                      child: Icon(icon, color: color, size: 20),
-                    ),
+                    leading: notification.imageUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              notification.imageUrl!,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(icon, color: color, size: 24),
+                              ),
+                            ),
+                          )
+                        : Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(icon, color: color, size: 24),
+                          ),
                     title: Text(
                       notification.title,
                       style: TextStyle(

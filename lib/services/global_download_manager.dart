@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import 'package:dio/dio.dart';
 import '../models/download_history_item.dart';
 import '../models/spotify_track.dart';
 import 'download_service.dart';
@@ -44,6 +45,9 @@ class GlobalDownloadManager {
   final Map<String, ActiveDownload> _activeDownloads = {};
   final StreamController<Map<String, ActiveDownload>> _downloadsController =
       StreamController<Map<String, ActiveDownload>>.broadcast();
+
+  // Map para trackear los CancelTokens activos y poder cancelarlos
+  final Map<String, CancelToken> _activeCancelTokens = {};
 
   final SpotifyService _spotifyService = SpotifyService();
   final DownloadService _downloadService = DownloadService();
@@ -166,6 +170,16 @@ class GlobalDownloadManager {
           artistName: artistName,
         );
 
+        // ⚠️ VERIFICAR CANCELACIÓN INMEDIATAMENTE DESPUÉS DE OBTENER URL
+        if (_activeDownloads[downloadId]?.isCancelled == true) {
+          print(
+            '[GlobalDownloadManager] Descarga cancelada después de obtener URL: $downloadId',
+          );
+          _activeDownloads.remove(downloadId);
+          _notificationsPlugin.cancel(downloadId.hashCode);
+          return;
+        }
+
         if (downloadInfo.downloadUrl.isNotEmpty) {
           downloadUrl = downloadInfo.downloadUrl;
           if (downloadInfo.name.isNotEmpty) trackName = downloadInfo.name;
@@ -174,6 +188,16 @@ class GlobalDownloadManager {
         }
       } catch (e) {
         print('[GlobalDownloadManager] API failed: $e');
+
+        // Verificar si fue cancelada durante el error
+        if (_activeDownloads[downloadId]?.isCancelled == true) {
+          print(
+            '[GlobalDownloadManager] Descarga cancelada durante error de API: $downloadId',
+          );
+          _activeDownloads.remove(downloadId);
+          _notificationsPlugin.cancel(downloadId.hashCode);
+          return;
+        }
       }
 
       // Crear nombre de archivo
@@ -181,6 +205,21 @@ class GlobalDownloadManager {
           ? '$trackName - $artistName.mp3'
           : '$trackName.mp3';
       final cleanFileName = fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+
+      // Verificar si fue cancelada antes de iniciar la descarga
+      if (_activeDownloads[downloadId]?.isCancelled == true) {
+        print(
+          '[GlobalDownloadManager] Descarga cancelada antes de iniciar: $downloadId',
+        );
+        _activeCancelTokens.remove(downloadId);
+        _activeDownloads.remove(downloadId);
+        _notifyListeners();
+        return;
+      }
+
+      // Crear CancelToken para esta descarga
+      final cancelToken = CancelToken();
+      _activeCancelTokens[downloadId] = cancelToken;
 
       // Descargar archivo
       await _downloadService.downloadAndSave(
@@ -201,11 +240,25 @@ class GlobalDownloadManager {
             );
           }
         },
-        cancelToken: null,
+        cancelToken: cancelToken,
         trackTitle: trackName,
         artistName: artistName,
         enableYoutubeFallback: true,
       );
+
+      // Limpiar el CancelToken después de completar
+      _activeCancelTokens.remove(downloadId);
+
+      // Verificar una última vez si fue cancelada (por si acaso)
+      if (_activeDownloads[downloadId]?.isCancelled == true) {
+        print(
+          '[GlobalDownloadManager] Descarga completada pero estaba cancelada, limpiando: $downloadId',
+        );
+        _activeCancelTokens.remove(downloadId);
+        _activeDownloads.remove(downloadId);
+        _notifyListeners();
+        return;
+      }
 
       // Marcar como completada
       if (_activeDownloads.containsKey(downloadId)) {
@@ -237,6 +290,7 @@ class GlobalDownloadManager {
             message: track.title,
             timestamp: DateTime.now(),
             type: NotificationType.success,
+            imageUrl: pinterestImageUrl,
           ),
         );
 
@@ -247,7 +301,22 @@ class GlobalDownloadManager {
         });
       }
     } catch (e) {
+      // Ignorar si es error de cancelación (ya se manejó o no es error real)
+      if (e is DioException && CancelToken.isCancel(e)) {
+        print(
+          '[GlobalDownloadManager] Cancelación capturada en catch: $downloadId',
+        );
+        _activeCancelTokens.remove(downloadId);
+        _activeDownloads.remove(downloadId);
+        _notifyListeners();
+        _notificationsPlugin.cancel(downloadId.hashCode);
+        return;
+      }
+
       print('[GlobalDownloadManager] Download error: $e');
+
+      // Limpiar el CancelToken en caso de error
+      _activeCancelTokens.remove(downloadId);
 
       if (_activeDownloads.containsKey(downloadId)) {
         _activeDownloads[downloadId]!.error = e.toString();
@@ -264,6 +333,7 @@ class GlobalDownloadManager {
             message: track.title,
             timestamp: DateTime.now(),
             type: NotificationType.error,
+            imageUrl: pinterestImageUrl,
           ),
         );
 
@@ -280,11 +350,32 @@ class GlobalDownloadManager {
   void cancelDownload(String downloadId) {
     if (_activeDownloads.containsKey(downloadId)) {
       _activeDownloads[downloadId]!.isCancelled = true;
-      _activeDownloads.remove(downloadId);
       _notifyListeners();
+
+      // Cancelar el CancelToken para detener la descarga en curso
+      if (_activeCancelTokens.containsKey(downloadId)) {
+        try {
+          _activeCancelTokens[downloadId]?.cancel(
+            'Descarga cancelada por el usuario',
+          );
+          _activeCancelTokens.remove(downloadId);
+          print(
+            '[GlobalDownloadManager] CancelToken cancelado para $downloadId',
+          );
+        } catch (e) {
+          print('[GlobalDownloadManager] Error cancelando CancelToken: $e');
+        }
+      }
+
+      // NO remover de _activeDownloads aquí - dejar que downloadTrack() lo detecte y limpie
+      // _activeDownloads.remove(downloadId); ← REMOVIDO
 
       // Cancelar notificación
       _notificationsPlugin.cancel(downloadId.hashCode);
+
+      print(
+        '[GlobalDownloadManager] Descarga marcada como cancelada: $downloadId',
+      );
     }
   }
 

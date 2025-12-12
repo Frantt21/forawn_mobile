@@ -131,15 +131,158 @@ class SpotifyService {
       throw Exception('Dorratz API falló con status: ${response.statusCode}');
     } catch (e) {
       print('[SpotifyService] Dorratz falló: $e');
-      print('[SpotifyService] Intentando RapidAPI como fallback...');
+      print('[SpotifyService] Intentando FabDL como fallback secundario...');
 
-      // Fallback: usar RapidAPI Spotify Downloader
-      return await _getDownloadUrlFromRapidApi(
-        spotifyUrl,
-        trackName: trackName,
-        artistName: artistName,
-        imageUrl: imageUrl,
+      // Fallback 2: intentar FabDL
+      try {
+        return await _getDownloadUrlFromFabDL(
+          spotifyUrl,
+          trackName: trackName,
+          artistName: artistName,
+          imageUrl: imageUrl,
+        );
+      } catch (fabdlError) {
+        print('[SpotifyService] FabDL falló: $fabdlError');
+        print('[SpotifyService] Intentando RapidAPI como último fallback...');
+
+        // Fallback 3: usar RapidAPI
+        return await _getDownloadUrlFromRapidApi(
+          spotifyUrl,
+          trackName: trackName,
+          artistName: artistName,
+          imageUrl: imageUrl,
+        );
+      }
+    }
+  }
+
+  /// Obtener URL de descarga usando FabDL API
+  Future<DownloadInfo> _getDownloadUrlFromFabDL(
+    String spotifyUrl, {
+    String? trackName,
+    String? artistName,
+    String? imageUrl,
+  }) async {
+    try {
+      print('[SpotifyService] Llamando FabDL API...');
+
+      // Primera llamada: obtener metadata
+      final encodedUrl = Uri.encodeComponent(spotifyUrl);
+      final metadataUrl = Uri.parse(
+        'https://api.fabdl.com/spotify/get?url=$encodedUrl',
       );
+
+      final metadataResponse = await http
+          .get(
+            metadataUrl,
+            headers: {'accept': 'application/json, text/plain, */*'},
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print(
+        '[SpotifyService] FabDL metadata status=${metadataResponse.statusCode}',
+      );
+
+      if (metadataResponse.statusCode != 200) {
+        throw Exception('FabDL metadata error: ${metadataResponse.statusCode}');
+      }
+
+      final metadataJson = json.decode(metadataResponse.body);
+
+      // Log completo del metadata response
+      print(
+        '[SpotifyService] FabDL metadata response: ${metadataResponse.body}',
+      );
+
+      if (metadataJson['result'] == null) {
+        throw Exception('FabDL no devolvió result');
+      }
+
+      final result = metadataJson['result'];
+      final gid = result['gid'];
+      final id = result['id'];
+
+      if (gid == null || id == null) {
+        throw Exception('FabDL no devolvió gid o id');
+      }
+
+      print('[SpotifyService] FabDL gid=$gid, id=$id');
+
+      // Segunda llamada: obtener URL de descarga
+      final downloadUrl = Uri.parse(
+        'https://api.fabdl.com/spotify/mp3-convert-task/$gid/$id',
+      );
+
+      final downloadResponse = await http
+          .get(
+            downloadUrl,
+            headers: {'accept': 'application/json, text/plain, */*'},
+          )
+          .timeout(const Duration(seconds: 20));
+
+      print(
+        '[SpotifyService] FabDL download status=${downloadResponse.statusCode}',
+      );
+
+      if (downloadResponse.statusCode != 200) {
+        throw Exception('FabDL download error: ${downloadResponse.statusCode}');
+      }
+
+      final downloadJson = json.decode(downloadResponse.body);
+
+      print(
+        '[SpotifyService] FabDL download response: ${downloadResponse.body}',
+      );
+
+      if (downloadJson['result'] == null) {
+        throw Exception('FabDL no devolvió result en download response');
+      }
+
+      final downloadResult = downloadJson['result'];
+
+      // Verificar el estado de la conversión
+      final status = downloadResult['status'];
+      if (status != null && (status == -2 || status == -3)) {
+        throw Exception(
+          'FabDL conversión falló (status: $status, track no disponible)',
+        );
+      }
+
+      // FabDL devuelve un 'tid' (task ID) en lugar de download_url directamente
+      final tid = downloadResult['tid'];
+
+      if (tid == null || tid.toString().isEmpty) {
+        throw Exception('FabDL no devolvió tid (task ID)');
+      }
+
+      // Construir la URL de descarga usando el tid
+      final finalDownloadUrl =
+          'https://api.fabdl.com/spotify/download-mp3/$tid';
+
+      print('[SpotifyService] FabDL tid=$tid');
+      print(
+        '[SpotifyService] FabDL download URL construida: $finalDownloadUrl',
+      );
+
+      // Construir DownloadInfo
+      final downloadInfo = DownloadInfo(
+        name: result['name'] ?? trackName ?? 'Unknown Track',
+        artists: result['artists'] ?? artistName ?? 'Unknown Artist',
+        imageUrl: result['image'] ?? imageUrl ?? '',
+        downloadUrl: finalDownloadUrl,
+        durationMs: result['duration_ms'] ?? 0,
+      );
+
+      print('[SpotifyService] ✓ FabDL API exitosa');
+      print('✅ [API SUCCESS] Usando API: FabDL (Spotify Direct)');
+      print('[SpotifyService]   Track: ${downloadInfo.name}');
+      print('[SpotifyService]   Artist: ${downloadInfo.artists}');
+      print('[SpotifyService]   Duration: ${downloadInfo.durationMs}ms');
+
+      return downloadInfo;
+    } catch (e) {
+      print('[SpotifyService] FabDL falló completamente: $e');
+      rethrow;
     }
   }
 

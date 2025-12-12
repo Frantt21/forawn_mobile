@@ -223,13 +223,20 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
                     itemBuilder: (context, index) {
                       final item = _filteredHistory[index];
                       return Card(
-                        color: const Color(0xFF0F0F10),
+                        color: const Color.fromARGB(255, 45, 45, 45),
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
                         ),
                         child: ListTile(
-                          contentPadding: const EdgeInsets.all(12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: item.imageUrl != null

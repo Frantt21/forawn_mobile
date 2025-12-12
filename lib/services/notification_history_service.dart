@@ -8,6 +8,7 @@ class DownloadNotification {
   final String message;
   final DateTime timestamp;
   final NotificationType type;
+  final String? imageUrl; // URL de la imagen de la canción
 
   DownloadNotification({
     required this.id,
@@ -15,6 +16,7 @@ class DownloadNotification {
     required this.message,
     required this.timestamp,
     required this.type,
+    this.imageUrl,
   });
 
   Map<String, dynamic> toJson() {
@@ -24,6 +26,7 @@ class DownloadNotification {
       'message': message,
       'timestamp': timestamp.toIso8601String(),
       'type': type.index,
+      'imageUrl': imageUrl,
     };
   }
 
@@ -34,6 +37,7 @@ class DownloadNotification {
       message: json['message'] ?? '',
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
       type: NotificationType.values[json['type'] ?? 0],
+      imageUrl: json['imageUrl'],
     );
   }
 }
