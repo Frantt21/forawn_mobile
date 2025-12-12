@@ -7,6 +7,7 @@ import 'screens/translate_screen.dart';
 import 'screens/qr_generator_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'services/global_download_manager.dart';
+import 'services/version_check_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,30 @@ void main() async {
   await GlobalDownloadManager().initialize();
   await GlobalDownloadManager().requestNotificationPermissions();
 
+  // Verificar actualizaciones en segundo plano (sin bloquear el inicio)
+  _checkForUpdatesInBackground();
+
   runApp(const ForawnApp());
+}
+
+/// Verificar actualizaciones en segundo plano
+void _checkForUpdatesInBackground() async {
+  try {
+    // Esperar un poco para no afectar el tiempo de inicio
+    await Future.delayed(const Duration(seconds: 3));
+
+    final result = await VersionCheckService.checkForUpdate();
+
+    if (result.hasUpdate) {
+      print('[Main] Nueva versión disponible: ${result.latestVersion}');
+      // Aquí podrías mostrar una notificación o diálogo
+      // Por ahora solo lo registramos en consola
+    } else {
+      print('[Main] App actualizada a la última versión');
+    }
+  } catch (e) {
+    print('[Main] Error verificando actualizaciones: $e');
+  }
 }
 
 /// Colores centralizados de la aplicación

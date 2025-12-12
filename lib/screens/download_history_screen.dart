@@ -142,26 +142,50 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
           // Barra de búsqueda
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _filterHistory,
-              decoration: InputDecoration(
-                hintText: 'Buscar en historial...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _filterHistory('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: Card(
+              color: const Color(0xFF0F0F10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Buscar en historial',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: _filterHistory,
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      cursorColor: Colors.purpleAccent,
+                      decoration: InputDecoration(
+                        hintText: 'Nombre de canción o artista...',
+                        hintStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                        border: InputBorder.none,
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 20),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _filterHistory('');
+                                },
+                                color: Colors.white.withOpacity(0.5),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ],
                 ),
-                filled: true,
-                fillColor: const Color(0xFF0F0F10),
               ),
             ),
           ),

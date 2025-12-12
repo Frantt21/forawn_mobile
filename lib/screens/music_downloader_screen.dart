@@ -26,7 +26,8 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
   String? _treeUri;
   List<SpotifyTrack> _searchResults = [];
   bool _isSearching = false;
-  final Map<String, String?> _pinterestImages = {}; // Cache de imágenes de Pinterest
+  final Map<String, String?> _pinterestImages =
+      {}; // Cache de imágenes de Pinterest
 
   @override
   void initState() {
@@ -103,7 +104,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
 
     try {
       final results = await _spotifyService.searchSongs(query);
-      
+
       // Mostrar resultados INMEDIATAMENTE
       setState(() {
         _searchResults = results;
@@ -119,7 +120,6 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
 
       // Cargar imágenes de Pinterest de forma ASÍNCRONA (en segundo plano)
       _loadPinterestImages(results);
-      
     } catch (e, st) {
       print('[MusicDownloaderScreen] _searchSongs error: $e');
       print(st);
@@ -147,10 +147,10 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
       try {
         // Construir query: "artista canción portada"
         final searchQuery = '${track.artists} ${track.title} portada';
-        
+
         // Buscar imagen en Pinterest
         final imageUrl = await PinterestService.getFirstImage(searchQuery);
-        
+
         // Actualizar UI con la imagen encontrada
         if (mounted && imageUrl != null) {
           setState(() {
@@ -158,7 +158,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
           });
         }
       } catch (e) {
-        print('[MusicDownloaderScreen] Error loading Pinterest image for ${track.title}: $e');
+        print(
+          '[MusicDownloaderScreen] Error loading Pinterest image for ${track.title}: $e',
+        );
         // Continuar con la siguiente canción si falla
       }
     }
@@ -175,22 +177,14 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Descarga iniciada: ${track.title}'),
-            action: SnackBarAction(
-              label: 'Ver',
-              onPressed: () {
-                // TODO: Navegar a pantalla de descargas activas
-              },
-            ),
-          ),
+          SnackBar(content: Text('Descarga iniciada: ${track.title}')),
         );
       }
 
       print('[MusicDownloaderScreen] Download added with ID: $downloadId');
     } catch (e) {
       print('[MusicDownloaderScreen] Error adding download: $e');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -293,24 +287,43 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                       delegate: SliverChildListDelegate([
                         const SizedBox(height: 12),
                         Card(
+                          color: const Color(0xFF0F0F10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            child: TextField(
-                              controller: _searchController,
-                              style: TextStyle(color: textColor),
-                              decoration: InputDecoration(
-                                hintText: 'Nombre de la canción o artista...',
-                                hintStyle: TextStyle(
-                                  color: textColor.withOpacity(0.4),
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Buscar música',
+                                  style: TextStyle(
+                                    color: textColor.withOpacity(0.5),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                                border: InputBorder.none,
-                                icon: Icon(Icons.search, color: accentColor),
-                              ),
-                              onSubmitted: (_) => _searchSongs(),
-                              textInputAction: TextInputAction.search,
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _searchController,
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 16,
+                                  ),
+                                  cursorColor: accentColor,
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        'Nombre de la canción o artista...',
+                                    hintStyle: TextStyle(
+                                      color: textColor.withOpacity(0.3),
+                                    ),
+                                    border: InputBorder.none,
+                                  ),
+                                  onSubmitted: (_) => _searchSongs(),
+                                  textInputAction: TextInputAction.search,
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -335,8 +348,159 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
+                      ]),
+                    ),
+                  ),
 
-                        // Results header
+                  // Descargas activas
+                  StreamBuilder<Map<String, dynamic>>(
+                    stream: _downloadManager.downloadsStream,
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const SliverToBoxAdapter(
+                          child: SizedBox.shrink(),
+                        );
+                      }
+
+                      final activeDownloads = snapshot.data!.values.toList();
+
+                      return SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            Text(
+                              'Descargas activas (${activeDownloads.length})',
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ...activeDownloads.map((download) {
+                              final track = download.track;
+                              final progress = download.progress;
+                              final isCompleted = download.isCompleted;
+                              final hasError = download.error != null;
+
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: ListTile(
+                                  leading: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      width: 56,
+                                      height: 56,
+                                      color: accentColor.withOpacity(0.2),
+                                      child: download.pinterestImageUrl != null
+                                          ? Image.network(
+                                              download.pinterestImageUrl!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  Icon(
+                                                    Icons.music_note,
+                                                    color: accentColor,
+                                                  ),
+                                            )
+                                          : Icon(
+                                              Icons.music_note,
+                                              color: accentColor,
+                                            ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    track.title,
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        track.artists,
+                                        style: TextStyle(
+                                          color: textColor.withOpacity(0.6),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      if (!isCompleted && !hasError)
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${(progress * 100).toInt()}%',
+                                              style: TextStyle(
+                                                color: accentColor,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            LinearProgressIndicator(
+                                              value: progress,
+                                              backgroundColor: textColor
+                                                  .withOpacity(0.1),
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    accentColor,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      if (isCompleted)
+                                        Text(
+                                          'Completado',
+                                          style: TextStyle(
+                                            color: Colors.green,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      if (hasError)
+                                        Text(
+                                          'Error: ${download.error}',
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
+                                  ),
+                                  trailing: !isCompleted && !hasError
+                                      ? IconButton(
+                                          icon: const Icon(Icons.close),
+                                          onPressed: () {
+                                            _downloadManager.cancelDownload(
+                                              download.id,
+                                            );
+                                          },
+                                        )
+                                      : null,
+                                ),
+                              );
+                            }).toList(),
+                            const SizedBox(height: 12),
+                          ]),
+                        ),
+                      );
+                    },
+                  ),
+
+                  // Results header
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
                         Text(
                           _searchResults.isEmpty
                               ? 'Resultados'
@@ -347,12 +511,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 12),
                       ]),
                     ),
                   ),
-
-                  // Results area usando SliverList
                   _isSearching
                       ? SliverFillRemaining(
                           hasScrollBody: false,
@@ -392,7 +553,8 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                               index,
                             ) {
                               final track = _searchResults[index];
-                              final pinterestImage = _pinterestImages[track.url];
+                              final pinterestImage =
+                                  _pinterestImages[track.url];
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -407,17 +569,24 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                           ? Image.network(
                                               pinterestImage,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Icon(
-                                                Icons.music_note,
-                                                color: accentColor,
-                                              ),
+                                              errorBuilder: (_, __, ___) =>
+                                                  Icon(
+                                                    Icons.music_note,
+                                                    color: accentColor,
+                                                  ),
                                               loadingBuilder: (context, child, loadingProgress) {
-                                                if (loadingProgress == null) return child;
+                                                if (loadingProgress == null)
+                                                  return child;
                                                 return Center(
                                                   child: CircularProgressIndicator(
-                                                    value: loadingProgress.expectedTotalBytes != null
-                                                        ? loadingProgress.cumulativeBytesLoaded /
-                                                            loadingProgress.expectedTotalBytes!
+                                                    value:
+                                                        loadingProgress
+                                                                .expectedTotalBytes !=
+                                                            null
+                                                        ? loadingProgress
+                                                                  .cumulativeBytesLoaded /
+                                                              loadingProgress
+                                                                  .expectedTotalBytes!
                                                         : null,
                                                     strokeWidth: 2,
                                                     color: accentColor,

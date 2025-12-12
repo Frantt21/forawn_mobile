@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'foraai_screen.dart';
 import 'settings_screen.dart';
+import 'notifications_screen.dart';
 
 /// Servicio persistente para pantallas recientes
 class RecentScreensService {
@@ -164,6 +165,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final RecentScreensService _recentScreensService = RecentScreensService();
   final GlobalKey<ForaaiScreenState> _foraaiKey =
       GlobalKey<ForaaiScreenState>();
+  final GlobalKey<NotificationsScreenState> _notificationsKey =
+      GlobalKey<NotificationsScreenState>();
   int _selectedIndex = 0;
   bool _isScrolled = false;
   bool _isKeyboardVisible = false;
@@ -497,7 +500,9 @@ class _HomeScreenState extends State<HomeScreen> {
               title: Text(
                 _selectedIndex == 1
                     ? 'ForaAI'
-                    : (_selectedIndex == 3 ? 'Ajustes' : 'Forawn'),
+                    : (_selectedIndex == 2
+                          ? 'Notificaciones'
+                          : (_selectedIndex == 3 ? 'Ajustes' : 'Forawn')),
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w600,
@@ -518,6 +523,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     )
                   : null,
               actions: [
+                // Botón de limpiar notificaciones (solo en pantalla de notificaciones)
+                if (_selectedIndex == 2 &&
+                    _notificationsKey.currentState?.hasNotifications == true)
+                  IconButton(
+                    icon: const Icon(Icons.delete_sweep),
+                    tooltip: 'Limpiar todo',
+                    onPressed: () {
+                      _notificationsKey.currentState?.clearAllFromAppBar();
+                    },
+                  ),
+                // Botón de refrescar
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () {
@@ -564,10 +580,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       _buildHomeContent(context),
                       ForaaiScreen(key: _foraaiKey),
-                      _buildPlaceholder(
-                        'Notificaciones',
-                        Icons.notifications_outlined,
-                      ),
+                      NotificationsScreen(key: _notificationsKey),
                       const SettingsScreen(),
                     ],
                   ),

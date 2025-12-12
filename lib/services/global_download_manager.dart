@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/download_history_item.dart';
 import '../models/spotify_track.dart';
 import 'download_service.dart';
 import 'spotify_service.dart';
 import 'download_history_service.dart';
+import 'notification_history_service.dart';
 
 /// Modelo para una descarga en progreso
 class ActiveDownload {
@@ -85,6 +87,19 @@ class GlobalDownloadManager {
       }
     }
     return true;
+  }
+
+  /// Verificar si las notificaciones están habilitadas en configuración
+  Future<bool> _areNotificationsEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('notifications_enabled') ?? false;
+    } catch (e) {
+      print(
+        '[GlobalDownloadManager] Error checking notification preference: $e',
+      );
+      return false; // Por defecto desactivadas si hay error
+    }
   }
 
   /// Agregar una descarga a la cola
@@ -214,6 +229,17 @@ class GlobalDownloadManager {
         // Mostrar notificación de completado
         await _showCompletedNotification(downloadId, track.title);
 
+        // Guardar en historial de notificaciones
+        await NotificationHistoryService.addNotification(
+          DownloadNotification(
+            id: downloadId,
+            title: 'Descarga completada',
+            message: track.title,
+            timestamp: DateTime.now(),
+            type: NotificationType.success,
+          ),
+        );
+
         // Remover de activas después de 3 segundos
         Future.delayed(const Duration(seconds: 3), () {
           _activeDownloads.remove(downloadId);
@@ -229,6 +255,17 @@ class GlobalDownloadManager {
 
         // Mostrar notificación de error
         await _showErrorNotification(downloadId, track.title, e.toString());
+
+        // Guardar en historial de notificaciones
+        await NotificationHistoryService.addNotification(
+          DownloadNotification(
+            id: downloadId,
+            title: 'Error en descarga',
+            message: track.title,
+            timestamp: DateTime.now(),
+            type: NotificationType.error,
+          ),
+        );
 
         // Remover de activas después de 5 segundos
         Future.delayed(const Duration(seconds: 5), () {
@@ -258,6 +295,9 @@ class GlobalDownloadManager {
     String message,
     int progress,
   ) async {
+    // Verificar si las notificaciones están habilitadas
+    if (!await _areNotificationsEnabled()) return;
+
     final androidDetails = AndroidNotificationDetails(
       'downloads',
       'Descargas',
@@ -286,6 +326,9 @@ class GlobalDownloadManager {
     String downloadId,
     String title,
   ) async {
+    // Verificar si las notificaciones están habilitadas
+    if (!await _areNotificationsEnabled()) return;
+
     final androidDetails = AndroidNotificationDetails(
       'downloads_completed',
       'Descargas Completadas',
@@ -300,7 +343,7 @@ class GlobalDownloadManager {
 
     await _notificationsPlugin.show(
       downloadId.hashCode,
-      '✓ Descarga completada',
+      'Descarga completada',
       title,
       notificationDetails,
     );
@@ -312,6 +355,9 @@ class GlobalDownloadManager {
     String title,
     String error,
   ) async {
+    // Verificar si las notificaciones están habilitadas
+    if (!await _areNotificationsEnabled()) return;
+
     final androidDetails = AndroidNotificationDetails(
       'downloads_error',
       'Errores de Descarga',
@@ -326,7 +372,7 @@ class GlobalDownloadManager {
 
     await _notificationsPlugin.show(
       downloadId.hashCode,
-      '✗ Error en descarga',
+      'Error en descarga',
       title,
       notificationDetails,
     );

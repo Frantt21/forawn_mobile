@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import '../services/version_check_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,7 +13,129 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = false;
-  String _version = '1.0.0';
+  String _version = 'Cargando...';
+  static const String _notificationsKey = 'notifications_enabled';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationPreference();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      setState(() {
+        _version = packageInfo.version;
+      });
+    } catch (e) {
+      print('Error loading version: $e');
+      setState(() {
+        _version = '1.0.0';
+      });
+    }
+  }
+
+  Future<void> _loadNotificationPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _notificationsEnabled = prefs.getBool(_notificationsKey) ?? false;
+      });
+    } catch (e) {
+      print('Error loading notification preference: $e');
+    }
+  }
+
+  Future<void> _saveNotificationPreference(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_notificationsKey, value);
+    } catch (e) {
+      print('Error saving notification preference: $e');
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    // Mostrar indicador de carga
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Buscando actualizaciones...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final result = await VersionCheckService.checkForUpdate();
+
+      if (!mounted) return;
+
+      if (result.hasUpdate) {
+        // Hay actualización disponible
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Actualización disponible'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Versión actual: ${result.currentVersion}'),
+                Text('Nueva versión: ${result.latestVersion}'),
+                if (result.releaseNotes != null) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Notas de la versión:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    result.releaseNotes!,
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cerrar'),
+              ),
+              if (result.downloadUrl != null)
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Descarga: ${result.downloadUrl}'),
+                        duration: const Duration(seconds: 5),
+                      ),
+                    );
+                  },
+                  child: const Text('Descargar'),
+                ),
+            ],
+          ),
+        );
+      } else {
+        // No hay actualización
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ya tienes la última versión')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al verificar actualizaciones: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,20 +155,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSettingCard(
             child: SwitchListTile(
               value: _notificationsEnabled,
-              onChanged: (value) {
+              onChanged: (value) async {
                 setState(() {
                   _notificationsEnabled = value;
                 });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      value
-                          ? 'Notificaciones activadas'
-                          : 'Notificaciones desactivadas',
+                await _saveNotificationPreference(value);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        value
+                            ? 'Notificaciones activadas'
+                            : 'Notificaciones desactivadas',
+                      ),
+                      duration: const Duration(seconds: 1),
                     ),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
+                  );
+                }
               },
               title: const Text(
                 'Notificaciones',
@@ -81,24 +209,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Versión de la aplicación'),
                   subtitle: Text(_version),
                   trailing: ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Buscando actualizaciones...'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                      // Simulación de check
-                      Future.delayed(const Duration(seconds: 2), () {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Ya tienes la última versión'),
-                            ),
-                          );
-                        }
-                      });
-                    },
+                    onPressed: _checkForUpdates,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(
                         context,
@@ -197,14 +308,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Cancelar'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
               setState(() {
                 _notificationsEnabled = false;
               });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Ajustes restablecidos')),
-              );
+              await _saveNotificationPreference(false);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Ajustes restablecidos')),
+                );
+              }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
             child: const Text('Restablecer'),

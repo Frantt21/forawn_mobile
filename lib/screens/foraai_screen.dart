@@ -193,11 +193,13 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
                 .toList()
               ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-        if (_sessions.isNotEmpty && _currentSessionId == null) {
-          _currentSessionId = _sessions.first.id;
-        } else if (_sessions.isEmpty) {
+        // NO cargar automáticamente ninguna sesión
+        // El usuario debe seleccionar una o crear una nueva
+        if (_sessions.isEmpty) {
           _createNewSession();
         }
+        // Si hay sesiones, dejar _currentSessionId como null
+        // para mostrar una pantalla vacía
       });
     } catch (e) {
       debugPrint('Error loading sessions: $e');
@@ -702,7 +704,39 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
           children: [
             Expanded(
               child: session == null
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.smart_toy_outlined,
+                              size: 80,
+                              color: Colors.purpleAccent.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'Bienvenido a ForaAI',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Selecciona una conversación del menú\no crea una nueva para comenzar',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white.withOpacity(0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   : _buildMessagesList(session),
             ),
             _buildInputArea(),
