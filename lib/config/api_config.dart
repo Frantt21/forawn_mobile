@@ -1,8 +1,3 @@
-/// API Configuration - Multi-Provider Support
-///
-/// IMPORTANTE: Este archivo contiene tus API keys privadas
-/// NO hagas commit de este archivo (está en .gitignore)
-library;
 
 enum AIProvider { groq, gemini, gptOss }
 
