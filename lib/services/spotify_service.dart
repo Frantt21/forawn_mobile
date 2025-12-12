@@ -4,22 +4,16 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../models/spotify_track.dart';
 import '../models/download_info.dart';
+import '../config/api_config.dart';
 
 class SpotifyService {
-  static const String _searchBaseUrl = 'https://api.dorratz.com/spotifysearch';
-  static const String _downloadBaseUrl = 'https://api.dorratz.com/spotifydl';
-
-  // RapidAPI Spotify Downloader (API de respaldo)
-  static const String _rapidApiUrl =
-      'https://spotify-downloader9.p.rapidapi.com/downloadSong';
+  // RapidAPI Key
   static const String _rapidApiKey =
       '60483ce3d8msh0dd02224b6be809p1de00cjsn4242ca1ee9c0';
-  static const String _rapidApiHost = 'spotify-downloader9.p.rapidapi.com';
 
   /// Search for songs on Spotify (robust parsing + logs)
   Future<List<SpotifyTrack>> searchSongs(String query) async {
-    final encodedQuery = Uri.encodeComponent(query);
-    final url = Uri.parse('$_searchBaseUrl?query=$encodedQuery');
+    final url = Uri.parse(ApiConfig.getSpotifySearchUrl(query));
 
     try {
       final response = await http.get(url).timeout(const Duration(seconds: 12));
@@ -104,8 +98,7 @@ class SpotifyService {
     // Intentar primero con la API de Dorratz
     try {
       print('[SpotifyService] Intentando Dorratz API...');
-      final encodedUrl = Uri.encodeComponent(spotifyUrl);
-      final url = Uri.parse('$_downloadBaseUrl?url=$encodedUrl');
+      final url = Uri.parse(ApiConfig.getSpotifyDownloadUrl(spotifyUrl));
 
       final response = await http.get(url).timeout(const Duration(seconds: 15));
       print('[SpotifyService] Dorratz status=${response.statusCode}');
@@ -159,7 +152,9 @@ class SpotifyService {
   }) async {
     try {
       final encodedUrl = Uri.encodeComponent(spotifyUrl);
-      final url = Uri.parse('$_rapidApiUrl?songId=$encodedUrl');
+      final url = Uri.parse(
+        '${ApiConfig.rapidApiSpotifyDownloader}?songId=$encodedUrl',
+      );
 
       print('[SpotifyService] Llamando RapidAPI...');
 
@@ -168,7 +163,7 @@ class SpotifyService {
             url,
             headers: {
               'x-rapidapi-key': _rapidApiKey,
-              'x-rapidapi-host': _rapidApiHost,
+              'x-rapidapi-host': 'spotify-downloader9.p.rapidapi.com',
             },
           )
           .timeout(const Duration(seconds: 20));
@@ -239,9 +234,7 @@ class SpotifyService {
 
       final response = await http
           .get(
-            Uri.parse(
-              'https://spotify-music-mp3-downloader-api.p.rapidapi.com/download?link=$spotifyUrl',
-            ),
+            Uri.parse('${ApiConfig.rapidApiSpotifyMusicMp3}?link=$spotifyUrl'),
             headers: {
               'x-rapidapi-key':
                   '60483ce3d8msh0dd02224b6be809p1de00cjsn4242ca1ee9c0',
@@ -355,10 +348,9 @@ class SpotifyService {
 
       final response = await http
           .get(
-            Uri.parse('https://spotify246.p.rapidapi.com/audio?id=$trackId'),
+            Uri.parse('${ApiConfig.rapidApiSpotify246}?id=$trackId'),
             headers: {
-              'x-rapidapi-key':
-                  '60483ce3d8msh0dd02224b6be809p1de00cjsn4242ca1ee9c0',
+              'x-rapidapi-key': _rapidApiKey,
               'x-rapidapi-host': 'spotify246.p.rapidapi.com',
             },
           )

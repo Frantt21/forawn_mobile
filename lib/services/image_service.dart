@@ -1,20 +1,25 @@
 // lib/services/image_service.dart
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
+import '../config/api_config.dart';
 
 class ImageService {
   final Dio _dio = Dio();
 
   /// Llama al endpoint de generación y devuelve el image_link (o null)
-  Future<String?> generateImage({required String prompt, required String ratio}) async {
+  Future<String?> generateImage({
+    required String prompt,
+    required String ratio,
+  }) async {
     try {
-      final encodedPrompt = Uri.encodeComponent(prompt);
-      final url = 'https://api.dorratz.com/v3/ai-image?prompt=$encodedPrompt&ratio=$ratio';
+      final url = ApiConfig.getImageGenerationUrl(prompt, ratio);
       final resp = await _dio.get(url).timeout(const Duration(seconds: 30));
       if (resp.statusCode == 200 && resp.data != null) {
         final data = resp.data;
         // Manejo defensivo: la estructura que mostraste es { "CREATOR": "...", "data": { "image_link": "...", ... } }
-        if (data is Map && data['data'] is Map && data['data']['image_link'] != null) {
+        if (data is Map &&
+            data['data'] is Map &&
+            data['data']['image_link'] != null) {
           return data['data']['image_link'] as String;
         }
       }
@@ -26,7 +31,10 @@ class ImageService {
   }
 
   /// Descarga la URL a un archivo temporal y devuelve la ruta local
-  Future<String?> downloadToTemp(String url, Function(double) onProgress) async {
+  Future<String?> downloadToTemp(
+    String url,
+    Function(double) onProgress,
+  ) async {
     try {
       final tempDir = await getTemporaryDirectory();
       final fileName = url.split('/').last.split('?').first;
@@ -42,7 +50,10 @@ class ImageService {
             onProgress(0);
           }
         },
-        options: Options(receiveTimeout: Duration.zero, sendTimeout: Duration.zero),
+        options: Options(
+          receiveTimeout: Duration.zero,
+          sendTimeout: Duration.zero,
+        ),
       );
 
       return tempPath;

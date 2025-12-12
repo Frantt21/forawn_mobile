@@ -32,10 +32,10 @@ class ForaaiScreen extends StatefulWidget {
   const ForaaiScreen({super.key});
 
   @override
-  State<ForaaiScreen> createState() => _ForaaiScreenState();
+  State<ForaaiScreen> createState() => ForaaiScreenState();
 }
 
-class _ForaaiScreenState extends State<ForaaiScreen> {
+class ForaaiScreenState extends State<ForaaiScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
@@ -687,27 +687,53 @@ class _ForaaiScreenState extends State<ForaaiScreen> {
   Widget build(BuildContext context) {
     final session = _currentSession;
 
-    return Row(
+    return Stack(
       children: [
-        // Drawer lateral
+        // Contenido principal
+        Column(
+          children: [
+            Expanded(
+              child: session == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildMessagesList(session),
+            ),
+            _buildInputArea(),
+          ],
+        ),
+
+        // Drawer lateral (overlay)
         if (_sidebarOpen)
-          Container(
-            width: 280,
-            color: const Color(0xFF1a1a1a),
-            child: _buildDrawerContent(),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 280,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1a1a1a),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 10,
+                    offset: const Offset(2, 0),
+                  ),
+                ],
+              ),
+              child: _buildDrawerContent(),
+            ),
           ),
 
-        // Contenido principal
-        Expanded(
-          child: session == null
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                  children: [
-                    Expanded(child: _buildMessagesList(session)),
-                    _buildInputArea(),
-                  ],
-                ),
-        ),
+        // Overlay oscuro cuando el drawer está abierto
+        if (_sidebarOpen)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _sidebarOpen = false),
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                margin: const EdgeInsets.only(left: 280), // No cubrir el drawer
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -715,40 +741,7 @@ class _ForaaiScreenState extends State<ForaaiScreen> {
   Widget _buildDrawerContent() {
     return Column(
       children: [
-        DrawerHeader(
-          decoration: BoxDecoration(
-            color: Colors.purpleAccent.withOpacity(0.1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'ForaAI',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                ApiConfig.getProviderName(_selectedProvider),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withOpacity(0.7),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Llamadas: ${_apiCallsRemaining[_selectedProvider]}/${_rateLimits[_selectedProvider]}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withOpacity(0.5),
-                ),
-              ),
-            ],
-          ),
-        ),
+        // Botón Nuevo Chat (sin DrawerHeader)
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: ElevatedButton.icon(

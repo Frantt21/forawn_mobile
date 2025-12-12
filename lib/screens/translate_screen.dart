@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 
 class TranslateScreen extends StatefulWidget {
   const TranslateScreen({super.key});
@@ -68,10 +69,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
 
     try {
       final targetCode = _languages[_targetLang] ?? 'en';
-      final encoded = Uri.encodeQueryComponent(text);
-      final url = Uri.parse(
-        'https://api.dorratz.com/v3/translate?text=$encoded&country=$targetCode',
-      );
+      final url = Uri.parse(ApiConfig.getTranslationUrl(text, targetCode));
 
       final resp = await http.get(url).timeout(const Duration(seconds: 15));
 

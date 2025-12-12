@@ -162,8 +162,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final RecentScreensService _recentScreensService = RecentScreensService();
-  final GlobalKey<_ForaaiScreenState> _foraaiKey =
-      GlobalKey<_ForaaiScreenState>();
+  final GlobalKey<ForaaiScreenState> _foraaiKey =
+      GlobalKey<ForaaiScreenState>();
   int _selectedIndex = 0;
   bool _isScrolled = false;
   bool _isKeyboardVisible = false;
@@ -574,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ), // Floating Navigation Bar
-            if (!_isKeyboardVisible)
+            if (!_isKeyboardVisible && _selectedIndex != 3)
               Positioned(
                 left: 16,
                 right: 16,
