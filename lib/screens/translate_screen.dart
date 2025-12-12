@@ -132,7 +132,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
     final textColor = theme.colorScheme.onSurface;
     // Usamos greenAccent como color principal para esta pantalla
     const accentColor = Colors.greenAccent;
-    const cardBackgroundColor = Color(0xFF0F0F10); // Mismo color que en Home
+    const cardBackgroundColor = Color(0xFF1C1C1E); // Mismo color que en Home
 
     return Scaffold(
       appBar: AppBar(

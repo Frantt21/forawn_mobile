@@ -287,7 +287,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                       delegate: SliverChildListDelegate([
                         const SizedBox(height: 12),
                         Card(
-                          color: const Color(0xFF0F0F10),
+                          color: const Color(0xFF1C1C1E),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),

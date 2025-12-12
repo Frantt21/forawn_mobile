@@ -700,47 +700,69 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
     return Stack(
       children: [
         // Contenido principal
-        Column(
-          children: [
-            Expanded(
-              child: session == null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.smart_toy_outlined,
-                              size: 80,
-                              color: Colors.purpleAccent.withOpacity(0.5),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              'Bienvenido a ForaAI',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white.withOpacity(0.9),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Selecciona una conversación del menú\no crea una nueva para comenzar',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white.withOpacity(0.6),
-                              ),
-                            ),
-                          ],
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          body: session == null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.smart_toy_outlined,
+                          size: 80,
+                          color: Colors.purpleAccent.withOpacity(0.5),
                         ),
-                      ),
-                    )
-                  : _buildMessagesList(session),
-            ),
-            _buildInputArea(),
-          ],
+                        const SizedBox(height: 24),
+                        Text(
+                          'Bienvenido a ForaAI',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Selecciona una conversación del menú\no crea una nueva para comenzar',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.only(
+                    top: 16,
+                    left: 16,
+                    right: 16,
+                    bottom: 180, // Espacio para el input flotante
+                  ),
+                  itemCount: session.messages.length + (_isLoading ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index < session.messages.length) {
+                      final msg = session.messages[index];
+                      final isLast = index == session.messages.length - 1;
+                      return _buildMessageBubble(msg, isLast: isLast);
+                    } else {
+                      return _buildLoadingBubble();
+                    }
+                  },
+                ),
+        ),
+
+        // Input Flotante
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(child: _buildInputArea()),
         ),
 
         // Drawer lateral (overlay)
@@ -772,7 +794,7 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
               onTap: () => setState(() => _sidebarOpen = false),
               child: Container(
                 color: Colors.black.withOpacity(0.3),
-                margin: const EdgeInsets.only(left: 280), // No cubrir el drawer
+                margin: const EdgeInsets.only(left: 280),
               ),
             ),
           ),
@@ -842,77 +864,81 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
     );
   }
 
-  Widget _buildMessagesList(ChatSession session) {
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(16),
-      itemCount: session.messages.length + (_isLoading ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == session.messages.length) {
-          return _buildLoadingBubble();
-        }
-        final msg = session.messages[index];
-        final isLast = index == session.messages.length - 1;
-        return _buildMessageBubble(msg, isLast: isLast);
-      },
-    );
-  }
-
   Widget _buildInputArea() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2a2a2a),
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withOpacity(0.5),
             blurRadius: 10,
-            offset: const Offset(0, -2),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
+      padding: const EdgeInsets.only(left: 16, right: 8, top: 4, bottom: 4),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_selectedImage != null) _buildImagePreview(),
+          TextField(
+            controller: _controller,
+            focusNode: _focusNode,
+            style: const TextStyle(color: Colors.white),
+            maxLines: null,
+            minLines: 1,
+            decoration: InputDecoration(
+              hintText: 'Escribe un mensaje...',
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              isDense: true,
+            ),
+            onSubmitted: (_) => _sendMessage(),
+          ),
+          const SizedBox(height: 8),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Escribe un mensaje...',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (_selectedProvider == AIProvider.gemini)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: InkWell(
+                            onTap: _isLoading ? null : _pickImage,
+                            borderRadius: BorderRadius.circular(20),
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: Icon(
+                                Icons.add_photo_alternate_rounded,
+                                size: 20,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ),
+                      _buildSmallProviderSelector(),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${_apiCallsRemaining[_selectedProvider]}/${_rateLimits[_selectedProvider]} • ${_getTimeUntilReset(_selectedProvider)}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white.withOpacity(0.3),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  minLines: 1,
-                  maxLines: 4,
-                  onSubmitted: (_) => _sendMessage(),
                 ),
               ),
-              const SizedBox(width: 8),
-              if (_selectedProvider == AIProvider.gemini)
-                IconButton(
-                  onPressed: _isLoading ? null : _pickImage,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.1),
-                    foregroundColor: Colors.white70,
-                  ),
-                ),
-              const SizedBox(width: 8),
               IconButton(
                 onPressed: _isLoading ? null : () => _sendMessage(),
                 icon: _isLoading
@@ -924,29 +950,116 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.send),
+                    : const Icon(Icons.arrow_upward_rounded),
                 style: IconButton.styleFrom(
                   backgroundColor: _isLoading
-                      ? Colors.grey
+                      ? Colors.white10
                       : Colors.purpleAccent,
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.all(10),
+                  minimumSize: const Size(40, 40),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputArea_Deprecated() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_selectedImage != null) _buildImagePreview(),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _buildSmallProviderSelector(),
-              const Spacer(),
-              Text(
-                '${_apiCallsRemaining[_selectedProvider]}/${_rateLimits[_selectedProvider]} • ${_getTimeUntilReset(_selectedProvider)}',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.white.withOpacity(0.3),
+              if (_selectedProvider == AIProvider.gemini)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: IconButton(
+                    onPressed: _isLoading ? null : _pickImage,
+                    icon: const Icon(Icons.add_photo_alternate_rounded),
+                    style: IconButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Escribe un mensaje...',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                  ),
+                  minLines: 1,
+                  maxLines: 4,
+                  onSubmitted: (_) => _sendMessage(),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: IconButton(
+                  onPressed: _isLoading ? null : () => _sendMessage(),
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.arrow_upward_rounded),
+                  style: IconButton.styleFrom(
+                    backgroundColor: _isLoading
+                        ? Colors.white10
+                        : Colors.purpleAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.all(10),
+                  ),
                 ),
               ),
             ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+            child: Row(
+              children: [
+                _buildSmallProviderSelector(),
+                const SizedBox(width: 12),
+                Text(
+                  '${_apiCallsRemaining[_selectedProvider]}/${_rateLimits[_selectedProvider]} • ${_getTimeUntilReset(_selectedProvider)}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.white.withOpacity(0.3),
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
           ),
         ],
       ),

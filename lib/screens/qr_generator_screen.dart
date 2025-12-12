@@ -208,7 +208,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
     final theme = Theme.of(context);
     final textColor = theme.colorScheme.onSurface;
     const accentColor = Colors.orangeAccent;
-    const cardBackgroundColor = Color(0xFF0F0F10);
+    const cardBackgroundColor = Color(0xFF1C1C1E);
 
     return Scaffold(
       appBar: AppBar(
