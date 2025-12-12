@@ -191,4 +191,77 @@ class ApiConfig {
     final key = getApiKeyForProvider(provider);
     return key.isNotEmpty && !key.contains('TU_') && !key.contains('AQUI');
   }
+
+  // ============================================================================
+  // DOWNLOAD SERVICES APIs
+  // ============================================================================
+
+  // --- SPOTIFY APIs ---
+  static const String spotifySearchUrl = '$dorratzBaseUrl/spotifysearch';
+  static const String spotifyDownloadUrl = '$dorratzBaseUrl/spotifydl';
+
+  // RapidAPI Spotify endpoints (fallback)
+  static const String rapidApiSpotifyDownloader =
+      'https://spotify-downloader9.p.rapidapi.com/downloadSong';
+  static const String rapidApiSpotifyMusicMp3 =
+      'https://spotify-music-mp3-downloader-api.p.rapidapi.com/download';
+  static const String rapidApiSpotify246 =
+      'https://spotify246.p.rapidapi.com/audio';
+
+  // --- YOUTUBE APIs ---
+  static const String ytmp3NuSearch = 'https://ytmp3.nu/api/ajaxSearch';
+  static const String ytmp3NuConvert = 'https://ytmp3.nu/api/ajaxConvert';
+
+  // RapidAPI YouTube endpoints (fallback)
+  static const String rapidApiYoutubeMp36 =
+      'https://youtube-mp36.p.rapidapi.com/dl';
+  static const String rapidApiYtSearchDownload =
+      'https://yt-search-and-download-mp3.p.rapidapi.com/mp3';
+  static const String rapidApiYoutubeMp32025 =
+      'https://youtube-mp3-2025.p.rapidapi.com/v1/social/youtube/audio';
+  static const String rapidApiYoutubeMp4Mp3 =
+      'https://youtube-mp4-mp3-m4a-cdn.p.rapidapi.com/audio';
+
+  // --- IMAGE GENERATION API ---
+  static const String imageGenerationUrl = '$dorratzBaseUrl/v3/ai-image';
+
+  // --- TRANSLATION API ---
+  static const String translationUrl = '$dorratzBaseUrl/v3/translate';
+
+  // --- RAPIDAPI KEY (si se usa) ---
+  static const String rapidApiKey = 'TU_RAPIDAPI_KEY_AQUI'; // Opcional
+
+  // ============================================================================
+  // HELPER METHODS PARA DOWNLOAD SERVICES
+  // ============================================================================
+
+  /// Construye URL de búsqueda de Spotify
+  static String getSpotifySearchUrl(String query) {
+    final encoded = Uri.encodeComponent(query);
+    return '$spotifySearchUrl?q=$encoded';
+  }
+
+  /// Construye URL de descarga de Spotify
+  static String getSpotifyDownloadUrl(String url) {
+    final encoded = Uri.encodeComponent(url);
+    return '$spotifyDownloadUrl?url=$encoded';
+  }
+
+  /// Construye URL de generación de imagen
+  static String getImageGenerationUrl(String prompt, String ratio) {
+    final encoded = Uri.encodeComponent(prompt);
+    return '$imageGenerationUrl?prompt=$encoded&ratio=$ratio';
+  }
+
+  /// Construye URL de traducción
+  static String getTranslationUrl(String text, String targetCode) {
+    final encoded = Uri.encodeComponent(text);
+    return '$translationUrl?text=$encoded&country=$targetCode';
+  }
+
+  /// Headers para RapidAPI (si se usa)
+  static Map<String, String> get rapidApiHeaders => {
+    'X-RapidAPI-Key': rapidApiKey,
+    'X-RapidAPI-Host': '', // Se debe especificar según el endpoint
+  };
 }
