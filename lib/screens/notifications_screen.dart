@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/notification_history_service.dart';
+import '../services/language_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -48,18 +49,19 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Limpiar notificaciones'),
-        content: const Text(
-          '¿Estás seguro de que quieres eliminar todas las notificaciones?',
-        ),
+        title: Text(LanguageService().getText('clear_notifications')),
+        content: Text(LanguageService().getText('clear_notifications_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(LanguageService().getText('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: Text(
+              LanguageService().getText('delete'),
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -71,7 +73,9 @@ class NotificationsScreenState extends State<NotificationsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Notificaciones eliminadas')),
+          SnackBar(
+            content: Text(LanguageService().getText('notifications_deleted')),
+          ),
         );
       }
     }
@@ -82,9 +86,11 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     await _loadNotifications();
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Notificación eliminada')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LanguageService().getText('notification_deleted')),
+        ),
+      );
     }
   }
 
@@ -113,12 +119,16 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
+    final lang = LanguageService();
 
-    if (difference.inMinutes < 1) return 'Ahora';
-    if (difference.inMinutes < 60) return 'Hace ${difference.inMinutes} min';
-    if (difference.inHours < 24) return 'Hace ${difference.inHours}h';
-    if (difference.inDays == 1) return 'Ayer';
-    if (difference.inDays < 7) return 'Hace ${difference.inDays}d';
+    if (difference.inMinutes < 1) return lang.getText('now');
+    if (difference.inMinutes < 60)
+      return lang.getText('ago_min', {'min': '${difference.inMinutes}'});
+    if (difference.inHours < 24)
+      return lang.getText('ago_hours', {'hours': '${difference.inHours}'});
+    if (difference.inDays == 1) return lang.getText('yesterday');
+    if (difference.inDays < 7)
+      return lang.getText('ago_days', {'days': '${difference.inDays}'});
 
     return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
   }
@@ -159,7 +169,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'No hay notificaciones',
+                      LanguageService().getText('no_notifications'),
                       style: TextStyle(
                         color: textColor.withOpacity(0.5),
                         fontSize: 18,
@@ -168,7 +178,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Las notificaciones de descargas aparecerán aquí',
+                      LanguageService().getText('notifications_appear_here'),
                       style: TextStyle(
                         color: textColor.withOpacity(0.4),
                         fontSize: 14,

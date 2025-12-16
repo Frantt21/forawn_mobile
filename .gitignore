@@ -45,3 +45,10 @@ app.*.map.json
 /android/app/release
 /lib/config/api_config.dart
 /lib/config
+IMPLEMENTATION_SUMMARY.md
+LANGUAGE_IMPLEMENTATION_COMPLETE.md
+LANGUAGE_SYSTEM_FINAL.md
+LANGUAGE_SYSTEM_STATUS.md
+SOLUCION_CLAVES_LITERALES.md
+LANGUAGE_IMPLEMENTATION_GUIDE.md
+lib/config/api_config.dart

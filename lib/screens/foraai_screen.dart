@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -8,9 +7,9 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import 'package:image_picker/image_picker.dart';
 import '../config/api_config.dart';
 import '../utils/safe_http_mixin.dart';
+import '../services/language_service.dart';
 
 /// Token para cancelar peticiones HTTP
 class CancelToken {
@@ -40,14 +39,12 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  final ImagePicker _imagePicker = ImagePicker();
 
   List<ChatSession> _sessions = [];
   String? _currentSessionId;
   bool _isLoading = false;
   bool _sidebarOpen = false; // Cerrado por defecto en móvil
   AIProvider _selectedProvider = ApiConfig.activeProvider;
-  File? _selectedImage;
 
   // Sistema de límites
   final Map<AIProvider, int> _apiCallsRemaining = {};
@@ -94,7 +91,7 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
 
   static const Map<AIProvider, int> _rateLimits = {
     AIProvider.groq: 50,
-    AIProvider.gemini: 30,
+    AIProvider.openRouter: 30,
     AIProvider.gptOss: 1000000,
   };
 
@@ -219,7 +216,7 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
   void _createNewSession() {
     final newSession = ChatSession(
       id: const Uuid().v4(),
-      title: 'Nuevo Chat',
+      title: LanguageService().getText('new_chat'),
       messages: [],
       timestamp: DateTime.now(),
     );
@@ -250,40 +247,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
     } catch (_) {
       return null;
     }
-  }
-
-  // ============================================================================
-  // SELECTOR DE IMAGEN
-  // ============================================================================
-
-  Future<void> _pickImage() async {
-    if (_selectedProvider != AIProvider.gemini) {
-      _showSnackBar('Las imágenes solo están disponibles con Gemini');
-      return;
-    }
-
-    try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-        });
-      }
-    } catch (e) {
-      _showSnackBar('Error al seleccionar imagen: $e');
-    }
-  }
-
-  void _removeImage() {
-    setState(() {
-      _selectedImage = null;
-    });
   }
 
   // ============================================================================
@@ -443,87 +406,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
     }
   }
 
-  Future<String> _callGeminiAPI(
-    List<Map<String, dynamic>> messages, {
-    File? imageFile,
-    required CancelToken token,
-  }) async {
-    try {
-      token.checkCancelled();
-
-      final contents = <Map<String, dynamic>>[];
-
-      for (var msg in messages.where((m) => m['role'] != 'system')) {
-        contents.add({
-          'role': msg['role'] == 'assistant' ? 'model' : 'user',
-          'parts': [
-            {'text': msg['content']},
-          ],
-        });
-      }
-
-      if (imageFile != null && contents.isNotEmpty) {
-        final bytes = await imageFile.readAsBytes();
-        final base64Image = base64Encode(bytes);
-
-        (contents.last['parts'] as List).add({
-          'inline_data': {'mime_type': 'image/jpeg', 'data': base64Image},
-        });
-      }
-
-      token.checkCancelled();
-
-      final systemMsg = messages.firstWhere(
-        (m) => m['role'] == 'system',
-        orElse: () => {'content': ''},
-      )['content'];
-      if (systemMsg!.isNotEmpty && contents.isNotEmpty) {
-        final firstPart = (contents.first['parts'] as List).first;
-        firstPart['text'] = '$systemMsg\n\n${firstPart['text']}';
-      }
-
-      final model = ApiConfig.getModelForProvider(_selectedProvider);
-      final endpoint = '${ApiConfig.geminiEndpoint}/$model:generateContent';
-      final apiKey = ApiConfig.getApiKeyForProvider(_selectedProvider);
-
-      final response = await _httpClient!
-          .post(
-            Uri.parse(endpoint),
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey,
-            },
-            body: jsonEncode({
-              'contents': contents,
-              'generationConfig': {'temperature': 0.7, 'maxOutputTokens': 2048},
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      token.checkCancelled();
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final data = jsonDecode(response.body);
-        return data['candidates']?[0]?['content']?['parts']?[0]?['text'] ??
-            'Error: Respuesta vacía';
-      } else {
-        String errorMsg = 'HTTP ${response.statusCode}';
-        try {
-          final errorData = jsonDecode(response.body);
-          errorMsg = errorData['error']?['message'] ?? errorMsg;
-        } catch (_) {
-          errorMsg = response.body;
-        }
-        throw Exception(errorMsg);
-      }
-    } on TimeoutException {
-      if (token.isCancelled) {
-        throw TimeoutException('Request cancelled', null);
-      }
-      rethrow;
-    }
-  }
-
   Future<void> _sendMessage({
     String? manualText,
     bool isRegenerate = false,
@@ -541,14 +423,14 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
 
     if (!_canMakeApiCall(_selectedProvider)) {
       _showSnackBar(
-        'Límite alcanzado. Se restablecerá en ${_getTimeUntilReset(_selectedProvider)}',
+        '${LanguageService().getText('limit_reached')} ${_getTimeUntilReset(_selectedProvider)}',
       );
       return;
     }
 
     if (!ApiConfig.isProviderConfigured(_selectedProvider)) {
       _showSnackBar(
-        'API key no configurada: ${ApiConfig.getProviderName(_selectedProvider)}',
+        '${LanguageService().getText('api_not_configured')} ${ApiConfig.getProviderName(_selectedProvider)}',
       );
       return;
     }
@@ -557,13 +439,7 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
       _controller.clear();
 
       setState(() {
-        session.messages.add(
-          ChatMessage(
-            role: 'user',
-            content: text,
-            imagePath: _selectedImage?.path,
-          ),
-        );
+        session.messages.add(ChatMessage(role: 'user', content: text));
         session.timestamp = DateTime.now();
         _sessions.remove(session);
         _sessions.insert(0, session);
@@ -598,12 +474,11 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
           case AIProvider.gptOss:
             result = await _callGptOssAPI(messages, cancelToken);
             break;
-          case AIProvider.gemini:
-            result = await _callGeminiAPI(
+          case AIProvider.openRouter:
+            result = await _callGroqAPI(
               messages,
-              imageFile: _selectedImage,
-              token: cancelToken,
-            );
+              cancelToken,
+            ); // OpenRouter uses same format as Groq
             break;
         }
       } finally {
@@ -612,11 +487,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
 
       _decrementApiCall(_selectedProvider);
 
-      final hadImage = _selectedImage != null;
-      if (_selectedImage != null) {
-        safeSetState(() => _selectedImage = null);
-      }
-
       if (mounted) {
         safeSetState(() {
           session.messages.add(ChatMessage(role: 'ai', content: result));
@@ -624,10 +494,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
         });
         _scrollToBottom();
         _saveSessions();
-
-        if (hadImage) {
-          _showSnackBar('✓ Imagen procesada correctamente');
-        }
       }
     } catch (e) {
       if (mounted) {
@@ -644,7 +510,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
             ),
           );
           _isLoading = false;
-          _selectedImage = null;
         });
         _scrollToBottom();
         _saveSessions();
@@ -721,7 +586,7 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
                         ),
                         const SizedBox(height: 24),
                         Text(
-                          'Bienvenido a ForaAI',
+                          LanguageService().getText('welcome_foraai'),
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -730,7 +595,7 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Selecciona una conversación del menú\no crea una nueva para comenzar',
+                          LanguageService().getText('select_conversation'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 16,
@@ -816,7 +681,7 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
           child: ElevatedButton.icon(
             onPressed: _createNewSession,
             icon: const Icon(Icons.add),
-            label: const Text('Nuevo Chat'),
+            label: Text(LanguageService().getText('new_chat')),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.purpleAccent.withOpacity(0.2),
               foregroundColor: Colors.white,
@@ -889,7 +754,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_selectedImage != null) _buildImagePreview(),
           TextField(
             controller: _controller,
             focusNode: _focusNode,
@@ -897,7 +761,7 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
             maxLines: null,
             minLines: 1,
             decoration: InputDecoration(
-              hintText: 'Escribe un mensaje...',
+              hintText: LanguageService().getText('write_message'),
               hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 8),
@@ -914,22 +778,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      if (_selectedProvider == AIProvider.gemini)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: InkWell(
-                            onTap: _isLoading ? null : _pickImage,
-                            borderRadius: BorderRadius.circular(20),
-                            child: const Padding(
-                              padding: EdgeInsets.all(6),
-                              child: Icon(
-                                Icons.add_photo_alternate_rounded,
-                                size: 20,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ),
-                        ),
                       _buildSmallProviderSelector(),
                       const SizedBox(width: 8),
                       Text(
@@ -972,105 +820,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
     );
   }
 
-  Widget _buildInputArea_Deprecated() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_selectedImage != null) _buildImagePreview(),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (_selectedProvider == AIProvider.gemini)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: IconButton(
-                    onPressed: _isLoading ? null : _pickImage,
-                    icon: const Icon(Icons.add_photo_alternate_rounded),
-                    style: IconButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                    ),
-                  ),
-                ),
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Escribe un mensaje...',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
-                  minLines: 1,
-                  maxLines: 4,
-                  onSubmitted: (_) => _sendMessage(),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: IconButton(
-                  onPressed: _isLoading ? null : () => _sendMessage(),
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.arrow_upward_rounded),
-                  style: IconButton.styleFrom(
-                    backgroundColor: _isLoading
-                        ? Colors.white10
-                        : Colors.purpleAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(10),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
-            child: Row(
-              children: [
-                _buildSmallProviderSelector(),
-                const SizedBox(width: 12),
-                Text(
-                  '${_apiCallsRemaining[_selectedProvider]}/${_rateLimits[_selectedProvider]} • ${_getTimeUntilReset(_selectedProvider)}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.white.withOpacity(0.3),
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSmallProviderSelector() {
     return Container(
       height: 28,
@@ -1096,7 +845,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
                   if (newValue != null) {
                     setState(() {
                       _selectedProvider = newValue;
-                      _selectedImage = null;
                     });
                   }
                 },
@@ -1107,43 +855,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
             );
           }).toList(),
         ),
-      ),
-    );
-  }
-
-  Widget _buildImagePreview() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.purpleAccent.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Image.file(
-              _selectedImage!,
-              width: 60,
-              height: 60,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Imagen lista para enviar',
-              style: TextStyle(fontSize: 12, color: Colors.white70),
-            ),
-          ),
-          IconButton(
-            onPressed: _removeImage,
-            icon: const Icon(Icons.close, size: 18),
-            style: IconButton.styleFrom(foregroundColor: Colors.white54),
-          ),
-        ],
       ),
     );
   }
@@ -1182,31 +893,6 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (msg.imagePath != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxHeight: 200,
-                          maxWidth: 200,
-                        ),
-                        child: Image.file(
-                          File(msg.imagePath!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Text(
-                                '[Imagen no disponible]',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                ),
-                              ),
-                        ),
-                      ),
-                    ),
-                  ),
                 if (!isUser) ...[
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1268,7 +954,10 @@ class ForaaiScreenState extends State<ForaaiScreen> with SafeHttpMixin {
               child: TextButton.icon(
                 onPressed: _isLoading ? null : _regenerateLastResponse,
                 icon: const Icon(Icons.refresh, size: 14),
-                label: const Text('Regenerar', style: TextStyle(fontSize: 12)),
+                label: Text(
+                  LanguageService().getText('regenerate'),
+                  style: const TextStyle(fontSize: 12),
+                ),
               ),
             ),
         ],
@@ -1343,19 +1032,11 @@ class ChatSession {
 class ChatMessage {
   final String role;
   final String content;
-  final String? imagePath;
 
-  ChatMessage({required this.role, required this.content, this.imagePath});
+  ChatMessage({required this.role, required this.content});
 
-  Map<String, dynamic> toJson() => {
-    'role': role,
-    'content': content,
-    if (imagePath != null) 'imagePath': imagePath,
-  };
+  Map<String, dynamic> toJson() => {'role': role, 'content': content};
 
-  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-    role: json['role'],
-    content: json['content'],
-    imagePath: json['imagePath'],
-  );
+  factory ChatMessage.fromJson(Map<String, dynamic> json) =>
+      ChatMessage(role: json['role'], content: json['content']);
 }

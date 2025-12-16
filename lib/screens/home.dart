@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'foraai_screen.dart';
 import 'settings_screen.dart';
 import 'notifications_screen.dart';
+import '../services/language_service.dart';
 
 /// Servicio persistente para pantallas recientes
 class RecentScreensService {
@@ -143,13 +144,21 @@ class RecentScreen {
 
   String get timeAgo {
     final difference = DateTime.now().difference(visitedAt);
-    if (difference.inMinutes < 1) return 'Visitado ahora';
+    final lang = LanguageService();
+
+    if (difference.inMinutes < 1) return lang.getText('visited_now');
     if (difference.inMinutes < 60) {
-      return 'Visitado hace ${difference.inMinutes} min';
+      return lang.getText('visited_min_ago', {
+        'min': '${difference.inMinutes}',
+      });
     }
-    if (difference.inHours < 24) return 'Visitado hace ${difference.inHours}h';
-    if (difference.inDays == 1) return 'Visitado ayer';
-    return 'Visitado hace ${difference.inDays}d';
+    if (difference.inHours < 24) {
+      return lang.getText('visited_hours_ago', {
+        'hours': '${difference.inHours}',
+      });
+    }
+    if (difference.inDays == 1) return lang.getText('visited_yesterday');
+    return lang.getText('visited_days_ago', {'days': '${difference.inDays}'});
   }
 }
 
@@ -202,6 +211,23 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  String _getTranslatedTitle(String title) {
+    // Map of saved titles to translation keys
+    final titleMap = {
+      'Descargador de Música': 'music_downloader',
+      'Music Downloader': 'music_downloader',
+      'Generador de Imágenes': 'image_generator',
+      'Image Generator': 'image_generator',
+      'Traductor': 'translator',
+      'Translator': 'translator',
+      'Generador QR': 'qr_generator',
+      'QR Generator': 'qr_generator',
+    };
+
+    final key = titleMap[title];
+    return key != null ? LanguageService().getText(key) : title;
+  }
+
   void _onBottomNavTap(int index) {
     setState(() {
       _selectedIndex = index;
@@ -241,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Navigation Cards
           Text(
-            'Acceso Rápido',
+            LanguageService().getText('quick_access'),
             style: TextStyle(
               color: textColor,
               fontSize: 18,
@@ -254,11 +280,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.music_note,
-                  title: 'Descargador de Música',
+                  title: LanguageService().getText('music_downloader'),
                   color: accentColor,
                   onTap: () => _navigateToScreen(
                     '/music-downloader',
-                    'Descargador de Música',
+                    LanguageService().getText('music_downloader'),
                     Icons.music_note,
                     accentColor,
                   ),
@@ -268,11 +294,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.image,
-                  title: 'Generador de Imágenes',
+                  title: LanguageService().getText('image_generator'),
                   color: Colors.yellowAccent,
                   onTap: () => _navigateToScreen(
                     '/images-ia',
-                    'Generador de Imágenes',
+                    LanguageService().getText('image_generator'),
                     Icons.image,
                     Colors.yellowAccent,
                   ),
@@ -286,11 +312,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.translate,
-                  title: 'Traductor',
+                  title: LanguageService().getText('translator'),
                   color: Colors.greenAccent,
                   onTap: () => _navigateToScreen(
                     '/translate',
-                    'Traductor',
+                    LanguageService().getText('translator'),
                     Icons.translate,
                     Colors.greenAccent,
                   ),
@@ -300,11 +326,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.qr_code,
-                  title: 'Generador QR',
+                  title: LanguageService().getText('qr_generator'),
                   color: Colors.orangeAccent,
                   onTap: () => _navigateToScreen(
                     '/qr-generator',
-                    'Generador QR',
+                    LanguageService().getText('qr_generator'),
                     Icons.qr_code,
                     Colors.orangeAccent,
                   ),
@@ -323,7 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Pantallas recientes',
+                  LanguageService().getText('recent_screens'),
                   style: TextStyle(
                     color: textColor,
                     fontSize: 18,
@@ -335,10 +361,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     await _recentScreensService.clearHistory();
                     setState(() {});
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Historial limpiado')),
+                      SnackBar(
+                        content: Text(
+                          LanguageService().getText('history_cleared'),
+                        ),
+                      ),
                     );
                   },
-                  child: Text('Limpiar', style: TextStyle(color: accentColor)),
+                  child: Text(
+                    LanguageService().getText('clear'),
+                    style: TextStyle(color: accentColor),
+                  ),
                 ),
               ],
             ),
@@ -370,7 +403,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Icon(screen.icon, color: screen.color, size: 20),
                     ),
                     title: Text(
-                      screen.title,
+                      _getTranslatedTitle(screen.title),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w600,
@@ -417,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'No hay screens visitadas aún',
+                      LanguageService().getText('no_recent_screens'),
                       style: TextStyle(
                         color: Theme.of(
                           context,
@@ -427,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Explora las opciones de arriba para comenzar',
+                      LanguageService().getText('explore_options'),
                       style: TextStyle(
                         color: Theme.of(
                           context,
@@ -499,10 +532,12 @@ class _HomeScreenState extends State<HomeScreen> {
             child: AppBar(
               title: Text(
                 _selectedIndex == 1
-                    ? 'ForaAI'
+                    ? LanguageService().getText('foraai')
                     : (_selectedIndex == 2
-                          ? 'Notificaciones'
-                          : (_selectedIndex == 3 ? 'Ajustes' : 'Forawn')),
+                          ? LanguageService().getText('notifications')
+                          : (_selectedIndex == 3
+                                ? LanguageService().getText('settings')
+                                : LanguageService().getText('app_name'))),
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w600,
@@ -528,7 +563,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _notificationsKey.currentState?.hasNotifications == true)
                   IconButton(
                     icon: const Icon(Icons.delete_sweep),
-                    tooltip: 'Limpiar todo',
+                    tooltip: LanguageService().getText('clear_all'),
                     onPressed: () {
                       _notificationsKey.currentState?.clearAllFromAppBar();
                     },
@@ -539,7 +574,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () {
                     setState(() {});
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Refrescando...')),
+                      SnackBar(
+                        content: Text(LanguageService().getText('refreshing')),
+                      ),
                     );
                   },
                 ),
@@ -758,9 +795,10 @@ class _TimeHeaderState extends State<TimeHeader> {
 
   String _greeting() {
     final hour = _now.hour;
-    if (hour >= 5 && hour < 12) return 'Buenos días';
-    if (hour >= 12 && hour < 19) return 'Buenas tardes';
-    return 'Buenas noches';
+    final lang = LanguageService();
+    if (hour >= 5 && hour < 12) return lang.getText('good_morning');
+    if (hour >= 12 && hour < 19) return lang.getText('good_afternoon');
+    return lang.getText('good_evening');
   }
 
   IconData _greetingIcon() {
@@ -845,15 +883,15 @@ class _TimeHeaderState extends State<TimeHeader> {
   String _formatTwoDigits(int n) => n.toString().padLeft(2, '0');
 
   String _weekdayName(int wd) {
-    const names = [
-      'Lunes',
-      'Martes',
-      'Miércoles',
-      'Jueves',
-      'Viernes',
-      'Sábado',
-      'Domingo',
+    final keys = [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday',
     ];
-    return names[(wd - 1) % 7];
+    return LanguageService().getText(keys[(wd - 1) % 7]);
   }
 }

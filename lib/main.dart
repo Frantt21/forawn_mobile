@@ -8,9 +8,13 @@ import 'screens/qr_generator_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'services/global_download_manager.dart';
 import 'services/version_check_service.dart';
+import 'services/language_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar el servicio de idiomas
+  await LanguageService().init();
 
   // Inicializar el gestor global de descargas
   await GlobalDownloadManager().initialize();
@@ -69,8 +73,32 @@ class AppColors {
   static const double opacityVeryLow = 0.3;
 }
 
-class ForawnApp extends StatelessWidget {
+class ForawnApp extends StatefulWidget {
   const ForawnApp({super.key});
+
+  @override
+  State<ForawnApp> createState() => _ForawnAppState();
+}
+
+class _ForawnAppState extends State<ForawnApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Listen to language changes and rebuild the app
+    LanguageService().addListener(_onLanguageChanged);
+  }
+
+  @override
+  void dispose() {
+    LanguageService().removeListener(_onLanguageChanged);
+    super.dispose();
+  }
+
+  void _onLanguageChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

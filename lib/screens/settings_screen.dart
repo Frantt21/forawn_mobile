@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/version_check_service.dart';
+import '../services/language_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -61,9 +62,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Mostrar indicador de carga
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Buscando actualizaciones...'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(LanguageService().getText('checking_updates')),
+        duration: const Duration(seconds: 2),
       ),
     );
 
@@ -77,18 +78,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Actualización disponible'),
+            title: Text(LanguageService().getText('update_available')),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Versión actual: ${result.currentVersion}'),
-                Text('Nueva versión: ${result.latestVersion}'),
+                Text(
+                  '${LanguageService().getText('current_version')}: ${result.currentVersion}',
+                ),
+                Text(
+                  '${LanguageService().getText('new_version')}: ${result.latestVersion}',
+                ),
                 if (result.releaseNotes != null) ...[
                   const SizedBox(height: 12),
-                  const Text(
-                    'Notas de la versión:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    LanguageService().getText('release_notes'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -102,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
+                child: Text(LanguageService().getText('close')),
               ),
               if (result.downloadUrl != null)
                 TextButton(
@@ -110,12 +115,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Descarga: ${result.downloadUrl}'),
+                        content: Text(
+                          '${LanguageService().getText('download_update')}: ${result.downloadUrl}',
+                        ),
                         duration: const Duration(seconds: 5),
                       ),
                     );
                   },
-                  child: const Text('Descargar'),
+                  child: Text(LanguageService().getText('download_update')),
                 ),
             ],
           ),
@@ -123,14 +130,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else {
         // No hay actualización
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ya tienes la última versión')),
+          SnackBar(content: Text(LanguageService().getText('latest_version'))),
         );
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al verificar actualizaciones: $e'),
+          content: Text(
+            '${LanguageService().getText('update_check_error')}: $e',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -150,53 +159,109 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionTitle('General'),
+          _buildSectionTitle(LanguageService().getText('general')),
           const SizedBox(height: 12),
           _buildSettingCard(
-            child: SwitchListTile(
-              value: _notificationsEnabled,
-              onChanged: (value) async {
-                setState(() {
-                  _notificationsEnabled = value;
-                });
-                await _saveNotificationPreference(value);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        value
-                            ? 'Notificaciones activadas'
-                            : 'Notificaciones desactivadas',
-                      ),
-                      duration: const Duration(seconds: 1),
+            child: Column(
+              children: [
+                // Language Selector
+                ListTile(
+                  leading: const Icon(Icons.language, color: Colors.blueAccent),
+                  title: Text(
+                    LanguageService().getText('language'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
                     ),
-                  );
-                }
-              },
-              title: const Text(
-                'Notificaciones',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-              ),
-              subtitle: const Text(
-                'Recibir alertas y novedades',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-              activeColor: Theme.of(context).colorScheme.primary,
-              secondary: Icon(
-                _notificationsEnabled
-                    ? Icons.notifications_active
-                    : Icons.notifications_off_outlined,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              contentPadding: EdgeInsets.zero,
+                  ),
+                  subtitle: Text(
+                    LanguageService().getText('select_language'),
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  trailing: DropdownButton<String>(
+                    value: LanguageService().currentLanguage,
+                    dropdownColor: const Color.fromARGB(255, 45, 45, 45),
+                    underline: Container(),
+                    items: LanguageService.availableLanguages.map((lang) {
+                      return DropdownMenuItem(
+                        value: lang['code'],
+                        child: Text(lang['name']!),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) async {
+                      if (newValue != null) {
+                        await LanguageService().changeLanguage(newValue);
+                        setState(() {}); // Rebuild to show new language
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                LanguageService().getText('language_changed'),
+                              ),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(),
+                // Notifications Switch
+                SwitchListTile(
+                  value: _notificationsEnabled,
+                  onChanged: (value) async {
+                    setState(() {
+                      _notificationsEnabled = value;
+                    });
+                    await _saveNotificationPreference(value);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            value
+                                ? LanguageService().getText(
+                                    'notifications_enabled',
+                                  )
+                                : LanguageService().getText(
+                                    'notifications_disabled',
+                                  ),
+                          ),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    }
+                  },
+                  title: Text(
+                    LanguageService().getText('notifications'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  subtitle: Text(
+                    LanguageService().getText('receive_alerts'),
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  activeColor: Theme.of(context).colorScheme.primary,
+                  secondary: Icon(
+                    _notificationsEnabled
+                        ? Icons.notifications_active
+                        : Icons.notifications_off_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
-          _buildSectionTitle('Almacenamiento'),
+          _buildSectionTitle(LanguageService().getText('storage')),
           const SizedBox(height: 12),
           _buildSettingCard(child: const StorageBar()),
           const SizedBox(height: 24),
-          _buildSectionTitle('Información'),
+          _buildSectionTitle(LanguageService().getText('information')),
           const SizedBox(height: 12),
           _buildSettingCard(
             child: Column(
@@ -206,7 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icons.info_outline,
                     color: Colors.blueAccent,
                   ),
-                  title: const Text('Versión de la aplicación'),
+                  title: Text(LanguageService().getText('app_version')),
                   subtitle: Text(_version),
                   trailing: ElevatedButton(
                     onPressed: _checkForUpdates,
@@ -224,7 +289,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         vertical: 8,
                       ),
                     ),
-                    child: const Text('Comprobar'),
+                    child: Text(LanguageService().getText('check_updates')),
                   ),
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -232,22 +297,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          _buildSectionTitle('Zona de Peligro'),
+          _buildSectionTitle(LanguageService().getText('danger_zone')),
           const SizedBox(height: 12),
           _buildSettingCard(
             borderColor: Colors.redAccent.withOpacity(0.3),
             child: ListTile(
               leading: const Icon(Icons.restore, color: Colors.redAccent),
-              title: const Text(
-                'Restablecer ajustes',
-                style: TextStyle(
+              title: Text(
+                LanguageService().getText('reset_settings'),
+                style: const TextStyle(
                   color: Colors.redAccent,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              subtitle: const Text(
-                'Volver a la configuración predeterminada',
-                style: TextStyle(fontSize: 12),
+              subtitle: Text(
+                LanguageService().getText('reset_settings_desc'),
+                style: const TextStyle(fontSize: 12),
               ),
               onTap: _showResetConfirmation,
               contentPadding: EdgeInsets.zero,
@@ -297,15 +362,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: Colors.white.withOpacity(0.1)),
         ),
-        title: const Text('¿Restablecer ajustes?'),
-        content: const Text(
-          'Esta acción borrará tus preferencias guardadas. No se eliminarán tus descargas.',
-          style: TextStyle(color: Colors.white70),
+        title: Text(LanguageService().getText('reset_confirmation')),
+        content: Text(
+          LanguageService().getText('reset_message'),
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: Text(LanguageService().getText('cancel')),
           ),
           TextButton(
             onPressed: () async {
@@ -316,12 +381,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await _saveNotificationPreference(false);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Ajustes restablecidos')),
+                  SnackBar(
+                    content: Text(LanguageService().getText('settings_reset')),
+                  ),
                 );
               }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Restablecer'),
+            child: Text(LanguageService().getText('reset')),
           ),
         ],
       ),
@@ -393,7 +460,7 @@ class _StorageBarState extends State<StorageBar> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Almacenamiento',
+              LanguageService().getText('storage'),
               style: TextStyle(
                 color: textColor,
                 fontSize: 14,
@@ -401,7 +468,7 @@ class _StorageBarState extends State<StorageBar> {
               ),
             ),
             Text(
-              '$_free disponible',
+              '$_free ${LanguageService().getText('storage_available')}',
               style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 12),
             ),
           ],
