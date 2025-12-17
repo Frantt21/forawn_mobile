@@ -3,11 +3,11 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:dio/dio.dart';
+import '../config/api_config.dart';
 
 class YoutubeFallbackService {
   final YoutubeExplode _yt = YoutubeExplode();
@@ -61,35 +61,85 @@ class YoutubeFallbackService {
 
   /// Obtener URL usando APIs públicas actualizadas
   /// Orden: 1) Foranly, 2) Dorratz, 3) RapidAPI, 4) YT Search, 5) YT MP3 2025, 6) YT CDN
-  Future<String?> _getDownloadUrlFromApi(String videoId) async {
+  /// Si skipForanly=true, salta Foranly para evitar doble procesamiento
+  Future<String?> _getDownloadUrlFromApi(
+    String videoId, {
+    bool skipForanly = false,
+    String? trackTitle,
+    String? artistName,
+  }) async {
     final videoUrl = 'https://www.youtube.com/watch?v=$videoId';
 
-    // OPCIÓN 1: Foranly API (Custom - Asíncrono)
-    try {
-      print('[YoutubeFallback] [1/6] Intentando Foranly API (Async)...');
-      final startUrl =
-          'http://api.foranly.space:24725/download?url=$videoUrl&format=audio';
-      print('[YoutubeFallback] Iniciando Job: $startUrl');
+    // OPCIÓN 1: Foranly API (Primary + Backup)
+    // NOTA: Se salta cuando queremos enriquecer metadatos nosotros mismos
+    if (!skipForanly) {
+      // Intentar servidor primario primero, luego backup
+      final servers = [
+        {'name': 'Foranly Primary', 'url': ApiConfig.foranlyBackendPrimary},
+        {'name': 'Foranly Backup', 'url': ApiConfig.foranlyBackendBackup},
+      ];
 
-      final startResp = await http
-          .get(Uri.parse(startUrl))
-          .timeout(const Duration(seconds: 15));
+      for (var i = 0; i < servers.length; i++) {
+        final server = servers[i];
+        try {
+          print(
+            '[YoutubeFallback] [${i + 1}/${servers.length + 5}] Intentando ${server['name']} API (Async)...',
+          );
 
-      print(
-        '[YoutubeFallback] Start Resp: ${startResp.statusCode} ${startResp.body}',
-      );
+          // Construir URL con parámetros de título y artista
+          final queryParams = {
+            'url': videoUrl,
+            'format': 'audio',
+            if (trackTitle != null && trackTitle.isNotEmpty)
+              'title': trackTitle,
+            if (artistName != null && artistName.isNotEmpty)
+              'artist': artistName,
+          };
 
-      if (startResp.statusCode == 200) {
-        final startData = json.decode(startResp.body);
-        final jobId = startData['jobId'];
+          final startUrl = Uri.parse(
+            '${server['url']}/download',
+          ).replace(queryParameters: queryParams).toString();
 
-        if (jobId != null) {
+          print('[YoutubeFallback] Iniciando Job: $startUrl');
+
+          final startResp = await http
+              .get(Uri.parse(startUrl))
+              .timeout(const Duration(seconds: 15));
+
+          print(
+            '[YoutubeFallback] Start Resp: ${startResp.statusCode} ${startResp.body}',
+          );
+
+          if (startResp.statusCode != 200) {
+            print(
+              '[YoutubeFallback] ${server['name']} error: ${startResp.statusCode}',
+            );
+            if (i < servers.length - 1) {
+              print('[YoutubeFallback] Intentando siguiente servidor...');
+              continue; // Intentar siguiente servidor
+            } else {
+              throw Exception('HTTP ${startResp.statusCode}');
+            }
+          }
+
+          final startData = jsonDecode(startResp.body);
+          final jobId = startData['jobId'];
+
+          if (jobId == null) {
+            print('[YoutubeFallback] No jobId en respuesta');
+            if (i < servers.length - 1) {
+              continue;
+            } else {
+              throw Exception('No jobId');
+            }
+          }
+
           print('[YoutubeFallback] Job ID: $jobId. Esperando conversión...');
 
           // Conectarse al SSE para esperar el estado 'ready'
           final sseReq = http.Request(
             'GET',
-            Uri.parse('http://api.foranly.space:24725/progress/$jobId'),
+            Uri.parse('${server['url']}/progress/$jobId'),
           );
 
           final sseResp = await sseReq.send();
@@ -100,7 +150,7 @@ class YoutubeFallbackService {
           final timer = Timer(const Duration(minutes: 2), () {
             sub?.cancel();
             if (!completer.isCompleted) completer.complete(null);
-            print('[YoutubeFallback] Foranly Timeout esperando SSE');
+            print('[YoutubeFallback] ${server['name']} Timeout esperando SSE');
           });
 
           sub = sseResp.stream
@@ -115,23 +165,21 @@ class YoutubeFallbackService {
                       final status = d['status'];
 
                       if (status == 'ready') {
-                        print('[YoutubeFallback] ✓ Foranly Job READY');
+                        print(
+                          '[YoutubeFallback] ✓ ${server['name']} Job READY',
+                        );
                         sub?.cancel();
                         timer.cancel();
                         // Construir URL final
-                        final dlUrl =
-                            'http://api.foranly.space:24725/download-file/$jobId';
+                        final dlUrl = '${server['url']}/download-file/$jobId';
                         if (!completer.isCompleted) completer.complete(dlUrl);
                       } else if (status == 'error') {
                         print(
-                          '[YoutubeFallback] Foranly Error: ${d['message']}',
+                          '[YoutubeFallback] ${server['name']} Error: ${d['message']}',
                         );
                         sub?.cancel();
                         timer.cancel();
                         if (!completer.isCompleted) completer.complete(null);
-                      } else if (status == 'downloading') {
-                        // Opcional: Log de progreso del backend
-                        // print('[YoutubeFallback] Backend progress: ${d['progress']}%');
                       }
                     } catch (_) {}
                   }
@@ -144,14 +192,27 @@ class YoutubeFallbackService {
 
           final downloadUrl = await completer.future;
           if (downloadUrl != null) {
-            print('[YoutubeFallback] ✓ Foranly Flow Completo');
-            print('✅ [API SUCCESS] Usando API: Foranly API (Async)');
+            print('[YoutubeFallback] ✓ ${server['name']} Flow Completo');
+            print('✅ [API SUCCESS] Usando API: ${server['name']} API (Async)');
             return downloadUrl;
+          } else if (i < servers.length - 1) {
+            print(
+              '[YoutubeFallback] ${server['name']} falló, intentando siguiente servidor...',
+            );
+            continue;
+          }
+        } catch (e) {
+          print('[YoutubeFallback] ${server['name']} API falló: $e');
+          if (i < servers.length - 1) {
+            print('[YoutubeFallback] Intentando siguiente servidor...');
+            continue;
           }
         }
       }
-    } catch (e) {
-      print('[YoutubeFallback] Foranly API falló: $e');
+    } else {
+      print(
+        '[YoutubeFallback] Saltando Foranly API (enriquecimiento de metadatos activo)',
+      );
     }
 
     // OPCIÓN 2: API de Dorratz (ytmp3.nu - muy estable)
@@ -342,18 +403,173 @@ class YoutubeFallbackService {
         return null;
       }
 
-      // 2. Obtener URL
-      final downloadUrl = await _getDownloadUrlFromApi(video.id.value);
+      // 2. Obtener URL de descarga desde las APIs (Foranly ya enriquece automáticamente)
+      final downloadUrl = await _getDownloadUrlFromApi(
+        video.id.value,
+        trackTitle: trackTitle,
+        artistName: artistName,
+      );
       if (downloadUrl == null) {
         print('[YoutubeFallback] No se pudo obtener URL');
         return null;
       }
 
       print(
-        '[YoutubeFallback] Descargando desde: ${downloadUrl.substring(0, downloadUrl.length > 50 ? 50 : downloadUrl.length)}...',
+        '[YoutubeFallback] URL obtenida: ${downloadUrl.substring(0, downloadUrl.length > 50 ? 50 : downloadUrl.length)}...',
       );
 
-      // 3. Preparar archivo
+      // 3. Si es URL de Foranly, descargar directamente (ya tiene metadatos)
+      if (downloadUrl.contains('api.foranly.space')) {
+        print(
+          '[YoutubeFallback] Descargando desde Foranly (con metadatos enriquecidos)...',
+        );
+
+        final tempDir = await getTemporaryDirectory();
+        final fileName = _sanitizeFileName('${trackTitle}_$artistName.mp3');
+        final tempPath = '${tempDir.path}/$fileName';
+        file = File(tempPath);
+
+        if (await file.exists()) {
+          await file.delete();
+        }
+
+        await _dio.download(
+          downloadUrl,
+          tempPath,
+          onReceiveProgress: (received, total) {
+            if (total > 0) {
+              final progress = (received / total).clamp(0.0, 1.0);
+              onProgress(progress);
+              if (progress > 0.98) {
+                print(
+                  '[YoutubeFallback] Descarga: ${(received / 1024 / 1024).toStringAsFixed(2)} MB',
+                );
+              }
+            }
+          },
+          options: Options(
+            headers: {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': '*/*',
+            },
+            receiveTimeout: const Duration(minutes: 5),
+            followRedirects: true,
+            maxRedirects: 10,
+            validateStatus: (status) => status! < 500,
+          ),
+        );
+
+        if (!await file.exists()) {
+          throw Exception('Archivo no creado');
+        }
+
+        final fileSize = await file.length();
+        if (fileSize < 10000) {
+          throw Exception('Archivo muy pequeño: $fileSize bytes');
+        }
+
+        print(
+          '[YoutubeFallback] ✓ Completo: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB',
+        );
+        onProgress(1.0);
+        return tempPath;
+      }
+
+      // 4. Si es URL de otra API, enviar al backend para enriquecer metadatos
+      print(
+        '[YoutubeFallback] Enviando a backend para enriquecer metadatos...',
+      );
+
+      final backendUrl = Uri.parse('http://api.foranly.space:24725/download')
+          .replace(
+            queryParameters: {
+              'url': downloadUrl,
+              'format': 'audio',
+              'title': trackTitle,
+              'artist': artistName,
+            },
+          );
+
+      print('[YoutubeFallback] Iniciando job en backend...');
+
+      final startResp = await http
+          .get(backendUrl)
+          .timeout(const Duration(seconds: 15));
+
+      if (startResp.statusCode != 200) {
+        print('[YoutubeFallback] Backend error: ${startResp.statusCode}');
+        return null;
+      }
+
+      final startData = json.decode(startResp.body);
+      final jobId = startData['jobId'];
+
+      if (jobId == null) {
+        print('[YoutubeFallback] No jobId recibido del backend');
+        return null;
+      }
+
+      print('[YoutubeFallback] Job ID: $jobId. Esperando procesamiento...');
+
+      // 5. Esperar a que el backend procese el archivo (SSE)
+      final sseReq = http.Request(
+        'GET',
+        Uri.parse('http://api.foranly.space:24725/progress/$jobId'),
+      );
+
+      final sseResp = await sseReq.send();
+      final completer = Completer<bool>();
+      StreamSubscription? sub;
+
+      final timer = Timer(const Duration(minutes: 3), () {
+        sub?.cancel();
+        if (!completer.isCompleted) completer.complete(false);
+        print('[YoutubeFallback] Timeout esperando backend');
+      });
+
+      sub = sseResp.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+              if (line.startsWith('data: ')) {
+                try {
+                  final jsonStr = line.substring(6);
+                  final d = json.decode(jsonStr);
+                  final status = d['status'];
+
+                  if (status == 'ready') {
+                    print('[YoutubeFallback] ✓ Backend procesó archivo');
+                    sub?.cancel();
+                    timer.cancel();
+                    if (!completer.isCompleted) completer.complete(true);
+                  } else if (status == 'error') {
+                    print('[YoutubeFallback] Backend error: ${d['message']}');
+                    sub?.cancel();
+                    timer.cancel();
+                    if (!completer.isCompleted) completer.complete(false);
+                  } else if (status == 'downloading' || status == 'enriching') {
+                    final progress = d['progress'] ?? 0;
+                    print('[YoutubeFallback] Backend: $status ${progress}%');
+                    onProgress((progress / 100).clamp(0.0, 0.95));
+                  }
+                } catch (_) {}
+              }
+            },
+            onError: (e) {
+              print('[YoutubeFallback] SSE Error: $e');
+              if (!completer.isCompleted) completer.complete(false);
+            },
+          );
+
+      final success = await completer.future;
+      if (!success) {
+        print('[YoutubeFallback] Backend no pudo procesar el archivo');
+        return null;
+      }
+
+      // 6. Descargar archivo procesado desde el backend
       final tempDir = await getTemporaryDirectory();
       final fileName = _sanitizeFileName('${trackTitle}_$artistName.mp3');
       final tempPath = '${tempDir.path}/$fileName';
@@ -363,26 +579,21 @@ class YoutubeFallbackService {
         await file.delete();
       }
 
-      // 4. Descargar
+      print('[YoutubeFallback] Descargando archivo con metadatos...');
+
       await _dio.download(
-        downloadUrl,
+        'http://api.foranly.space:24725/download-file/$jobId',
         tempPath,
         onReceiveProgress: (received, total) {
           if (total > 0) {
             final progress = (received / total).clamp(0.0, 1.0);
-            if (progress % 0.1 < 0.02 || progress > 0.98) {
+            final finalProgress = 0.95 + (progress * 0.05); // 95-100%
+            onProgress(finalProgress);
+            if (progress > 0.98) {
               print(
-                '[YoutubeFallback] ${(progress * 100).toStringAsFixed(0)}% (${(received / 1024 / 1024).toStringAsFixed(2)} MB)',
+                '[YoutubeFallback] Descarga final: ${(received / 1024 / 1024).toStringAsFixed(2)} MB',
               );
             }
-            onProgress(progress);
-          } else {
-            if (received % (500 * 1024) == 0) {
-              print(
-                '[YoutubeFallback] Descargado: ${(received / 1024 / 1024).toStringAsFixed(2)} MB',
-              );
-            }
-            onProgress(0.5);
           }
         },
         options: Options(
@@ -390,7 +601,6 @@ class YoutubeFallbackService {
             'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': '*/*',
-            'Referer': 'https://www.youtube.com/',
           },
           receiveTimeout: const Duration(minutes: 5),
           followRedirects: true,
@@ -399,7 +609,7 @@ class YoutubeFallbackService {
         ),
       );
 
-      // 5. Verificar
+      // 7. Verificar archivo
       if (!await file.exists()) {
         throw Exception('Archivo no creado');
       }
@@ -410,7 +620,7 @@ class YoutubeFallbackService {
       }
 
       print(
-        '[YoutubeFallback] ✓ Completo: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB',
+        '[YoutubeFallback] ✓ Completo con metadatos: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB',
       );
       onProgress(1.0);
       return tempPath;

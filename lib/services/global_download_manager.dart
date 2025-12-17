@@ -10,6 +10,7 @@ import 'download_service.dart';
 import 'spotify_service.dart';
 import 'download_history_service.dart';
 import 'notification_history_service.dart';
+import 'lyrics_service.dart';
 
 /// Modelo para una descarga en progreso
 class ActiveDownload {
@@ -111,6 +112,7 @@ class GlobalDownloadManager {
     required SpotifyTrack track,
     String? pinterestImageUrl,
     String? treeUri,
+    bool forceYouTubeFallback = false,
   }) async {
     final downloadId = const Uuid().v4();
 
@@ -124,7 +126,13 @@ class GlobalDownloadManager {
     _notifyListeners();
 
     // Iniciar descarga en segundo plano
-    _startDownload(downloadId, track, pinterestImageUrl, treeUri);
+    _startDownload(
+      downloadId,
+      track,
+      pinterestImageUrl,
+      treeUri,
+      forceYouTubeFallback,
+    );
 
     return downloadId;
   }
@@ -135,6 +143,7 @@ class GlobalDownloadManager {
     SpotifyTrack track,
     String? pinterestImageUrl,
     String? treeUri,
+    bool forceYouTubeFallback,
   ) async {
     final download = _activeDownloads[downloadId];
     if (download == null || download.isCancelled) return;
@@ -243,7 +252,9 @@ class GlobalDownloadManager {
         cancelToken: cancelToken,
         trackTitle: trackName,
         artistName: artistName,
-        enableYoutubeFallback: true,
+        enableYoutubeFallback:
+            !forceYouTubeFallback, // Deshabilitar API si se fuerza YouTube
+        forceYouTubeFallback: forceYouTubeFallback, // Nuevo parámetro
       );
 
       // Limpiar el CancelToken después de completar
@@ -259,6 +270,9 @@ class GlobalDownloadManager {
         _notifyListeners();
         return;
       }
+
+      // Descargar lyrics en segundo plano (no bloquear)
+      _downloadLyricsInBackground(trackName, artistName);
 
       // Marcar como completada
       if (_activeDownloads.containsKey(downloadId)) {
@@ -474,6 +488,32 @@ class GlobalDownloadManager {
     if (!_downloadsController.isClosed) {
       _downloadsController.add(Map.from(_activeDownloads));
     }
+  }
+
+  /// Descargar lyrics en segundo plano sin bloquear
+  void _downloadLyricsInBackground(String trackName, String artistName) {
+    if (trackName.isEmpty) return;
+
+    // Ejecutar en segundo plano sin esperar
+    Future.microtask(() async {
+      try {
+        print(
+          '[GlobalDownloadManager] Downloading lyrics for: $trackName - $artistName',
+        );
+        final lyrics = await LyricsService().fetchLyrics(trackName, artistName);
+        if (lyrics != null) {
+          print(
+            '[GlobalDownloadManager] Lyrics downloaded successfully: ${lyrics.lineCount} lines',
+          );
+        } else {
+          print(
+            '[GlobalDownloadManager] No lyrics found for: $trackName - $artistName',
+          );
+        }
+      } catch (e) {
+        print('[GlobalDownloadManager] Error downloading lyrics: $e');
+      }
+    });
   }
 
   /// Limpiar recursos

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'foraai_screen.dart';
 import 'settings_screen.dart';
 import 'notifications_screen.dart';
+import 'local_music_screen.dart';
 import '../services/language_service.dart';
 
 /// Servicio persistente para pantallas recientes
@@ -532,12 +533,16 @@ class _HomeScreenState extends State<HomeScreen> {
             child: AppBar(
               title: Text(
                 _selectedIndex == 1
-                    ? LanguageService().getText('foraai')
+                    ? 'Local Music' // TODO: Agregar traducción
                     : (_selectedIndex == 2
-                          ? LanguageService().getText('notifications')
+                          ? LanguageService().getText('foraai')
                           : (_selectedIndex == 3
-                                ? LanguageService().getText('settings')
-                                : LanguageService().getText('app_name'))),
+                                ? LanguageService().getText('notifications')
+                                : (_selectedIndex == 4
+                                      ? LanguageService().getText('settings')
+                                      : LanguageService().getText(
+                                          'app_name',
+                                        )))),
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w600,
@@ -549,7 +554,9 @@ class _HomeScreenState extends State<HomeScreen> {
               elevation: 0,
               scrolledUnderElevation: 0, // Evita cambio de color en Material 3
               surfaceTintColor: Colors.transparent, // Evita tinte morado
-              leading: _selectedIndex == 1
+              leading:
+                  _selectedIndex ==
+                      2 // Index 2 is now ForaAI
                   ? IconButton(
                       icon: const Icon(Icons.menu),
                       onPressed: () {
@@ -559,7 +566,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   : null,
               actions: [
                 // Botón de limpiar notificaciones (solo en pantalla de notificaciones)
-                if (_selectedIndex == 2 &&
+                if (_selectedIndex == 3 && // Index 3 is now Notifications
                     _notificationsKey.currentState?.hasNotifications == true)
                   IconButton(
                     icon: const Icon(Icons.delete_sweep),
@@ -616,6 +623,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     physics: const BouncingScrollPhysics(),
                     children: [
                       _buildHomeContent(context),
+                      const LocalMusicScreen(),
                       ForaaiScreen(key: _foraaiKey),
                       NotificationsScreen(key: _notificationsKey),
                       const SettingsScreen(),
@@ -623,8 +631,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            ), // Floating Navigation Bar
-            if (!_isKeyboardVisible && _selectedIndex != 1)
+            ),
+
+            // Floating Navigation Bar
+            if (!_isKeyboardVisible && _selectedIndex != 2)
               Positioned(
                 left: 16,
                 right: 16,
@@ -660,13 +670,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             _buildNavItem(Icons.home, 0, accentColor),
-                            _buildNavItem(Icons.smart_toy, 1, accentColor),
                             _buildNavItem(
-                              Icons.notifications_outlined,
+                              Icons.library_music,
+                              1,
+                              accentColor,
+                            ), // Local Music
+                            _buildNavItem(
+                              Icons.smart_toy,
                               2,
                               accentColor,
+                            ), // ForaAI
+                            _buildNavItem(
+                              Icons.notifications_outlined,
+                              3,
+                              accentColor,
                             ),
-                            _buildNavItem(Icons.settings, 3, accentColor),
+                            _buildNavItem(Icons.settings, 4, accentColor),
                           ],
                         ),
                       ),

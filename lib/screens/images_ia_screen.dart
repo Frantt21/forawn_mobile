@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../services/image_service.dart';
 import '../services/saf_helper.dart';
 import '../services/permission_helper.dart';
+import '../services/language_service.dart';
 import '../utils/safe_http_mixin.dart';
 
 class GeneratedImage {
@@ -123,19 +124,19 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Vaciar historial'),
-        content: const Text(
-          '¿Estás seguro de querer borrar todas las imágenes generadas?',
+        title: Text(LanguageService().getText('clear_history_images')),
+        content: Text(
+          LanguageService().getText('clear_history_images_confirm'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
+            child: Text(LanguageService().getText('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Borrar'),
+            child: Text(LanguageService().getText('delete')),
           ),
         ],
       ),
@@ -190,9 +191,7 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
     final prompt = _promptController.text.trim();
     if (prompt.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Escribe una descripción para generar la imagen'),
-        ),
+        SnackBar(content: Text(LanguageService().getText('enter_description'))),
       );
       return;
     }
@@ -215,7 +214,9 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
     if (url == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo generar la imagen')),
+          SnackBar(
+            content: Text(LanguageService().getText('image_generation_error')),
+          ),
         );
       }
       safeSetState(() => _isGenerating = false);
@@ -247,8 +248,8 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
     final hasPerm = await _requestStoragePermission();
     if (!hasPerm) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Se necesitan permisos de almacenamiento'),
+        SnackBar(
+          content: Text(LanguageService().getText('storage_permission_needed')),
         ),
       );
       return;
@@ -292,8 +293,8 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Imagen guardada correctamente'),
+          SnackBar(
+            content: Text(LanguageService().getText('image_saved')),
             backgroundColor: Colors.green,
           ),
         );
@@ -302,8 +303,8 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
       print('[ImagesIA] downloadImage error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al guardar la imagen'),
+          SnackBar(
+            content: Text(LanguageService().getText('image_save_error')),
             backgroundColor: Colors.red,
           ),
         );
@@ -335,9 +336,9 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
             children: [
               ListTile(
                 leading: const Icon(Icons.download, color: Colors.white),
-                title: const Text(
-                  'Descargar imagen',
-                  style: TextStyle(color: Colors.white),
+                title: Text(
+                  LanguageService().getText('download_image'),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -346,9 +347,9 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
               ),
               ListTile(
                 leading: const Icon(Icons.copy, color: Colors.white),
-                title: const Text(
-                  'Copiar prompt',
-                  style: TextStyle(color: Colors.white),
+                title: Text(
+                  LanguageService().getText('copy_prompt'),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
                   _promptController.text = item.prompt;
@@ -369,13 +370,13 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Generador IA'),
+        title: Text(LanguageService().getText('ai_generator')),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: 'Borrar historial',
+            tooltip: LanguageService().getText('clear_history_images'),
             onPressed: _chatHistory.isEmpty ? null : _clearHistory,
           ),
           IconButton(
@@ -384,8 +385,8 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
               color: _imagesTreeUri == null ? Colors.white : accentColor,
             ),
             tooltip: _imagesTreeUri == null
-                ? 'Seleccionar carpeta'
-                : 'Carpeta seleccionada',
+                ? LanguageService().getText('select_folder')
+                : LanguageService().getText('folder_selected_tooltip'),
             onPressed: () async {
               try {
                 final picked = await SafHelper.pickDirectory();
@@ -393,7 +394,11 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                   await _saveTreeUri(picked);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Carpeta seleccionada')),
+                      SnackBar(
+                        content: Text(
+                          LanguageService().getText('folder_selected'),
+                        ),
+                      ),
                     );
                   }
                 }
@@ -418,7 +423,9 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Inicia una conversación creativa',
+                          LanguageService().getText(
+                            'start_creative_conversation',
+                          ),
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.3),
                             fontSize: 16,
@@ -603,9 +610,9 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                       maxLines: null,
                       minLines: 1,
                       style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        hintText: 'Describe tu imagen...',
-                        hintStyle: TextStyle(color: Colors.white38),
+                      decoration: InputDecoration(
+                        hintText: LanguageService().getText('describe_image'),
+                        hintStyle: const TextStyle(color: Colors.white38),
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(vertical: 10),
                         isDense: true,
@@ -668,7 +675,7 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                                   Icons.arrow_upward,
                                   color: accentColor,
                                 ),
-                          tooltip: 'Generar',
+                          tooltip: LanguageService().getText('generate'),
                           style: IconButton.styleFrom(
                             backgroundColor: _isGenerating
                                 ? Colors.transparent

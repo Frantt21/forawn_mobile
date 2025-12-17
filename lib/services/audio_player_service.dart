@@ -1,0 +1,323 @@
+// lib/services/audio_player_service.dart
+import 'dart:async';
+import 'package:just_audio/just_audio.dart';
+import 'package:audio_session/audio_session.dart';
+import 'package:rxdart/rxdart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/song.dart';
+import '../models/playlist.dart';
+import '../models/playback_state.dart'
+    as app_state; // Alias para evitar conflicto con just_audio
+
+class AudioPlayerService {
+  static final AudioPlayerService _instance = AudioPlayerService._internal();
+  factory AudioPlayerService() => _instance;
+
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  AudioPlayerService._internal() {
+    _init();
+  }
+
+  // Estado actual
+  late final app_state.PlaybackHistory _history = app_state.PlaybackHistory();
+  final Playlist _playlist = Playlist(name: 'Main Queue');
+
+  // Streams
+  final _playlistSubject = BehaviorSubject<Playlist>();
+  Stream<Playlist> get playlistStream => _playlistSubject.stream;
+
+  final _currentSongSubject = BehaviorSubject<Song?>();
+  Stream<Song?> get currentSongStream => _currentSongSubject.stream;
+
+  // Combinar posición y duración para progreso
+  Stream<app_state.PlaybackProgress> get progressStream =>
+      Rx.combineLatest3<
+        Duration,
+        Duration,
+        Duration,
+        app_state.PlaybackProgress
+      >(
+        _audioPlayer.positionStream,
+        _audioPlayer.bufferedPositionStream,
+        _audioPlayer.durationStream.map((d) => d ?? Duration.zero),
+        (position, buffered, duration) => app_state.PlaybackProgress(
+          position: position,
+          bufferedPosition: buffered,
+          duration: duration,
+        ),
+      );
+
+  // Estado del reproductor mapeado al nuestro
+  Stream<app_state.PlayerState> get playerStateStream => _audioPlayer
+      .playerStateStream
+      .map(_mapToAppPlayerState)
+      .doOnData((state) {
+        print('[AudioPlayerService] State changed: $state');
+      });
+
+  Stream<bool> get shuffleModeStream =>
+      _playlistSubject.map((p) => p.isShuffle).distinct();
+
+  Stream<app_state.RepeatMode> get repeatModeStream =>
+      _playlistSubject.map((p) => p.repeatMode).distinct();
+
+  // Initialization
+  Future<void> _init() async {
+    // Cargar preferencias guardadas
+    await _loadPlaybackPreferences();
+
+    // Configurar sesión de audio
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
+
+    // Escuchar errores
+    _audioPlayer.playbackEventStream.listen(
+      (event) {},
+      onError: (Object e, StackTrace stackTrace) {
+        print('[AudioPlayer] Error: $e');
+      },
+    );
+
+    // Escuchar completado para auto-avance
+    _audioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        _onSongCompleted();
+      }
+    });
+
+    // Inicializar streams subjects
+    if (!_playlistSubject.hasValue) _playlistSubject.add(_playlist);
+    if (!_currentSongSubject.hasValue) _currentSongSubject.add(null);
+  }
+
+  Future<void> _loadPlaybackPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final shuffle = prefs.getBool('playback_shuffle') ?? false;
+      final repeatIndex =
+          prefs.getInt('playback_repeat') ??
+          1; // 1 = RepeatMode.all por defecto
+
+      _playlist.setShuffle(shuffle);
+      _playlist.setRepeatMode(app_state.RepeatMode.values[repeatIndex]);
+
+      print(
+        '[AudioPlayer] Loaded preferences: shuffle=$shuffle, repeat=${app_state.RepeatMode.values[repeatIndex]}',
+      );
+    } catch (e) {
+      print('[AudioPlayer] Error loading preferences: $e');
+      // Si hay error, usar valores por defecto
+      _playlist.setRepeatMode(app_state.RepeatMode.all);
+    }
+  }
+
+  Future<void> _savePlaybackPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('playback_shuffle', _playlist.isShuffle);
+      await prefs.setInt('playback_repeat', _playlist.repeatMode.index);
+    } catch (e) {
+      print('[AudioPlayer] Error saving preferences: $e');
+    }
+  }
+
+  // --- Controles Básicos ---
+
+  Future<void> play() async {
+    if (_playlist.currentSong == null && _playlist.isNotEmpty) {
+      // Si no hay canción actual pero hay playlist, reproducir la primera o la última guardada
+      await skipToNext();
+    } else {
+      await _audioPlayer.play();
+    }
+  }
+
+  Future<void> pause() async => await _audioPlayer.pause();
+
+  Future<void> stop() async {
+    await _audioPlayer.stop();
+    await _audioPlayer.seek(Duration.zero);
+  }
+
+  Future<void> seek(Duration position) async =>
+      await _audioPlayer.seek(position);
+
+  Duration get currentPosition => _audioPlayer.position;
+  Duration get bufferedPosition => _audioPlayer.bufferedPosition;
+
+  // --- Gestión de Playlist ---
+
+  /// Cargar una lista de canciones y empezar a reproducir
+  Future<void> loadPlaylist(List<Song> songs, {int initialIndex = 0}) async {
+    // Verificar si la playlist es la misma para no reiniciar estado
+    final currentSongs = _playlist.songs;
+    bool isSame = false;
+    if (currentSongs.length == songs.length) {
+      isSame = true;
+      for (int i = 0; i < songs.length; i++) {
+        if (currentSongs[i].id != songs[i].id) {
+          isSame = false;
+          break;
+        }
+      }
+    }
+
+    if (isSame) {
+      // Si es la misma playlist, solo cambiar canción si se solicita explícitamente
+      if (initialIndex >= 0 && initialIndex < songs.length) {
+        // Solo reproducir si es diferente a la actual o si no está reproduciendo
+        if (_playlist.currentIndex != initialIndex) {
+          _playlist.setCurrentIndex(initialIndex);
+          await _playCurrentSong();
+        }
+      }
+      // No hacer nada más si ya está cargada
+      return;
+    }
+
+    _playlist.clear();
+    _playlist.addAll(songs);
+
+    if (initialIndex >= 0 && initialIndex < songs.length) {
+      _playlist.setCurrentIndex(initialIndex);
+      await _playCurrentSong();
+    }
+
+    _playlistSubject.add(_playlist);
+  }
+
+  /// Agregar canción al final
+  void addToQueue(Song song) {
+    _playlist.add(song);
+    _playlistSubject.add(_playlist);
+  }
+
+  /// Cambiar modo de reproducción
+  void toggleShuffle() {
+    _playlist.setShuffle(!_playlist.isShuffle);
+    _playlistSubject.add(_playlist);
+    _savePlaybackPreferences();
+  }
+
+  void toggleRepeat() {
+    final current = _playlist.repeatMode;
+    var next = app_state.RepeatMode.off;
+
+    if (current == app_state.RepeatMode.off) {
+      next = app_state.RepeatMode.all;
+    } else if (current == app_state.RepeatMode.all) {
+      next = app_state.RepeatMode.one;
+    } else {
+      next = app_state.RepeatMode.off;
+    }
+
+    _playlist.setRepeatMode(next);
+    _playlistSubject.add(_playlist);
+    _savePlaybackPreferences();
+  }
+
+  // --- Navegación ---
+
+  Future<void> skipToNext() async {
+    final nextIndex = _playlist.nextIndex;
+    if (nextIndex != null) {
+      _playlist.setCurrentIndex(nextIndex);
+      await _playCurrentSong();
+    } else {
+      // Fin de playlist
+      await stop();
+    }
+  }
+
+  Future<void> skipToPrevious() async {
+    // Si la canción lleva más de 3 segundos, reiniciar
+    if (_audioPlayer.position.inSeconds > 3) {
+      await seek(Duration.zero);
+      return;
+    }
+
+    final prevIndex = _playlist.previousIndex;
+    if (prevIndex != null) {
+      _playlist.setCurrentIndex(prevIndex);
+      await _playCurrentSong();
+    } else {
+      // Al principio de playlist, parar o reiniciar
+      await seek(Duration.zero);
+    }
+  }
+
+  /// Reproducir una canción específica de la playlist actual
+  Future<void> playSong(Song song) async {
+    _playlist.selectSong(song);
+    await _playCurrentSong();
+  }
+
+  // --- Internals ---
+
+  Future<void> _playCurrentSong() async {
+    final song = _playlist.currentSong;
+    if (song == null) return;
+
+    try {
+      _currentSongSubject.add(song);
+      _history.add(song.id); // Agregar al historial
+
+      // Cargar archivo
+      if (song.filePath.startsWith('content://') ||
+          song.filePath.startsWith('http')) {
+        // Usar AudioSource para URIs (SAF o Web)
+        await _audioPlayer.setAudioSource(
+          AudioSource.uri(Uri.parse(song.filePath)),
+        );
+      } else {
+        // Archivo local normal
+        await _audioPlayer.setFilePath(song.filePath);
+      }
+
+      await _audioPlayer.play();
+
+      _playlistSubject.add(_playlist); // Actualizar UI
+    } catch (e) {
+      print('[AudioPlayer] Error playing song: $e');
+      // Intentar siguiente si falla
+      await skipToNext();
+    }
+  }
+
+  void _onSongCompleted() async {
+    // Lógica automática al terminar canción
+    if (_playlist.repeatMode == app_state.RepeatMode.one) {
+      await seek(Duration.zero);
+      await play();
+    } else {
+      await skipToNext();
+    }
+  }
+
+  app_state.PlayerState _mapToAppPlayerState(PlayerState state) {
+    final processingState = state.processingState;
+    switch (processingState) {
+      case ProcessingState.idle:
+        return app_state.PlayerState.idle;
+      case ProcessingState.loading:
+        return app_state.PlayerState.loading;
+      case ProcessingState.buffering:
+        return app_state.PlayerState.buffering;
+      case ProcessingState.ready:
+        return state.playing
+            ? app_state.PlayerState.playing
+            : app_state.PlayerState.paused;
+      case ProcessingState.completed:
+        return app_state.PlayerState.completed;
+      default:
+        return app_state.PlayerState.idle;
+    }
+  }
+
+  void dispose() {
+    _audioPlayer.dispose();
+    _playlistSubject.close();
+    _currentSongSubject.close();
+  }
+}

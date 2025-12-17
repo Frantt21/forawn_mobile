@@ -117,4 +117,19 @@ class SafHelper {
       return null;
     }
   }
+
+  // Nuevo: Obtener metadatos desde URI (Saf)
+  static Future<Map<String, dynamic>?> getMetadataFromUri(String uri) async {
+    try {
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getMetadataFromUri',
+        {'uri': uri},
+      );
+      if (result == null) return null;
+      return Map<String, dynamic>.from(result);
+    } catch (e) {
+      print('getMetadataFromUri error: $e');
+      return null;
+    }
+  }
 }

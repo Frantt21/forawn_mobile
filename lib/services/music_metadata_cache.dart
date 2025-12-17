@@ -21,17 +21,24 @@ class MusicMetadataCache {
       final prefs = await SharedPreferences.getInstance();
       final cachedJson = prefs.getString('music_meta_$key');
       if (cachedJson != null) {
-        final data = json.decode(cachedJson) as Map<String, dynamic>;
-        final cached = _CachedMetadata(
-          artist: data['artist'] as String?,
-          album: data['album'] as String?,
-          durationMs: data['duration'] as int?,
-          artworkBase64: data['art'] as String?,
-        );
+        try {
+          final data = json.decode(cachedJson) as Map<String, dynamic>;
+          final cached = _CachedMetadata(
+            title: data['title'] as String?,
+            artist: data['artist'] as String?,
+            album: data['album'] as String?,
+            durationMs: data['duration'] as int?,
+            artworkBase64: data['art'] as String?,
+          );
 
-        // Guardar en memoria para próxima vez
-        _memoryCache[key] = cached;
-        return cached;
+          // Guardar en memoria para próxima vez
+          _memoryCache[key] = cached;
+          return cached;
+        } catch (e) {
+          // Caché corrupto o antiguo sin title, eliminarlo
+          print('[MetadataCache] Removing corrupted cache for key: $key');
+          await prefs.remove('music_meta_$key');
+        }
       }
     } catch (e) {
       print('[MetadataCache] Error reading cache: $e');
@@ -83,6 +90,7 @@ class MusicMetadataCache {
       }
 
       final cached = _CachedMetadata(
+        title: tag.title,
         artist: tag.trackArtist ?? tag.albumArtist,
         album: tag.album,
         durationMs: tag.duration != null
@@ -97,12 +105,59 @@ class MusicMetadataCache {
       // Guardar en persistente
       final prefs = await SharedPreferences.getInstance();
       final data = {
+        'title': cached.title,
         'artist': cached.artist,
         'album': cached.album,
         'duration': cached.durationMs,
         'art': cached.artworkBase64,
       };
       await prefs.setString('music_meta_$key', json.encode(data));
+    } catch (e) {
+      print('[MetadataCache] Error saving cache: $e');
+    }
+  }
+
+  /// Guardar metadata directamente desde datos (para SAF)
+  static Future<void> saveFromMetadata({
+    required String key,
+    String? title,
+    String? artist,
+    String? album,
+    int? durationMs,
+    Uint8List? artworkData,
+  }) async {
+    try {
+      // Comprimir artwork si existe
+      String? artBase64;
+      if (artworkData != null) {
+        final compressed = _compressArtwork(artworkData);
+        if (compressed != null) {
+          artBase64 = base64.encode(compressed);
+        }
+      }
+
+      final cached = _CachedMetadata(
+        title: title,
+        artist: artist,
+        album: album,
+        durationMs: durationMs,
+        artworkBase64: artBase64,
+      );
+
+      // Guardar en memoria
+      _memoryCache[key] = cached;
+
+      // Guardar en persistente
+      final prefs = await SharedPreferences.getInstance();
+      final data = {
+        'title': cached.title,
+        'artist': cached.artist,
+        'album': cached.album,
+        'duration': cached.durationMs,
+        'art': cached.artworkBase64,
+      };
+      await prefs.setString('music_meta_$key', json.encode(data));
+      print('[MetadataCache] Saved metadata for key: $key');
     } catch (e) {
       print('[MetadataCache] Error saving cache: $e');
     }
@@ -127,12 +182,14 @@ class MusicMetadataCache {
 
 /// Clase para almacenar metadata cacheada
 class _CachedMetadata {
+  final String? title;
   final String? artist;
   final String? album;
   final int? durationMs;
   final String? artworkBase64;
 
   _CachedMetadata({
+    this.title,
     this.artist,
     this.album,
     this.durationMs,

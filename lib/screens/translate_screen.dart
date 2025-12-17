@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import '../services/language_service.dart';
 
 class TranslateScreen extends StatefulWidget {
   const TranslateScreen({super.key});
@@ -19,21 +20,21 @@ class _TranslateScreenState extends State<TranslateScreen> {
   String? _error;
   Timer? _debounce;
 
-  // Mapa de idiomas -> código de país para la API
-  static const Map<String, String> _languages = {
-    'Inglés': 'en',
-    'Español': 'es',
-    'Francés': 'fr',
-    'Alemán': 'de',
-    'Portugués': 'pt',
-    'Italiano': 'it',
-    'Chino': 'zh',
-    'Japonés': 'ja',
-    'Coreano': 'ko',
-    'Ruso': 'ru',
+  // Mapa de códigos de idioma -> código de país para la API
+  static const Map<String, String> _languageCodes = {
+    'lang_english': 'en',
+    'lang_spanish': 'es',
+    'lang_french': 'fr',
+    'lang_german': 'de',
+    'lang_portuguese': 'pt',
+    'lang_italian': 'it',
+    'lang_chinese': 'zh',
+    'lang_japanese': 'ja',
+    'lang_korean': 'ko',
+    'lang_russian': 'ru',
   };
 
-  String _targetLang = 'Inglés';
+  String _targetLangKey = 'lang_english';
 
   @override
   void dispose() {
@@ -68,7 +69,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
     });
 
     try {
-      final targetCode = _languages[_targetLang] ?? 'en';
+      final targetCode = _languageCodes[_targetLangKey] ?? 'en';
       final url = Uri.parse(ApiConfig.getTranslationUrl(text, targetCode));
 
       final resp = await http.get(url).timeout(const Duration(seconds: 15));
@@ -136,7 +137,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Traductor'),
+        title: Text(LanguageService().getText('translator')),
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
@@ -161,7 +162,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Traducir al:',
+                        LanguageService().getText('target_language'),
                         style: TextStyle(
                           color: textColor.withOpacity(0.8),
                           fontWeight: FontWeight.w600,
@@ -169,7 +170,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
                       ),
                       DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: _targetLang,
+                          value: _targetLangKey,
                           dropdownColor: cardBackgroundColor,
                           icon: const Icon(
                             Icons.arrow_drop_down,
@@ -180,16 +181,18 @@ class _TranslateScreenState extends State<TranslateScreen> {
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
-                          items: _languages.keys
+                          items: _languageCodes.keys
                               .map(
-                                (k) =>
-                                    DropdownMenuItem(value: k, child: Text(k)),
+                                (k) => DropdownMenuItem(
+                                  value: k,
+                                  child: Text(LanguageService().getText(k)),
+                                ),
                               )
                               .toList(),
                           onChanged: (v) {
                             if (v == null) return;
                             setState(() {
-                              _targetLang = v;
+                              _targetLangKey = v;
                             });
                             if (_inputController.text.isNotEmpty) {
                               _translate();
@@ -216,7 +219,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Escribe texto (Auto-detectar)',
+                          LanguageService().getText('enter_text_translate'),
                           style: TextStyle(
                             color: textColor.withOpacity(0.5),
                             fontSize: 12,
@@ -234,7 +237,9 @@ class _TranslateScreenState extends State<TranslateScreen> {
                             textAlignVertical: TextAlignVertical.top,
                             cursorColor: accentColor,
                             decoration: InputDecoration(
-                              hintText: 'Empieza a escribir...',
+                              hintText: LanguageService().getText(
+                                'enter_text_translate',
+                              ),
                               hintStyle: TextStyle(
                                 color: textColor.withOpacity(0.3),
                               ),
@@ -275,7 +280,7 @@ class _TranslateScreenState extends State<TranslateScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Traducción ($_targetLang)',
+                              '${LanguageService().getText('translation')} (${LanguageService().getText(_targetLangKey)})',
                               style: const TextStyle(
                                 color: accentColor,
                                 fontWeight: FontWeight.bold,

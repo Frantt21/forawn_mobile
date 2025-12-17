@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/saf_helper.dart';
 import '../services/permission_helper.dart';
+import '../services/language_service.dart';
 
 class QRGeneratorScreen extends StatefulWidget {
   const QRGeneratorScreen({super.key});
@@ -65,9 +66,9 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   void _generateQR() {
     final text = _textController.text.trim();
     if (text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Ingresa un texto o URL')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LanguageService().getText('enter_data_qr'))),
+      );
       return;
     }
     setState(() {
@@ -97,7 +98,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   Future<void> _saveQR() async {
     if (_qrData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primero genera un código QR')),
+        SnackBar(content: Text(LanguageService().getText('enter_data_qr'))),
       );
       return;
     }
@@ -170,7 +171,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   Future<void> _shareQR() async {
     if (_qrData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primero genera un código QR')),
+        SnackBar(content: Text(LanguageService().getText('enter_data_qr'))),
       );
       return;
     }
@@ -212,7 +213,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Generador QR'),
+        title: Text(LanguageService().getText('qr_generator')),
         elevation: 0,
         backgroundColor: Colors.transparent,
         actions: [
@@ -226,8 +227,10 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                     await _saveTreeUri(picked);
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Carpeta seleccionada correctamente'),
+                        SnackBar(
+                          content: Text(
+                            LanguageService().getText('folder_selected'),
+                          ),
                         ),
                       );
                     }
@@ -235,15 +238,19 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No se pudo seleccionar la carpeta'),
+                      SnackBar(
+                        content: Text(
+                          LanguageService().getText('folder_select_error'),
+                        ),
                       ),
                     );
                   }
                 }
               },
               onLongPress: () {
-                final msg = _qrTreeUri ?? 'No hay carpeta seleccionada';
+                final msg =
+                    _qrTreeUri ??
+                    LanguageService().getText('no_folder_selected');
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -255,8 +262,8 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
               },
               child: Tooltip(
                 message: _qrTreeUri == null
-                    ? 'Seleccionar carpeta'
-                    : 'Carpeta seleccionada',
+                    ? LanguageService().getText('select_folder')
+                    : LanguageService().getText('folder_selected_tooltip'),
                 child: Icon(
                   Icons.folder_open,
                   color: _qrTreeUri == null
@@ -287,7 +294,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Contenido del QR',
+                        LanguageService().getText('enter_qr_data'),
                         style: TextStyle(
                           color: textColor.withOpacity(0.5),
                           fontSize: 12,
@@ -301,7 +308,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                         maxLines: 3,
                         cursorColor: accentColor,
                         decoration: InputDecoration(
-                          hintText: 'URL, texto, o cualquier información...',
+                          hintText: LanguageService().getText('enter_qr_data'),
                           hintStyle: TextStyle(
                             color: textColor.withOpacity(0.3),
                           ),
@@ -328,9 +335,12 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                   ),
                   onPressed: _generateQR,
                   icon: const Icon(Icons.qr_code_2),
-                  label: const Text(
-                    'Generar QR',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  label: Text(
+                    LanguageService().getText('generate_qr'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -350,7 +360,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'El código QR aparecerá aquí',
+                              LanguageService().getText('qr_generated'),
                               style: TextStyle(
                                 color: textColor.withOpacity(0.4),
                                 fontSize: 14,
@@ -407,7 +417,9 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                               )
                             : const Icon(Icons.save),
                         label: Text(
-                          _isSaving ? 'Guardando...' : 'Guardar',
+                          _isSaving
+                              ? LanguageService().getText('saving')
+                              : LanguageService().getText('save'),
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -425,9 +437,9 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                         ),
                         onPressed: _shareQR,
                         icon: const Icon(Icons.share),
-                        label: const Text(
-                          'Compartir',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                        label: Text(
+                          LanguageService().getText('share'),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),

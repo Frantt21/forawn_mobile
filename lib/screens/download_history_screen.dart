@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/download_history_item.dart';
 import '../services/download_history_service.dart';
+import '../services/language_service.dart';
 import '../utils/safe_http_mixin.dart';
 
 class DownloadHistoryScreen extends StatefulWidget {
@@ -61,9 +62,11 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
     await _loadHistory();
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Eliminado del historial')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LanguageService().getText('deleted_from_history')),
+        ),
+      );
     }
   }
 
@@ -71,18 +74,19 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Limpiar historial'),
-        content: const Text(
-          '¿Estás seguro de que quieres eliminar todo el historial?',
-        ),
+        title: Text(LanguageService().getText('clear_history')),
+        content: Text(LanguageService().getText('clear_history_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(LanguageService().getText('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: Text(
+              LanguageService().getText('delete'),
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -93,9 +97,9 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
       await _loadHistory();
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Historial limpiado')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LanguageService().getText('history_cleared'))),
+        );
       }
     }
   }
@@ -103,13 +107,14 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
+    final lang = LanguageService();
 
     if (difference.inDays == 0) {
-      return 'Hoy ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      return '${lang.getText('today')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     } else if (difference.inDays == 1) {
-      return 'Ayer';
+      return lang.getText('yesterday');
     } else if (difference.inDays < 7) {
-      return 'Hace ${difference.inDays} días';
+      return lang.getText('days_ago', {'days': '${difference.inDays}'});
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }
@@ -127,13 +132,13 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historial de Descargas'),
+        title: Text(LanguageService().getText('download_history')),
         actions: [
           if (_history.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
               onPressed: _clearAll,
-              tooltip: 'Limpiar todo',
+              tooltip: LanguageService().getText('clear_all'),
             ),
         ],
       ),
@@ -153,7 +158,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Buscar en historial',
+                      LanguageService().getText('search_in_history'),
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.5),
                         fontSize: 12,
@@ -167,7 +172,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                       cursorColor: Colors.purpleAccent,
                       decoration: InputDecoration(
-                        hintText: 'Nombre de canción o artista...',
+                        hintText: LanguageService().getText('song_or_artist'),
                         hintStyle: TextStyle(
                           color: Colors.white.withOpacity(0.3),
                         ),
@@ -207,8 +212,10 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
                         const SizedBox(height: 16),
                         Text(
                           _searchController.text.isEmpty
-                              ? 'No hay descargas en el historial'
-                              : 'No se encontraron resultados',
+                              ? LanguageService().getText(
+                                  'no_downloads_in_history',
+                                )
+                              : LanguageService().getText('no_results_found'),
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.4),
                             fontSize: 16,

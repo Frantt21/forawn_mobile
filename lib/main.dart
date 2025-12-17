@@ -10,15 +10,36 @@ import 'services/global_download_manager.dart';
 import 'services/version_check_service.dart';
 import 'services/language_service.dart';
 
+import 'package:audio_service/audio_service.dart';
+import 'services/audio_handler.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Audio Service for background playback notification
+  try {
+    await AudioService.init(
+      builder: () => MyAudioHandler(),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.forawnt.app.audio',
+        androidNotificationChannelName: 'Music Playback',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+      ),
+    );
+  } catch (e) {
+    print('[Main] Error initializing AudioService: $e');
+  }
+
   // Inicializar el servicio de idiomas
-  await LanguageService().init();
+  try {
+    await LanguageService().init();
+  } catch (e) {
+    print('[Main] Error initializing LanguageService: $e');
+  }
 
   // Inicializar el gestor global de descargas
   await GlobalDownloadManager().initialize();
-  await GlobalDownloadManager().requestNotificationPermissions();
 
   // Verificar actualizaciones en segundo plano (sin bloquear el inicio)
   _checkForUpdatesInBackground();
@@ -30,7 +51,14 @@ void main() async {
 void _checkForUpdatesInBackground() async {
   try {
     // Esperar un poco para no afectar el tiempo de inicio
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(seconds: 2));
+
+    // Solicitar permisos de notificación después de que la app esté lista
+    try {
+      await GlobalDownloadManager().requestNotificationPermissions();
+    } catch (e) {
+      print('[Main] Error requesting notification permissions: $e');
+    }
 
     final result = await VersionCheckService.checkForUpdate();
 

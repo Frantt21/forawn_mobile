@@ -134,15 +134,20 @@ class DownloadService {
     String? trackTitle,
     String? artistName,
     bool enableYoutubeFallback = true,
+    bool forceYouTubeFallback = false, // NUEVO: Forzar YouTube directamente
   }) async {
     String? tempPath;
-    final useYoutube = url.trim().isEmpty;
+    final useYoutube = url.trim().isEmpty || forceYouTubeFallback;
 
     try {
-      // 1) Si la URL está vacía, saltar directo a YouTube
+      // 1) Si la URL está vacía o se fuerza YouTube, saltar directo a YouTube
       if (useYoutube) {
-        print('[DownloadService] URL vacía, usando YouTube directamente');
-        throw Exception('Empty URL, forcing fallback');
+        if (forceYouTubeFallback) {
+          print('[DownloadService] Forzando YouTube Fallback (bypass de API)');
+        } else {
+          print('[DownloadService] URL vacía, usando YouTube directamente');
+        }
+        throw Exception('Empty URL or forced YouTube, forcing fallback');
       }
 
       // 2) Intentar descargar desde la URL original
@@ -171,7 +176,7 @@ class DownloadService {
       }
 
       // 3) Si falla y el fallback está habilitado, intenta YouTube
-      if (enableYoutubeFallback) {
+      if (enableYoutubeFallback || forceYouTubeFallback) {
         // Validar que tengamos al menos el título de la canción
         final hasTitle = trackTitle != null && trackTitle.trim().isNotEmpty;
         final hasArtist = artistName != null && artistName.trim().isNotEmpty;

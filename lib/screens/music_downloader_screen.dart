@@ -9,6 +9,7 @@ import '../services/spotify_service.dart';
 import '../services/saf_helper.dart';
 import '../services/pinterest_service.dart';
 import '../services/global_download_manager.dart';
+import '../services/language_service.dart';
 import 'download_history_screen.dart';
 
 class MusicDownloaderScreen extends StatefulWidget {
@@ -70,7 +71,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
         await _saveTreeUri(picked);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Carpeta seleccionada correctamente')),
+            SnackBar(
+              content: Text(LanguageService().getText('folder_selected')),
+            ),
           );
         }
       }
@@ -78,7 +81,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
       print('Error al seleccionar carpeta: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo seleccionar la carpeta')),
+          SnackBar(
+            content: Text(LanguageService().getText('folder_select_error')),
+          ),
         );
       }
     }
@@ -89,9 +94,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
 
     if (query.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor ingresa un término de búsqueda'),
-        ),
+        SnackBar(content: Text(LanguageService().getText('enter_search_term'))),
       );
       return;
     }
@@ -113,7 +116,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
 
       if (results.isEmpty && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se encontraron resultados')),
+          SnackBar(
+            content: Text(LanguageService().getText('no_results_found')),
+          ),
         );
         return;
       }
@@ -131,7 +136,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al buscar: ${e.toString()}'),
+            content: Text(
+              '${LanguageService().getText('search_error')}: ${e.toString()}',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -166,29 +173,41 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
     }
   }
 
-  Future<void> _downloadTrack(SpotifyTrack track) async {
+  Future<void> _downloadTrack(
+    SpotifyTrack track, {
+    bool forceYouTubeFallback = false,
+  }) async {
     try {
       // Agregar descarga al gestor global
       final downloadId = await _downloadManager.addDownload(
         track: track,
         pinterestImageUrl: _pinterestImages[track.url],
         treeUri: _treeUri,
+        forceYouTubeFallback: forceYouTubeFallback,
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Descarga iniciada: ${track.title}')),
+          SnackBar(
+            content: Text(
+              forceYouTubeFallback
+                  ? '${LanguageService().getText('download_started')} (YouTube): ${track.title}'
+                  : '${LanguageService().getText('download_started')}: ${track.title}',
+            ),
+          ),
         );
       }
 
-      print('[MusicDownloaderScreen] Download added with ID: $downloadId');
+      print(
+        '[MusicDownloaderScreen] Download added with ID: $downloadId${forceYouTubeFallback ? ' (YouTube Fallback)' : ''}',
+      );
     } catch (e) {
       print('[MusicDownloaderScreen] Error adding download: $e');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al iniciar descarga: $e'),
+            content: Text('${LanguageService().getText('download_error')}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -204,7 +223,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Music Downloader'),
+        title: Text(LanguageService().getText('music_downloader')),
         actions: [
           // Botón de historial
           IconButton(
@@ -217,7 +236,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                 ),
               );
             },
-            tooltip: 'Historial de descargas',
+            tooltip: LanguageService().getText('download_history'),
           ),
           // Botón de carpeta
           Padding(
@@ -230,8 +249,10 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                     await _saveTreeUri(picked);
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Carpeta seleccionada correctamente'),
+                        SnackBar(
+                          content: Text(
+                            LanguageService().getText('folder_selected'),
+                          ),
                         ),
                       );
                     }
@@ -239,8 +260,10 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No se pudo seleccionar la carpeta'),
+                      SnackBar(
+                        content: Text(
+                          LanguageService().getText('folder_select_error'),
+                        ),
                       ),
                     );
                   }
@@ -248,7 +271,8 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
               },
               onLongPress: () {
                 final uri = _treeUri;
-                final msg = uri ?? 'No hay carpeta seleccionada';
+                final msg =
+                    uri ?? LanguageService().getText('no_folder_selected');
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -260,8 +284,8 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
               },
               child: Tooltip(
                 message: _treeUri == null
-                    ? 'Seleccionar carpeta'
-                    : 'Carpeta seleccionada',
+                    ? LanguageService().getText('select_folder')
+                    : LanguageService().getText('folder_selected_tooltip'),
                 child: Icon(
                   Icons.folder_open,
                   color: _treeUri == null
@@ -297,7 +321,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Buscar música',
+                                  LanguageService().getText('search_music'),
                                   style: TextStyle(
                                     color: textColor.withOpacity(0.5),
                                     fontSize: 12,
@@ -313,8 +337,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                   ),
                                   cursorColor: accentColor,
                                   decoration: InputDecoration(
-                                    hintText:
-                                        'Nombre de la canción o artista...',
+                                    hintText: LanguageService().getText(
+                                      'song_or_artist',
+                                    ),
                                     hintStyle: TextStyle(
                                       color: textColor.withOpacity(0.3),
                                     ),
@@ -343,7 +368,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                   )
                                 : const Icon(Icons.search),
                             label: Text(
-                              _isSearching ? 'Buscando...' : 'Buscar',
+                              _isSearching
+                                  ? LanguageService().getText('searching')
+                                  : LanguageService().getText('search'),
                             ),
                           ),
                         ),
@@ -369,7 +396,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
                             Text(
-                              'Descargas activas (${activeDownloads.length})',
+                              '${LanguageService().getText('active_downloads')} (${activeDownloads.length})',
                               style: TextStyle(
                                 color: textColor,
                                 fontSize: 16,
@@ -457,7 +484,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                         ),
                                       if (isCompleted)
                                         Text(
-                                          'Completado',
+                                          LanguageService().getText(
+                                            'completed',
+                                          ),
                                           style: TextStyle(
                                             color: Colors.green,
                                             fontSize: 12,
@@ -503,8 +532,8 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                       delegate: SliverChildListDelegate([
                         Text(
                           _searchResults.isEmpty
-                              ? 'Resultados'
-                              : 'Resultados (${_searchResults.length})',
+                              ? LanguageService().getText('results')
+                              : '${LanguageService().getText('results')} (${_searchResults.length})',
                           style: TextStyle(
                             color: textColor,
                             fontSize: 16,
@@ -535,7 +564,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  'Busca canciones para comenzar',
+                                  LanguageService().getText('search_to_start'),
                                   style: TextStyle(
                                     color: textColor.withOpacity(0.5),
                                     fontSize: 16,
@@ -608,17 +637,36 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                     ),
                                   ),
                                   subtitle: Text(
-                                    '${track.duration} • Popularidad: ${track.popularity}',
+                                    '${track.duration} • ${LanguageService().getText('popularity')}: ${track.popularity}',
                                     style: TextStyle(
                                       color: textColor.withOpacity(0.6),
                                     ),
                                   ),
-                                  trailing: IconButton(
-                                    icon: Icon(
-                                      Icons.download,
-                                      color: accentColor,
-                                    ),
-                                    onPressed: () => _downloadTrack(track),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Botón de descarga normal
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.download,
+                                          color: accentColor,
+                                        ),
+                                        tooltip: 'Download',
+                                        onPressed: () => _downloadTrack(track),
+                                      ),
+                                      // Botón para forzar YouTube Fallback
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.video_library,
+                                          color: Colors.red.shade400,
+                                        ),
+                                        tooltip: 'Force YouTube Fallback',
+                                        onPressed: () => _downloadTrack(
+                                          track,
+                                          forceYouTubeFallback: true,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   onTap: () => _downloadTrack(track),
                                 ),

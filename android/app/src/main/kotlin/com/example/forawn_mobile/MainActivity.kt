@@ -11,12 +11,15 @@ import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import android.media.MediaMetadataRetriever
 import java.io.File
 import java.io.FileInputStream
 import java.io.OutputStream
 import androidx.core.content.FileProvider
+import com.ryanheise.audioservice.AudioServiceActivity
 
-class MainActivity : FlutterActivity() {
+
+class MainActivity : AudioServiceActivity() {
   private val CHANNEL = "forawn/saf"
   private val PICK_DIR_REQUEST = 1001
   private var pendingResult: MethodChannel.Result? = null
@@ -126,6 +129,20 @@ class MainActivity : FlutterActivity() {
             result.success(ok)
           } catch (e: Exception) {
             result.error("SHARE_ERROR", e.message, null)
+          }
+        }
+
+        "getMetadataFromUri" -> {
+          val uriStr = call.argument<String>("uri")
+          if (uriStr == null) {
+            result.error("INVALID_ARGS", "uri is null", null)
+            return@setMethodCallHandler
+          }
+          try {
+            val metadata = getMetadataFromUri(Uri.parse(uriStr))
+            result.success(metadata)
+          } catch (e: Exception) {
+            result.error("METADATA_ERROR", e.message, null)
           }
         }
 
@@ -253,6 +270,31 @@ class MainActivity : FlutterActivity() {
       true
     } catch (e: Exception) {
       false
+    }
+  }
+
+  private fun getMetadataFromUri(uri: Uri): Map<String, Any?> {
+    val retriever = MediaMetadataRetriever()
+    return try {
+      retriever.setDataSource(this, uri)
+      val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+      val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+      val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+      val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+      val picture = retriever.embeddedPicture
+
+      mapOf(
+        "title" to title,
+        "artist" to artist,
+        "album" to album,
+        "duration" to durationStr?.toLongOrNull(),
+        "artworkData" to picture
+      )
+    } catch (e: Exception) {
+      e.printStackTrace()
+      mapOf()
+    } finally {
+      retriever.release()
     }
   }
 }
