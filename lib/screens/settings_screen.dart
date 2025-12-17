@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/version_check_service.dart';
 import '../services/language_service.dart';
+import '../services/music_metadata_cache.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -259,7 +260,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
           _buildSectionTitle(LanguageService().getText('storage')),
           const SizedBox(height: 12),
-          _buildSettingCard(child: const StorageBar()),
+          _buildSettingCard(
+            child: Column(
+              children: [
+                const StorageBar(),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(
+                    Icons.music_note,
+                    color: Colors.purpleAccent,
+                  ),
+                  title: Text(
+                    LanguageService().getText('clear_music_cache'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  subtitle: Text(
+                    LanguageService().getText('clear_music_cache_desc'),
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_sweep),
+                    color: Colors.purpleAccent,
+                    onPressed: () async {
+                      await MusicMetadataCache.clearOldCache();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              LanguageService().getText('music_cache_cleared'),
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           _buildSectionTitle(LanguageService().getText('information')),
           const SizedBox(height: 12),

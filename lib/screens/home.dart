@@ -10,6 +10,7 @@ import 'settings_screen.dart';
 import 'notifications_screen.dart';
 import 'local_music_screen.dart';
 import '../services/language_service.dart';
+import '../services/saf_helper.dart';
 
 /// Servicio persistente para pantallas recientes
 class RecentScreensService {
@@ -110,13 +111,13 @@ class RecentScreen {
     required this.iconFontPackage,
     required this.colorValue,
     required this.visitedAt,
-  }) : icon = IconData(
-         iconCodePoint,
-         fontFamily: iconFontFamily,
-         fontPackage: iconFontPackage,
-       );
+  });
 
-  final IconData icon;
+  IconData get icon => IconData(
+    iconCodePoint,
+    fontFamily: iconFontFamily,
+    fontPackage: iconFontPackage,
+  );
   Color get color => Color(colorValue);
 
   Map<String, dynamic> toJson() {
@@ -341,9 +342,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           const SizedBox(height: 24),
-
-          const SizedBox(height: 24),
-
           // Recent Screens
           if (_recentScreensService.recentScreens.isNotEmpty) ...[
             Row(
@@ -565,6 +563,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     )
                   : null,
               actions: [
+                // Botones de música local
+                if (_selectedIndex == 1) ...[
+                  IconButton(
+                    icon: const Icon(Icons.folder_open),
+                    onPressed: () async {
+                      // Llamar directamente al picker de SAF
+                      final uri = await SafHelper.pickDirectory();
+                      if (uri != null) {
+                        // Guardar la carpeta seleccionada
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('selected_music_folder', uri);
+                        // Refrescar la pantalla
+                        setState(() {});
+                      }
+                    },
+                    tooltip: 'Seleccionar Carpeta',
+                  ),
+                ],
                 // Botón de limpiar notificaciones (solo en pantalla de notificaciones)
                 if (_selectedIndex == 3 && // Index 3 is now Notifications
                     _notificationsKey.currentState?.hasNotifications == true)
@@ -576,17 +592,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                 // Botón de refrescar
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: () {
-                    setState(() {});
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(LanguageService().getText('refreshing')),
-                      ),
-                    );
-                  },
-                ),
+                // IconButton(
+                //   icon: const Icon(Icons.refresh),
+                //   onPressed: () {
+                //     setState(() {});
+                //     ScaffoldMessenger.of(context).showSnackBar(
+                //       SnackBar(
+                //         content: Text(LanguageService().getText('refreshing')),
+                //       ),
+                //     );
+                //   },
+                // ),
               ],
             ),
           ),
@@ -633,66 +649,91 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Floating Navigation Bar
-            if (!_isKeyboardVisible && _selectedIndex != 2)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 16,
-                child: SafeArea(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        height: 70,
-                        decoration: BoxDecoration(
-                          color: const Color.fromARGB(
-                            255,
-                            45,
-                            45,
-                            45,
-                          ).withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
-                            width: 1,
+            // Floating Navigation Bar (oculto en ForaAI y Local Music) con animación
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: AnimatedOpacity(
+                opacity:
+                    (!_isKeyboardVisible &&
+                        _selectedIndex != 2 &&
+                        _selectedIndex != 1)
+                    ? 1.0
+                    : 0.0,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: AnimatedSlide(
+                  offset:
+                      (!_isKeyboardVisible &&
+                          _selectedIndex != 2 &&
+                          _selectedIndex != 1)
+                      ? Offset.zero
+                      : const Offset(0, 0.5),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: IgnorePointer(
+                    ignoring:
+                        _isKeyboardVisible ||
+                        _selectedIndex == 2 ||
+                        _selectedIndex == 1,
+                    child: SafeArea(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            height: 70,
+                            decoration: BoxDecoration(
+                              color: const Color.fromARGB(
+                                255,
+                                45,
+                                45,
+                                45,
+                              ).withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildNavItem(Icons.home, 0, accentColor),
+                                _buildNavItem(
+                                  Icons.library_music,
+                                  1,
+                                  accentColor,
+                                ), // Local Music
+                                _buildNavItem(
+                                  Icons.smart_toy,
+                                  2,
+                                  accentColor,
+                                ), // ForaAI
+                                _buildNavItem(
+                                  Icons.notifications_outlined,
+                                  3,
+                                  accentColor,
+                                ),
+                                _buildNavItem(Icons.settings, 4, accentColor),
+                              ],
+                            ),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildNavItem(Icons.home, 0, accentColor),
-                            _buildNavItem(
-                              Icons.library_music,
-                              1,
-                              accentColor,
-                            ), // Local Music
-                            _buildNavItem(
-                              Icons.smart_toy,
-                              2,
-                              accentColor,
-                            ), // ForaAI
-                            _buildNavItem(
-                              Icons.notifications_outlined,
-                              3,
-                              accentColor,
-                            ),
-                            _buildNavItem(Icons.settings, 4, accentColor),
-                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ),

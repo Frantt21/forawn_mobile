@@ -2,6 +2,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../services/audio_player_service.dart';
+import '../services/language_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart';
 import '../services/lyrics_service.dart';
@@ -155,7 +156,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
           Text(
-            _showLyrics ? 'L Y R I C S' : 'NOW PLAYING',
+            _showLyrics
+                ? LanguageService().getText('lyrics').toUpperCase()
+                : LanguageService().getText('now_playing').toUpperCase(),
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 12,
@@ -316,7 +319,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   return IconButton(
                     icon: Icon(
                       Icons.shuffle,
-                      color: isShuffle ? Colors.greenAccent : Colors.white,
+                      color: isShuffle ? Colors.purpleAccent : Colors.white,
                     ),
                     onPressed: _player.toggleShuffle,
                   );
@@ -394,11 +397,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   switch (mode) {
                     case RepeatMode.one:
                       icon = Icons.repeat_one_rounded;
-                      color = Colors.greenAccent;
+                      color = Colors.purpleAccent;
                       break;
                     case RepeatMode.all:
                       icon = Icons.repeat_rounded;
-                      color = Colors.greenAccent;
+                      color = Colors.purpleAccent;
                       break;
                     case RepeatMode.off:
                       icon = Icons.repeat_rounded;

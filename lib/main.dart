@@ -25,6 +25,7 @@ void main() async {
         androidNotificationChannelName: 'Music Playback',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
+        androidNotificationIcon: 'mipmap/ic_launcher', // Icono de la app
       ),
     );
   } catch (e) {

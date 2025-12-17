@@ -1,6 +1,8 @@
 // lib/widgets/mini_player.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../services/audio_player_service.dart';
+import '../services/language_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart';
 import '../screens/music_player_screen.dart';
@@ -16,120 +18,171 @@ class MiniPlayer extends StatelessWidget {
       stream: player.currentSongStream,
       builder: (context, snapshot) {
         final song = snapshot.data;
-        if (song == null) return const SizedBox.shrink();
 
+        // Siempre mostrar el contenedor con estilo del Nav
         return GestureDetector(
-          onTap: () {
-            // Abrir reproductor
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const MusicPlayerScreen()),
-            );
-          },
-          child: Container(
-            height: 64,
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Row(
-                children: [
-                  // Artwork
-                  AspectRatio(
-                    aspectRatio: 1,
-                    child: song.artworkData != null
-                        ? Image.memory(song.artworkData!, fit: BoxFit.cover)
-                        : Container(
-                            color: Colors.grey[850],
-                            child: const Icon(
-                              Icons.music_note,
-                              color: Colors.white54,
-                            ),
-                          ),
-                  ),
-
-                  // Texto
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          Text(
-                            song.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
+          onTap: song != null
+              ? () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const MusicPlayerScreen(),
                     ),
+                  );
+                }
+              : null,
+          child: Container(
+            height: 70,
+            margin: const EdgeInsets.symmetric(
+              vertical: 0,
+            ), // Sin margin horizontal ni vertical
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color.fromARGB(
+                      255,
+                      45,
+                      45,
+                      45,
+                    ).withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-
-                  // Controles
-                  StreamBuilder<PlayerState>(
-                    stream: player.playerStateStream,
-                    builder: (context, snapshot) {
-                      final state = snapshot.data ?? PlayerState.idle;
-                      final isPlaying = state == PlayerState.playing;
-
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded,
-                            ),
-                            color: Colors.white,
-                            onPressed: () {
-                              if (isPlaying) {
-                                player.pause();
-                              } else {
-                                player.play();
-                              }
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.skip_next_rounded),
-                            color: Colors.white,
-                            onPressed: player.skipToNext,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
+                  child: song != null
+                      ? _buildPlayerContent(song, player)
+                      : _buildPlaceholder(),
+                ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  // Contenido cuando hay música
+  Widget _buildPlayerContent(Song song, AudioPlayerService player) {
+    return Row(
+      children: [
+        // Artwork
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: song.artworkData != null
+                  ? Image.memory(song.artworkData!, fit: BoxFit.cover)
+                  : Container(
+                      color: Colors.grey[850],
+                      child: const Icon(
+                        Icons.music_note,
+                        color: Colors.white54,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+
+        // Texto
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  song.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Controles
+        StreamBuilder<PlayerState>(
+          stream: player.playerStateStream,
+          builder: (context, snapshot) {
+            final state = snapshot.data ?? PlayerState.idle;
+            final isPlaying = state == PlayerState.playing;
+
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  ),
+                  color: Colors.white,
+                  onPressed: () {
+                    if (isPlaying) {
+                      player.pause();
+                    } else {
+                      player.play();
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.skip_next_rounded),
+                  color: Colors.white,
+                  onPressed: player.skipToNext,
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // Placeholder cuando no hay música (estilo Nav)
+  Widget _buildPlaceholder() {
+    return Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.music_note_outlined,
+            color: Colors.white.withOpacity(0.3),
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            LanguageService().getText('no_music'),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

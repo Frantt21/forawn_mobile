@@ -192,5 +192,14 @@
   "lang_chinese": "Chinese",
   "lang_japanese": "Japanese",
   "lang_korean": "Korean",
-  "lang_russian": "Russian"
+  "lang_russian": "Russian",
+  
+  "no_songs_found": "No mp3 songs found",
+  "no_songs_loaded": "No songs loaded",
+  "no_music": "No music",
+  "now_playing": "Now playing",
+  "lyrics": "Lyrics",
+  "clear_music_cache": "Clear music cache",
+  "clear_music_cache_desc": "Remove saved song metadata",
+  "music_cache_cleared": "Music cache cleared"
 }
