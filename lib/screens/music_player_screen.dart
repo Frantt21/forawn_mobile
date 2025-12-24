@@ -86,6 +86,12 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                             _player.skipToPrevious();
                           }
                         },
+                        onVerticalDragEnd: (details) {
+                          // Detectar swipe hacia abajo (velocidad positiva) para cerrar
+                          if (details.primaryVelocity! > 500) {
+                            Navigator.of(context).pop();
+                          }
+                        },
                         child: _showLyrics
                             ? LyricsView(
                                 lyrics: _currentLyrics,
@@ -142,39 +148,48 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            icon: const Icon(
-              Icons.keyboard_arrow_down,
-              color: Colors.white,
-              size: 32,
+    return GestureDetector(
+      onVerticalDragEnd: (details) {
+        if (details.primaryVelocity! > 0) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              icon: const Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.white,
+                size: 32,
+              ),
+              onPressed: () => Navigator.of(context).pop(),
             ),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          Text(
-            _showLyrics
-                ? LanguageService().getText('lyrics').toUpperCase()
-                : LanguageService().getText('now_playing').toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              letterSpacing: 2,
+
+            // Título dinámico
+            Text(
+              _showLyrics
+                  ? LanguageService().getText('lyrics').toUpperCase()
+                  : LanguageService().getText('now_playing').toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                letterSpacing: 2,
+              ),
             ),
-          ),
-          IconButton(
-            icon: Icon(
-              _showLyrics ? Icons.music_note : Icons.lyrics,
-              color: Colors.white,
+            IconButton(
+              icon: Icon(
+                _showLyrics ? Icons.music_note : Icons.lyrics,
+                color: Colors.white,
+              ),
+              onPressed: () {
+                setState(() => _showLyrics = !_showLyrics);
+              },
             ),
-            onPressed: () {
-              setState(() => _showLyrics = !_showLyrics);
-            },
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

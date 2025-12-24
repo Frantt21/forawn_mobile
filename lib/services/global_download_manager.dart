@@ -171,41 +171,51 @@ class GlobalDownloadManager {
 
       String? downloadUrl;
 
-      // Intentar obtener URL de descarga
-      try {
-        final downloadInfo = await _spotifyService.getDownloadUrl(
-          track.url,
-          trackName: trackName,
-          artistName: artistName,
-        );
+      // ⚡ DETECTAR SI ES URL DE GOOGLE DRIVE (CACHÉ)
+      final isGoogleDriveUrl = track.url.contains('drive.google.com');
 
-        // ⚠️ VERIFICAR CANCELACIÓN INMEDIATAMENTE DESPUÉS DE OBTENER URL
-        if (_activeDownloads[downloadId]?.isCancelled == true) {
-          print(
-            '[GlobalDownloadManager] Descarga cancelada después de obtener URL: $downloadId',
+      if (isGoogleDriveUrl) {
+        // Usar URL de Google Drive directamente (desde caché)
+        print('[GlobalDownloadManager] ⚡ Using cached Google Drive URL');
+        downloadUrl = track.url;
+      } else {
+        // Intentar obtener URL de descarga desde Spotify/YouTube
+        try {
+          final downloadInfo = await _spotifyService.getDownloadUrl(
+            track.url,
+            trackName: trackName,
+            artistName: artistName,
           );
-          _activeDownloads.remove(downloadId);
-          _notificationsPlugin.cancel(downloadId.hashCode);
-          return;
-        }
 
-        if (downloadInfo.downloadUrl.isNotEmpty) {
-          downloadUrl = downloadInfo.downloadUrl;
-          if (downloadInfo.name.isNotEmpty) trackName = downloadInfo.name;
-          if (downloadInfo.artists.isNotEmpty)
-            artistName = downloadInfo.artists;
-        }
-      } catch (e) {
-        print('[GlobalDownloadManager] API failed: $e');
+          // ⚠️ VERIFICAR CANCELACIÓN INMEDIATAMENTE DESPUÉS DE OBTENER URL
+          if (_activeDownloads[downloadId]?.isCancelled == true) {
+            print(
+              '[GlobalDownloadManager] Descarga cancelada después de obtener URL: $downloadId',
+            );
+            _activeDownloads.remove(downloadId);
+            _notificationsPlugin.cancel(downloadId.hashCode);
+            return;
+          }
 
-        // Verificar si fue cancelada durante el error
-        if (_activeDownloads[downloadId]?.isCancelled == true) {
-          print(
-            '[GlobalDownloadManager] Descarga cancelada durante error de API: $downloadId',
-          );
-          _activeDownloads.remove(downloadId);
-          _notificationsPlugin.cancel(downloadId.hashCode);
-          return;
+          if (downloadInfo.downloadUrl.isNotEmpty) {
+            downloadUrl = downloadInfo.downloadUrl;
+            if (downloadInfo.name.isNotEmpty) trackName = downloadInfo.name;
+            if (downloadInfo.artists.isNotEmpty) {
+              artistName = downloadInfo.artists;
+            }
+          }
+        } catch (e) {
+          print('[GlobalDownloadManager] API failed: $e');
+
+          // Verificar si fue cancelada durante el error
+          if (_activeDownloads[downloadId]?.isCancelled == true) {
+            print(
+              '[GlobalDownloadManager] Descarga cancelada durante error de API: $downloadId',
+            );
+            _activeDownloads.remove(downloadId);
+            _notificationsPlugin.cancel(downloadId.hashCode);
+            return;
+          }
         }
       }
 

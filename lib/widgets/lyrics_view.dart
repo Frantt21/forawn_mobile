@@ -26,7 +26,7 @@ class _LyricsViewState extends State<LyricsView> {
       ItemPositionsListener.create();
 
   int _currentIndex = -1;
-  bool _isUserScrolling = false;
+  final bool _isUserScrolling = false;
 
   @override
   Widget build(BuildContext context) {

@@ -1,13 +1,11 @@
-// lib/screens/music_downloader_screen.dart
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/spotify_track.dart';
-import '../services/spotify_service.dart';
+import '../services/youtube_service.dart';
 import '../services/saf_helper.dart';
-import '../services/pinterest_service.dart';
 import '../services/global_download_manager.dart';
 import '../services/language_service.dart';
 import 'download_history_screen.dart';
@@ -21,14 +19,12 @@ class MusicDownloaderScreen extends StatefulWidget {
 
 class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final SpotifyService _spotifyService = SpotifyService();
+  final YouTubeService _youtubeService = YouTubeService();
   final GlobalDownloadManager _downloadManager = GlobalDownloadManager();
 
   String? _treeUri;
-  List<SpotifyTrack> _searchResults = [];
+  List<YouTubeVideo> _searchResults = [];
   bool _isSearching = false;
-  final Map<String, String?> _pinterestImages =
-      {}; // Cache de imágenes de Pinterest
 
   @override
   void initState() {
@@ -102,13 +98,11 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
     setState(() {
       _isSearching = true;
       _searchResults = [];
-      _pinterestImages.clear(); // Limpiar cache de imágenes anteriores
     });
 
     try {
-      final results = await _spotifyService.searchSongs(query);
+      final results = await _youtubeService.search(query, limit: 20);
 
-      // Mostrar resultados INMEDIATAMENTE
       setState(() {
         _searchResults = results;
         _isSearching = false;
@@ -120,11 +114,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
             content: Text(LanguageService().getText('no_results_found')),
           ),
         );
-        return;
       }
-
-      // Cargar imágenes de Pinterest de forma ASÍNCRONA (en segundo plano)
-      _loadPinterestImages(results);
     } catch (e, st) {
       print('[MusicDownloaderScreen] _searchSongs error: $e');
       print(st);
@@ -146,70 +136,92 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
     }
   }
 
-  /// Cargar imágenes de Pinterest de forma asíncrona
-  Future<void> _loadPinterestImages(List<SpotifyTrack> tracks) async {
-    for (final track in tracks) {
-      if (!mounted) break; // Detener si el widget fue destruido
-
-      try {
-        // Construir query: "artista canción portada"
-        final searchQuery = '${track.artists} ${track.title} portada';
-
-        // Buscar imagen en Pinterest
-        final imageUrl = await PinterestService.getFirstImage(searchQuery);
-
-        // Actualizar UI con la imagen encontrada
-        if (mounted && imageUrl != null) {
-          setState(() {
-            _pinterestImages[track.url] = imageUrl;
-          });
-        }
-      } catch (e) {
-        print(
-          '[MusicDownloaderScreen] Error loading Pinterest image for ${track.title}: $e',
-        );
-        // Continuar con la siguiente canción si falla
-      }
-    }
-  }
-
-  Future<void> _downloadTrack(
-    SpotifyTrack track, {
-    bool forceYouTubeFallback = false,
-  }) async {
+  Future<void> _downloadTrack(YouTubeVideo video) async {
     try {
-      // Agregar descarga al gestor global
-      final downloadId = await _downloadManager.addDownload(
-        track: track,
-        pinterestImageUrl: _pinterestImages[track.url],
-        treeUri: _treeUri,
-        forceYouTubeFallback: forceYouTubeFallback,
+      // Verificar caché primero
+      final cachedSong = await _youtubeService.checkCache(
+        video.parsedSong.isNotEmpty ? video.parsedSong : video.title,
+        video.parsedArtist.isNotEmpty ? video.parsedArtist : video.author,
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              forceYouTubeFallback
-                  ? '${LanguageService().getText('download_started')} (YouTube): ${track.title}'
-                  : '${LanguageService().getText('download_started')}: ${track.title}',
+      if (cachedSong.cached && cachedSong.downloadUrl != null) {
+        // ⚡ DESCARGA DESDE CACHÉ (Google Drive)
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '⚡ Descarga rápida desde caché: ${video.displayTitle}',
+              ),
+              backgroundColor: Colors.green,
             ),
-          ),
+          );
+        }
+
+        print('[CACHE] Using cached download URL: ${cachedSong.downloadUrl}');
+
+        // Usar URL de Google Drive en lugar de YouTube
+        final track = SpotifyTrack(
+          title: video.parsedSong.isNotEmpty ? video.parsedSong : video.title,
+          artists: video.parsedArtist.isNotEmpty
+              ? video.parsedArtist
+              : video.author,
+          url: cachedSong.downloadUrl!, // URL de Google Drive
+          duration: video.durationText,
+          popularity: '0',
+        );
+
+        // Agregar descarga desde caché (sin YouTube fallback)
+        final downloadId = await _downloadManager.addDownload(
+          track: track,
+          pinterestImageUrl: video.thumbnail,
+          treeUri: _treeUri,
+          forceYouTubeFallback:
+              false, // No usar YouTube, descargar desde Google Drive
+        );
+
+        print(
+          '[MusicDownloaderScreen] Cache download added with ID: $downloadId',
+        );
+      } else {
+        // 📥 DESCARGA NORMAL DESDE YOUTUBE
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Descargando: ${video.displayTitle}'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+
+        // Convertir YouTubeVideo a SpotifyTrack
+        final track = SpotifyTrack(
+          title: video.parsedSong.isNotEmpty ? video.parsedSong : video.title,
+          artists: video.parsedArtist.isNotEmpty
+              ? video.parsedArtist
+              : video.author,
+          url: video.url, // URL de YouTube
+          duration: video.durationText,
+          popularity: '0',
+        );
+
+        // Agregar descarga normal desde YouTube
+        final downloadId = await _downloadManager.addDownload(
+          track: track,
+          pinterestImageUrl: video.thumbnail,
+          treeUri: _treeUri,
+          forceYouTubeFallback: true, // Usar YouTube
+        );
+
+        print(
+          '[MusicDownloaderScreen] YouTube download added with ID: $downloadId',
         );
       }
-
-      print(
-        '[MusicDownloaderScreen] Download added with ID: $downloadId${forceYouTubeFallback ? ' (YouTube Fallback)' : ''}',
-      );
     } catch (e) {
       print('[MusicDownloaderScreen] Error adding download: $e');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${LanguageService().getText('download_error')}: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -517,7 +529,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                       : null,
                                 ),
                               );
-                            }).toList(),
+                            }),
                             const SizedBox(height: 12),
                           ]),
                         ),
@@ -581,9 +593,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                               context,
                               index,
                             ) {
-                              final track = _searchResults[index];
-                              final pinterestImage =
-                                  _pinterestImages[track.url];
+                              final video = _searchResults[index];
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -594,34 +604,15 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                       width: 56,
                                       height: 56,
                                       color: accentColor.withOpacity(0.2),
-                                      child: pinterestImage != null
+                                      child: video.thumbnail.isNotEmpty
                                           ? Image.network(
-                                              pinterestImage,
+                                              video.thumbnail,
                                               fit: BoxFit.cover,
                                               errorBuilder: (_, __, ___) =>
                                                   Icon(
                                                     Icons.music_note,
                                                     color: accentColor,
                                                   ),
-                                              loadingBuilder: (context, child, loadingProgress) {
-                                                if (loadingProgress == null)
-                                                  return child;
-                                                return Center(
-                                                  child: CircularProgressIndicator(
-                                                    value:
-                                                        loadingProgress
-                                                                .expectedTotalBytes !=
-                                                            null
-                                                        ? loadingProgress
-                                                                  .cumulativeBytesLoaded /
-                                                              loadingProgress
-                                                                  .expectedTotalBytes!
-                                                        : null,
-                                                    strokeWidth: 2,
-                                                    color: accentColor,
-                                                  ),
-                                                );
-                                              },
                                             )
                                           : Icon(
                                               Icons.music_note,
@@ -630,45 +621,27 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                                     ),
                                   ),
                                   title: Text(
-                                    track.title,
+                                    video.displayTitle,
                                     style: TextStyle(
                                       color: textColor,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   subtitle: Text(
-                                    '${track.duration} • ${LanguageService().getText('popularity')}: ${track.popularity}',
+                                    '${video.displayArtist} • ${video.durationText}',
                                     style: TextStyle(
                                       color: textColor.withOpacity(0.6),
                                     ),
                                   ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // Botón de descarga normal
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.download,
-                                          color: accentColor,
-                                        ),
-                                        tooltip: 'Download',
-                                        onPressed: () => _downloadTrack(track),
-                                      ),
-                                      // Botón para forzar YouTube Fallback
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.video_library,
-                                          color: Colors.red.shade400,
-                                        ),
-                                        tooltip: 'Force YouTube Fallback',
-                                        onPressed: () => _downloadTrack(
-                                          track,
-                                          forceYouTubeFallback: true,
-                                        ),
-                                      ),
-                                    ],
+                                  trailing: IconButton(
+                                    icon: Icon(
+                                      Icons.download,
+                                      color: accentColor,
+                                    ),
+                                    tooltip: 'Download',
+                                    onPressed: () => _downloadTrack(video),
                                   ),
-                                  onTap: () => _downloadTrack(track),
+                                  onTap: () => _downloadTrack(video),
                                 ),
                               );
                             }, childCount: _searchResults.length),

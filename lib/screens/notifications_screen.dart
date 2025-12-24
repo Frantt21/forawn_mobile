@@ -122,13 +122,16 @@ class NotificationsScreenState extends State<NotificationsScreen> {
     final lang = LanguageService();
 
     if (difference.inMinutes < 1) return lang.getText('now');
-    if (difference.inMinutes < 60)
+    if (difference.inMinutes < 60) {
       return lang.getText('ago_min', {'min': '${difference.inMinutes}'});
-    if (difference.inHours < 24)
+    }
+    if (difference.inHours < 24) {
       return lang.getText('ago_hours', {'hours': '${difference.inHours}'});
+    }
     if (difference.inDays == 1) return lang.getText('yesterday');
-    if (difference.inDays < 7)
+    if (difference.inDays < 7) {
       return lang.getText('ago_days', {'days': '${difference.inDays}'});
+    }
 
     return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
   }

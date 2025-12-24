@@ -13,8 +13,17 @@ import 'services/language_service.dart';
 import 'package:audio_service/audio_service.dart';
 import 'services/audio_handler.dart';
 
+import 'package:flutter_displaymode/flutter_displaymode.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Optimizar tasa de refresco para pantallas de 90Hz/120Hz
+  try {
+    await FlutterDisplayMode.setHighRefreshRate();
+  } catch (e) {
+    print('[Main] Error setting high refresh rate: $e');
+  }
 
   // Initialize Audio Service for background playback notification
   try {
@@ -146,9 +155,11 @@ class _ForawnAppState extends State<ForawnApp> {
           onSurface: AppColors.text,
           onPrimary: const Color.fromARGB(255, 45, 45, 45),
         ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: AppColors.appBarBackground,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
           elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
           titleTextStyle: TextStyle(
             color: AppColors.text,
             fontSize: 18,

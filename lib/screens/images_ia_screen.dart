@@ -512,8 +512,9 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                                             item.imageUrl,
                                             fit: BoxFit.contain,
                                             loadingBuilder: (ctx, child, loadingProgress) {
-                                              if (loadingProgress == null)
+                                              if (loadingProgress == null) {
                                                 return child;
+                                              }
                                               return Container(
                                                 height: 200,
                                                 width: 200,
@@ -646,8 +647,9 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                                 fontWeight: FontWeight.w600,
                               ),
                               onChanged: (val) {
-                                if (val != null)
+                                if (val != null) {
                                   setState(() => _selectedRatio = val);
+                                }
                               },
                               items: _ratios.map((r) {
                                 return DropdownMenuItem(

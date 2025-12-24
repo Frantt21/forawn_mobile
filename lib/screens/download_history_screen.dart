@@ -125,7 +125,7 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
     final seconds = ms ~/ 1000;
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
-    return '${minutes}:${remainingSeconds.toString().padLeft(2, '0')}';
+    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   @override

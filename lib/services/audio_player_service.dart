@@ -8,6 +8,8 @@ import '../models/song.dart';
 import '../models/playlist.dart';
 import '../models/playback_state.dart'
     as app_state; // Alias para evitar conflicto con just_audio
+import 'music_history_service.dart';
+import 'music_metadata_cache.dart';
 
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
@@ -23,12 +25,16 @@ class AudioPlayerService {
   late final app_state.PlaybackHistory _history = app_state.PlaybackHistory();
   final Playlist _playlist = Playlist(name: 'Main Queue');
 
+  // Flag para prevenir skips concurrentes
+  bool _isSkipping = false;
+
   // Streams
   final _playlistSubject = BehaviorSubject<Playlist>();
   Stream<Playlist> get playlistStream => _playlistSubject.stream;
 
   final _currentSongSubject = BehaviorSubject<Song?>();
   Stream<Song?> get currentSongStream => _currentSongSubject.stream;
+  Song? get currentSong => _playlist.currentSong;
 
   // Combinar posición y duración para progreso
   Stream<app_state.PlaybackProgress> get progressStream =>
@@ -149,7 +155,12 @@ class AudioPlayerService {
   // --- Gestión de Playlist ---
 
   /// Cargar una lista de canciones y empezar a reproducir
-  Future<void> loadPlaylist(List<Song> songs, {int initialIndex = 0}) async {
+  /// Cargar una lista de canciones y empezar a reproducir
+  Future<void> loadPlaylist(
+    List<Song> songs, {
+    int initialIndex = 0,
+    bool autoPlay = true,
+  }) async {
     // Verificar si la playlist es la misma para no reiniciar estado
     final currentSongs = _playlist.songs;
     bool isSame = false;
@@ -169,7 +180,9 @@ class AudioPlayerService {
         // Solo reproducir si es diferente a la actual o si no está reproduciendo
         if (_playlist.currentIndex != initialIndex) {
           _playlist.setCurrentIndex(initialIndex);
-          await _playCurrentSong();
+          if (autoPlay) await _playCurrentSong();
+        } else if (autoPlay && !_audioPlayer.playing) {
+          await play();
         }
       }
       // No hacer nada más si ya está cargada
@@ -181,7 +194,7 @@ class AudioPlayerService {
 
     if (initialIndex >= 0 && initialIndex < songs.length) {
       _playlist.setCurrentIndex(initialIndex);
-      await _playCurrentSong();
+      if (autoPlay) await _playCurrentSong();
     }
 
     _playlistSubject.add(_playlist);
@@ -220,30 +233,52 @@ class AudioPlayerService {
   // --- Navegación ---
 
   Future<void> skipToNext() async {
-    final nextIndex = _playlist.nextIndex;
-    if (nextIndex != null) {
-      _playlist.setCurrentIndex(nextIndex);
-      await _playCurrentSong();
-    } else {
-      // Fin de playlist
-      await stop();
+    // Prevenir skips concurrentes
+    if (_isSkipping) {
+      print('[AudioPlayer] Skip already in progress, ignoring');
+      return;
+    }
+
+    _isSkipping = true;
+    try {
+      final nextIndex = _playlist.nextIndex;
+      if (nextIndex != null) {
+        _playlist.setCurrentIndex(nextIndex);
+        await _playCurrentSong();
+      } else {
+        // Fin de playlist
+        await stop();
+      }
+    } finally {
+      _isSkipping = false;
     }
   }
 
   Future<void> skipToPrevious() async {
-    // Si la canción lleva más de 3 segundos, reiniciar
-    if (_audioPlayer.position.inSeconds > 3) {
-      await seek(Duration.zero);
+    // Prevenir skips concurrentes
+    if (_isSkipping) {
+      print('[AudioPlayer] Skip already in progress, ignoring');
       return;
     }
 
-    final prevIndex = _playlist.previousIndex;
-    if (prevIndex != null) {
-      _playlist.setCurrentIndex(prevIndex);
-      await _playCurrentSong();
-    } else {
-      // Al principio de playlist, parar o reiniciar
-      await seek(Duration.zero);
+    _isSkipping = true;
+    try {
+      // Si la canción lleva más de 3 segundos, reiniciar
+      if (_audioPlayer.position.inSeconds > 3) {
+        await seek(Duration.zero);
+        return;
+      }
+
+      final prevIndex = _playlist.previousIndex;
+      if (prevIndex != null) {
+        _playlist.setCurrentIndex(prevIndex);
+        await _playCurrentSong();
+      } else {
+        // Al principio de playlist, parar o reiniciar
+        await seek(Duration.zero);
+      }
+    } finally {
+      _isSkipping = false;
     }
   }
 
@@ -256,12 +291,53 @@ class AudioPlayerService {
   // --- Internals ---
 
   Future<void> _playCurrentSong() async {
-    final song = _playlist.currentSong;
-    if (song == null) return;
+    var rawSong = _playlist.currentSong;
+    if (rawSong == null) return;
+
+    // Hidratar si falta artwork (porque vino de JSON optimizado o historial)
+    if (rawSong.artworkData == null) {
+      try {
+        // 1. Intentar Caché primero
+        final cached = await MusicMetadataCache.get(rawSong.id);
+        if (cached?.artwork != null) {
+          rawSong = rawSong.copyWith(artworkData: cached!.artwork);
+        } else {
+          // 2. Cargar metadatos del archivo para obtener artwork
+          // PERO preservamos título y artista originales de la librería, ya que suelen ser más confiables (nombre de archivo)
+          // y evitamos que tags ID3 corruptos inviertan la información.
+          final metadataSong = await rawSong.loadMetadata();
+
+          rawSong = rawSong.copyWith(
+            artworkData: metadataSong.artworkData,
+            album: rawSong.album ?? metadataSong.album,
+            // duration? No, mejor confiar en el player o library
+            // title y artist se mantienen del objeto original de la librería
+          );
+
+          if (rawSong.artworkData != null) {
+            // Guardar en caché para futuro
+            MusicMetadataCache.saveFromMetadata(
+              key: rawSong.id,
+              title: rawSong.title,
+              artist: rawSong.artist,
+              album: rawSong.album,
+              durationMs: rawSong.duration?.inMilliseconds,
+              artworkData: rawSong.artworkData,
+            );
+          }
+        }
+        _playlist.updateCurrentSong(rawSong);
+      } catch (e) {
+        print("[AudioPlayer] Error hydrating artwork: $e");
+      }
+    }
+
+    final Song song = rawSong!;
 
     try {
       _currentSongSubject.add(song);
-      _history.add(song.id); // Agregar al historial
+      _history.add(song.id); // Historial de sesión (playback)
+      await MusicHistoryService().addToHistory(song); // Historial persistente
 
       // Cargar archivo
       if (song.filePath.startsWith('content://') ||
@@ -310,8 +386,6 @@ class AudioPlayerService {
             : app_state.PlayerState.paused;
       case ProcessingState.completed:
         return app_state.PlayerState.completed;
-      default:
-        return app_state.PlayerState.idle;
     }
   }
 

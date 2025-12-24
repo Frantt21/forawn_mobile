@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'lyrics_adjuster.dart';
 
 /// Modelo para una línea de lyrics sincronizada
 class LyricLine {
@@ -96,11 +97,15 @@ class LyricsService {
   factory LyricsService() => _instance;
   LyricsService._internal();
 
-  static const String _baseUrl = 'https://api.dorratz.com/v3/lyrics';
+  static const String _baseUrl = 'https://lrclib.net/api';
   static const String _cachePrefix = 'lyrics_cache_';
 
   /// Obtiene lyrics desde la API o caché
-  Future<Lyrics?> fetchLyrics(String trackName, String artistName) async {
+  Future<Lyrics?> fetchLyrics(
+    String trackName,
+    String artistName, {
+    int? durationSeconds,
+  }) async {
     try {
       // Crear clave de caché
       final cacheKey =
@@ -120,107 +125,200 @@ class LyricsService {
         return Lyrics.fromJson(json);
       }
 
-      // Si no está en caché, obtener desde API
-      print('[LyricsService] Fetching lyrics from API for: $trackName');
-      final query = Uri.encodeComponent('$trackName $artistName');
-      final url = '$_baseUrl?query=$query';
+      // Si no está en caché, obtener desde LRCLIB API
+      // Limpiar título y artista antes de buscar
+      final cleanTrack = _cleanTitle(trackName);
+      final cleanArtist = _cleanArtist(artistName);
 
-      final response = await http
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 10));
+      print(
+        '[LyricsService] Fetching lyrics from LRCLIB for: $cleanTrack by $cleanArtist',
+      );
+
+      // Usar endpoint de búsqueda para mejor matching
+      final params = {'q': '$cleanArtist $cleanTrack'};
+
+      final uri = Uri.parse(
+        '$_baseUrl/search',
+      ).replace(queryParameters: params);
+      print('[LyricsService] LRCLIB URL: $uri');
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final results = data['results'] as List?;
+        final results = jsonDecode(response.body) as List;
 
-        if (results != null && results.isNotEmpty) {
-          print(
-            '[LyricsService] API returned ${results.length} results, searching for syncedLyrics...',
-          );
+        if (!results.isEmpty) {
+          // Buscar el mejor match en los resultados
+          for (final item in results) {
+            final data = item as Map<String, dynamic>;
 
-          // Iterar sobre TODOS los resultados hasta encontrar uno con syncedLyrics válido
-          for (int i = 0; i < results.length; i++) {
-            final result = results[i] as Map<String, dynamic>;
-            String? syncedLyricsRaw;
+            final syncedLyricsRaw = data['syncedLyrics'] as String?;
+            final plainLyrics = data['plainLyrics'] as String? ?? '';
+            final resultTrackName = (data['trackName'] as String? ?? '')
+                .toLowerCase();
+            final resultArtistName = (data['artistName'] as String? ?? '')
+                .toLowerCase();
 
-            // Intentar múltiples rutas para encontrar syncedLyrics
-            // 1. Desde details.syncedLyrics
-            if (result['details'] != null) {
-              final details = result['details'] as Map<String, dynamic>;
-              final candidate = details['syncedLyrics'];
-              if (candidate is String && candidate.trim().isNotEmpty) {
-                syncedLyricsRaw = candidate;
-                print(
-                  '[LyricsService] Found syncedLyrics in result[$i].details.syncedLyrics',
-                );
-              }
+            // VALIDACIÓN ESTRICTA: Verificar título Y artista ANTES de aceptar
+            final searchTrack = cleanTrack.toLowerCase();
+            final searchArtist = cleanArtist.toLowerCase();
+
+            // Calcular similitud para título (debe ser >50% o match exacto)
+            final trackSimilarity = _calculateSimilarity(
+              resultTrackName,
+              searchTrack,
+            );
+            final trackExactMatch = resultTrackName == searchTrack;
+            final trackMatches = trackExactMatch || trackSimilarity > 0.5;
+
+            // Calcular similitud para artista (debe ser >50% o match exacto)
+            final artistSimilarity = _calculateSimilarity(
+              resultArtistName,
+              searchArtist,
+            );
+            final artistExactMatch = resultArtistName == searchArtist;
+            final artistMatches = artistExactMatch || artistSimilarity > 0.5;
+
+            // Rechazar si NO coinciden AMBOS
+            if (!trackMatches || !artistMatches) {
+              print(
+                '[LyricsService] Rejected: "$resultTrackName" by "$resultArtistName" '
+                '(track: ${(trackSimilarity * 100).toStringAsFixed(0)}%, '
+                'artist: ${(artistSimilarity * 100).toStringAsFixed(0)}%)',
+              );
+              continue; // Probar siguiente resultado
             }
 
-            // 2. Directamente en result.syncedLyrics
-            if (syncedLyricsRaw == null && result['syncedLyrics'] != null) {
-              final candidate = result['syncedLyrics'];
-              if (candidate is String && candidate.trim().isNotEmpty) {
-                syncedLyricsRaw = candidate;
-                print(
-                  '[LyricsService] Found syncedLyrics in result[$i].syncedLyrics',
-                );
-              }
+            // Solo aceptar si tiene synced lyrics
+            if (syncedLyricsRaw == null || syncedLyricsRaw.isEmpty) {
+              print(
+                '[LyricsService] Skipped: No synced lyrics for "$resultTrackName"',
+              );
+              continue;
             }
 
-            // 3. En result.lyrics.syncedLyrics
-            if (syncedLyricsRaw == null && result['lyrics'] != null) {
-              final lyricsObj = result['lyrics'] as Map<String, dynamic>;
-              final candidate = lyricsObj['syncedLyrics'];
-              if (candidate is String && candidate.trim().isNotEmpty) {
-                syncedLyricsRaw = candidate;
-                print(
-                  '[LyricsService] Found syncedLyrics in result[$i].lyrics.syncedLyrics',
-                );
-              }
+            // Lyrics válidos encontrados - parsear
+            print('[LyricsService] Found synced lyrics from LRCLIB');
+            print(
+              '[LyricsService] Match: "$resultTrackName" by "$resultArtistName"',
+            );
+
+            // Parsear lyrics en formato LRC
+            final syncedLines = syncedLyricsRaw
+                .split('\n')
+                .where((line) => line.trim().isNotEmpty)
+                .map((line) => LyricLine.fromString(line))
+                .where((line) => line.text.isNotEmpty) // Filtrar líneas vacías
+                .toList();
+
+            final lyrics = Lyrics(
+              trackName: data['trackName'] as String? ?? trackName,
+              artistName: data['artistName'] as String? ?? artistName,
+              albumName: data['albumName'] as String?,
+              duration: (data['duration'] as num?)?.toInt(),
+              instrumental: data['instrumental'] as bool? ?? false,
+              plainLyrics: plainLyrics,
+              syncedLyrics: syncedLines,
+            );
+
+            // Guardar en caché
+            await prefs.setString(cacheKey, jsonEncode(lyrics.toJson()));
+            print(
+              '[LyricsService] Lyrics cached successfully (${syncedLines.length} lines)',
+            );
+
+            return lyrics;
+          }
+        }
+
+        // Si no se encontró ningún match válido con artista, intentar solo con título
+        print(
+          '[LyricsService] No results with artist, trying with title only...',
+        );
+
+        final fallbackParams = {'q': cleanTrack};
+        final fallbackUri = Uri.parse(
+          '$_baseUrl/search',
+        ).replace(queryParameters: fallbackParams);
+        print('[LyricsService] LRCLIB Fallback URL: $fallbackUri');
+
+        final fallbackResponse = await http
+            .get(fallbackUri)
+            .timeout(const Duration(seconds: 10));
+
+        if (fallbackResponse.statusCode == 200) {
+          final fallbackResults = jsonDecode(fallbackResponse.body) as List;
+
+          if (fallbackResults.isEmpty) {
+            print('[LyricsService] No results from fallback search');
+            return null;
+          }
+
+          // Buscar el mejor match en los resultados del fallback
+          for (final item in fallbackResults) {
+            final data = item as Map<String, dynamic>;
+
+            final syncedLyricsRaw = data['syncedLyrics'] as String?;
+            final plainLyrics = data['plainLyrics'] as String? ?? '';
+            final resultTrackName = (data['trackName'] as String? ?? '')
+                .toLowerCase();
+            final resultArtistName = (data['artistName'] as String? ?? '')
+                .toLowerCase();
+
+            // Solo verificar que el título coincida
+            final searchTrack = cleanTrack.toLowerCase();
+
+            final trackMatches =
+                resultTrackName.contains(searchTrack) ||
+                searchTrack.contains(resultTrackName) ||
+                _calculateSimilarity(resultTrackName, searchTrack) > 0.6;
+
+            if (!trackMatches) {
+              continue;
             }
 
-            // Si encontramos syncedLyrics válido, procesarlo
-            if (syncedLyricsRaw != null && syncedLyricsRaw.trim().isNotEmpty) {
-              final details =
-                  result['details'] as Map<String, dynamic>? ?? result;
+            if (syncedLyricsRaw != null && syncedLyricsRaw.isNotEmpty) {
+              print(
+                '[LyricsService] Found synced lyrics from LRCLIB (fallback)',
+              );
+              print(
+                '[LyricsService] Match: "$resultTrackName" by "$resultArtistName"',
+              );
 
-              // Parsear synced lyrics
               final syncedLines = syncedLyricsRaw
                   .split('\n')
                   .where((line) => line.trim().isNotEmpty)
                   .map((line) => LyricLine.fromString(line))
+                  .where((line) => line.text.isNotEmpty)
                   .toList();
 
               final lyrics = Lyrics(
-                trackName: details['trackName'] as String? ?? trackName,
-                artistName: details['artistName'] as String? ?? artistName,
-                albumName: details['albumName'] as String?,
-                duration: details['duration'] as int?,
-                instrumental: details['instrumental'] as bool? ?? false,
-                plainLyrics: details['plainLyrics'] as String? ?? '',
+                trackName: data['trackName'] as String? ?? trackName,
+                artistName: data['artistName'] as String? ?? artistName,
+                albumName: data['albumName'] as String?,
+                duration: (data['duration'] as num?)?.toInt(),
+                instrumental: data['instrumental'] as bool? ?? false,
+                plainLyrics: plainLyrics,
                 syncedLyrics: syncedLines,
               );
 
-              // Guardar en caché
               await prefs.setString(cacheKey, jsonEncode(lyrics.toJson()));
               print(
-                '[LyricsService] Lyrics cached successfully (found in result $i of ${results.length})',
+                '[LyricsService] Lyrics cached successfully (${syncedLines.length} lines)',
               );
 
               return lyrics;
             }
           }
-
-          print(
-            '[LyricsService] No valid syncedLyrics found in ${results.length} results',
-          );
-          return null;
-        } else {
-          print('[LyricsService] No lyrics found in API response');
-          return null;
         }
+
+        print('[LyricsService] No valid synced lyrics found in any search');
+        return null;
+      } else if (response.statusCode == 404) {
+        print('[LyricsService] No lyrics found in LRCLIB for: $trackName');
+        return null;
       } else {
-        print('[LyricsService] API error: ${response.statusCode}');
+        print('[LyricsService] LRCLIB API error: ${response.statusCode}');
         return null;
       }
     } catch (e) {
@@ -256,5 +354,119 @@ class LyricsService {
       print('[LyricsService] Error getting cache size: $e');
       return 0;
     }
+  }
+
+  /// Ajusta lyrics con la duración real del archivo
+  /// Útil cuando el audio de YouTube tiene duración diferente a la esperada
+  Lyrics? adjustLyricsWithRealDuration({
+    required Lyrics? lyrics,
+    required Duration realDuration,
+  }) {
+    if (lyrics == null) return null;
+    if (lyrics.duration == null) {
+      print('[LyricsService] No expected duration, cannot adjust');
+      return lyrics;
+    }
+
+    final expectedDuration = Duration(seconds: lyrics.duration!);
+
+    return LyricsAdjuster.adjustLyrics(
+      lyrics: lyrics,
+      expectedDuration: expectedDuration,
+      actualDuration: realDuration,
+    );
+  }
+
+  /// Limpia el título de la canción para mejor matching
+  String _cleanTitle(String title) {
+    String clean = title;
+
+    // Eliminar información de remasterización/versión
+    clean = clean.replaceAll(
+      RegExp(r'\s*-\s*Remaster(ed)?\s*\d*', caseSensitive: false),
+      '',
+    );
+    clean = clean.replaceAll(
+      RegExp(r'\s*\(Remaster(ed)?\s*\d*\)', caseSensitive: false),
+      '',
+    );
+    clean = clean.replaceAll(
+      RegExp(r'\s*\[Remaster(ed)?\s*\d*\]', caseSensitive: false),
+      '',
+    );
+
+    // Eliminar información de remix/versión
+    clean = clean.replaceAll(
+      RegExp(r'\s*\(.*?(?:Remix|Version|Edit|Mix).*?\)', caseSensitive: false),
+      '',
+    );
+    clean = clean.replaceAll(
+      RegExp(r'\s*\[.*?(?:Remix|Version|Edit|Mix).*?\]', caseSensitive: false),
+      '',
+    );
+
+    // Eliminar featured artists
+    clean = clean.replaceAll(
+      RegExp(
+        r'\s+(?:ft\.?|feat\.?|featuring|con|with)\s+.*',
+        caseSensitive: false,
+      ),
+      '',
+    );
+
+    return clean.trim();
+  }
+
+  /// Limpia el nombre del artista para mejor matching
+  String _cleanArtist(String artist) {
+    String clean = artist;
+
+    // Eliminar " - Topic" de canales auto-generados de YouTube
+    clean = clean.replaceAll(
+      RegExp(r'\s*-\s*Topic\s*$', caseSensitive: false),
+      '',
+    );
+
+    // Tomar solo el primer artista
+    final match = RegExp(r'^([^,&]+)').firstMatch(clean);
+    if (match != null) {
+      clean = match.group(1) ?? clean;
+    }
+
+    return clean.trim();
+  }
+
+  /// Calcula similitud entre dos strings usando Levenshtein distance
+  double _calculateSimilarity(String s1, String s2) {
+    if (s1 == s2) return 1.0;
+    if (s1.isEmpty || s2.isEmpty) return 0.0;
+
+    final len1 = s1.length;
+    final len2 = s2.length;
+    final maxLen = len1 > len2 ? len1 : len2;
+
+    // Levenshtein distance simplificado
+    final matrix = List.generate(len1 + 1, (i) => List.filled(len2 + 1, 0));
+
+    for (var i = 0; i <= len1; i++) {
+      matrix[i][0] = i;
+    }
+    for (var j = 0; j <= len2; j++) {
+      matrix[0][j] = j;
+    }
+
+    for (var i = 1; i <= len1; i++) {
+      for (var j = 1; j <= len2; j++) {
+        final cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+        matrix[i][j] = [
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost,
+        ].reduce((a, b) => a < b ? a : b);
+      }
+    }
+
+    final distance = matrix[len1][len2];
+    return 1.0 - (distance / maxLen);
   }
 }

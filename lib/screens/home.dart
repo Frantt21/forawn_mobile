@@ -11,6 +11,7 @@ import 'notifications_screen.dart';
 import 'local_music_screen.dart';
 import '../services/language_service.dart';
 import '../services/saf_helper.dart';
+import '../widgets/animated_search_appbar.dart';
 
 /// Servicio persistente para pantallas recientes
 class RecentScreensService {
@@ -181,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   bool _isScrolled = false;
   bool _isKeyboardVisible = false;
+  String _searchQuery = '';
   late PageController _pageController;
 
   @override
@@ -375,62 +377,80 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _recentScreensService.recentScreens.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final screen = _recentScreensService.recentScreens[index];
+            Builder(
+              builder: (context) {
+                // Filter recent screens by search query
+                final filteredScreens = _searchQuery.isEmpty
+                    ? _recentScreensService.recentScreens
+                    : _recentScreensService.recentScreens.where((screen) {
+                        final title = _getTranslatedTitle(
+                          screen.title,
+                        ).toLowerCase();
+                        return title.contains(_searchQuery);
+                      }).toList();
 
-                return Card(
-                  color: const Color.fromARGB(255, 45, 45, 45),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1,
-                    ),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    leading: CircleAvatar(
-                      backgroundColor: screen.color.withOpacity(0.2),
-                      child: Icon(screen.icon, color: screen.color, size: 20),
-                    ),
-                    title: Text(
-                      _getTranslatedTitle(screen.title),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filteredScreens.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final screen = filteredScreens[index];
+
+                    return Card(
+                      color: const Color.fromARGB(255, 45, 45, 45),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
                       ),
-                    ),
-                    subtitle: Text(
-                      screen.timeAgo,
-                      style: TextStyle(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.6),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        leading: CircleAvatar(
+                          backgroundColor: screen.color.withOpacity(0.2),
+                          child: Icon(
+                            screen.icon,
+                            color: screen.color,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          _getTranslatedTitle(screen.title),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          screen.timeAgo,
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.5),
+                        ),
+                        onTap: () {
+                          _navigateToScreen(
+                            screen.route,
+                            screen.title,
+                            screen.icon,
+                            screen.color,
+                          );
+                        },
                       ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.5),
-                    ),
-                    onTap: () {
-                      _navigateToScreen(
-                        screen.route,
-                        screen.title,
-                        screen.icon,
-                        screen.color,
-                      );
-                    },
-                  ),
+                    );
+                  },
                 );
               },
             ),
@@ -523,90 +543,55 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: AppBar(
-              title: Text(
-                _selectedIndex == 1
-                    ? 'Local Music' // TODO: Agregar traducción
-                    : (_selectedIndex == 2
-                          ? LanguageService().getText('foraai')
-                          : (_selectedIndex == 3
-                                ? LanguageService().getText('notifications')
-                                : (_selectedIndex == 4
-                                      ? LanguageService().getText('settings')
-                                      : LanguageService().getText(
-                                          'app_name',
-                                        )))),
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              backgroundColor: _isScrolled
-                  ? const Color.fromARGB(255, 45, 45, 45).withOpacity(0.7)
-                  : Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0, // Evita cambio de color en Material 3
-              surfaceTintColor: Colors.transparent, // Evita tinte morado
-              leading:
-                  _selectedIndex ==
-                      2 // Index 2 is now ForaAI
-                  ? IconButton(
-                      icon: const Icon(Icons.menu),
-                      onPressed: () {
-                        _foraaiKey.currentState?.toggleSidebar();
-                      },
-                    )
-                  : null,
-              actions: [
-                // Botones de música local
-                if (_selectedIndex == 1) ...[
-                  IconButton(
-                    icon: const Icon(Icons.folder_open),
-                    onPressed: () async {
-                      // Llamar directamente al picker de SAF
-                      final uri = await SafHelper.pickDirectory();
-                      if (uri != null) {
-                        // Guardar la carpeta seleccionada
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString('selected_music_folder', uri);
-                        // Refrescar la pantalla
-                        setState(() {});
-                      }
-                    },
-                    tooltip: 'Seleccionar Carpeta',
-                  ),
-                ],
-                // Botón de limpiar notificaciones (solo en pantalla de notificaciones)
-                if (_selectedIndex == 3 && // Index 3 is now Notifications
-                    _notificationsKey.currentState?.hasNotifications == true)
-                  IconButton(
-                    icon: const Icon(Icons.delete_sweep),
-                    tooltip: LanguageService().getText('clear_all'),
-                    onPressed: () {
-                      _notificationsKey.currentState?.clearAllFromAppBar();
-                    },
-                  ),
-                // Botón de refrescar
-                // IconButton(
-                //   icon: const Icon(Icons.refresh),
-                //   onPressed: () {
-                //     setState(() {});
-                //     ScaffoldMessenger.of(context).showSnackBar(
-                //       SnackBar(
-                //         content: Text(LanguageService().getText('refreshing')),
-                //       ),
-                //     );
-                //   },
-                // ),
-              ],
+      appBar: AnimatedSearchAppBar(
+        title: _selectedIndex == 1
+            ? 'Local Music'
+            : (_selectedIndex == 2
+                  ? LanguageService().getText('foraai')
+                  : (_selectedIndex == 3
+                        ? LanguageService().getText('notifications')
+                        : (_selectedIndex == 4
+                              ? LanguageService().getText('settings')
+                              : LanguageService().getText('app_name')))),
+        isScrolled: _isScrolled,
+        showSearch: _selectedIndex == 1, // Solo en Local Music
+        onSearch: (query) {
+          setState(() {
+            _searchQuery = query.toLowerCase();
+          });
+        },
+        leading: _selectedIndex == 2
+            ? IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: () {
+                  _foraaiKey.currentState?.toggleSidebar();
+                },
+              )
+            : null,
+        actions: [
+          if (_selectedIndex == 1)
+            IconButton(
+              icon: const Icon(Icons.folder_open),
+              onPressed: () async {
+                final uri = await SafHelper.pickDirectory();
+                if (uri != null) {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('selected_music_folder', uri);
+                  setState(() {});
+                }
+              },
+              tooltip: 'Seleccionar Carpeta',
             ),
-          ),
-        ),
+          if (_selectedIndex == 3 &&
+              _notificationsKey.currentState?.hasNotifications == true)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              tooltip: LanguageService().getText('clear_all'),
+              onPressed: () {
+                _notificationsKey.currentState?.clearAllFromAppBar();
+              },
+            ),
+        ],
       ),
       body: Container(
         color: const Color.fromARGB(255, 34, 34, 34),
@@ -639,7 +624,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     physics: const BouncingScrollPhysics(),
                     children: [
                       _buildHomeContent(context),
-                      const LocalMusicScreen(),
+                      LocalMusicScreen(searchQuery: _searchQuery),
                       ForaaiScreen(key: _foraaiKey),
                       NotificationsScreen(key: _notificationsKey),
                       const SettingsScreen(),
@@ -870,8 +855,9 @@ class _TimeHeaderState extends State<TimeHeader> {
 
   Color _greetingIconColor() {
     final hour = _now.hour;
-    if (hour >= 5 && hour < 12)
+    if (hour >= 5 && hour < 12) {
       return Colors.orange; // Morning - vibrant orange
+    }
     if (hour >= 12 && hour < 19) return Colors.amber; // Afternoon - warm amber
     return Colors.deepPurple.shade300; // Night - soft purple
   }

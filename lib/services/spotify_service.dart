@@ -430,12 +430,15 @@ class SpotifyService {
 
         // Solo sobrescribir metadata si no la tenemos
         if (trackName == null && data['title'] != null) title = data['title'];
-        if (artistName == null && data['author'] != null)
+        if (artistName == null && data['author'] != null) {
           artist = data['author'];
-        if (artistName == null && data['artist'] != null)
+        }
+        if (artistName == null && data['artist'] != null) {
           artist = data['artist'];
-        if (imageUrl == null && data['thumbnail'] != null)
+        }
+        if (imageUrl == null && data['thumbnail'] != null) {
           thumbnail = data['thumbnail'];
+        }
 
         if (downloadUrl != null && downloadUrl.isNotEmpty) {
           print('[SpotifyService] ✓ RapidAPI Backup exitosa');
@@ -460,7 +463,7 @@ class SpotifyService {
       //   artistName: artistName,
       //   imageUrl: imageUrl,
       // );
-      throw e;
+      rethrow;
     }
   }
 
@@ -536,7 +539,7 @@ class SpotifyService {
       throw Exception('Spotify 246 falló con status ${response.statusCode}');
     } catch (e) {
       print('[SpotifyService] Spotify 246 falló: $e');
-      throw e; // Aquí ya dejamos que falle y active el YouTube Fallback
+      rethrow; // Aquí ya dejamos que falle y active el YouTube Fallback
     }
   }
 

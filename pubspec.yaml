@@ -66,6 +66,7 @@ dependencies:
   palette_generator: ^0.3.3+5
   rxdart: ^0.27.7
   scrollable_positioned_list: ^0.3.8
+  flutter_displaymode: ^0.7.0
 
 dev_dependencies:
   integration_test:

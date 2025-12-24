@@ -551,7 +551,7 @@ class YoutubeFallbackService {
                     if (!completer.isCompleted) completer.complete(false);
                   } else if (status == 'downloading' || status == 'enriching') {
                     final progress = d['progress'] ?? 0;
-                    print('[YoutubeFallback] Backend: $status ${progress}%');
+                    print('[YoutubeFallback] Backend: $status $progress%');
                     onProgress((progress / 100).clamp(0.0, 0.95));
                   }
                 } catch (_) {}

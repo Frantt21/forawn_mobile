@@ -87,7 +87,7 @@ class Song {
     'album': album,
     'duration': duration?.inMilliseconds,
     'filePath': filePath,
-    'artworkData': artworkData?.toString(), // Base64 si se necesita persistir
+    'artworkData': null, // Optimización: No persistir artwork
     'trackNumber': trackNumber,
     'year': year,
     'genre': genre,

@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../services/version_check_service.dart';
 import '../services/language_service.dart';
 import '../services/music_metadata_cache.dart';
+import '../services/lyrics_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -245,7 +246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     LanguageService().getText('receive_alerts'),
                     style: const TextStyle(fontSize: 14, color: Colors.grey),
                   ),
-                  activeColor: Theme.of(context).colorScheme.primary,
+                  activeThumbColor: Theme.of(context).colorScheme.primary,
                   secondary: Icon(
                     _notificationsEnabled
                         ? Icons.notifications_active
@@ -285,12 +286,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: const Icon(Icons.delete_sweep),
                     color: Colors.purpleAccent,
                     onPressed: () async {
-                      await MusicMetadataCache.clearOldCache();
+                      await MusicMetadataCache.clearCache();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
                               LanguageService().getText('music_cache_cleared'),
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.lyrics, color: Colors.pinkAccent),
+                  title: Text(
+                    LanguageService().getText('clear_lyrics_cache'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  subtitle: Text(
+                    LanguageService().getText('clear_lyrics_cache_desc'),
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_sweep),
+                    color: Colors.pinkAccent,
+                    onPressed: () async {
+                      await LyricsService().clearCache();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              LanguageService().getText('lyrics_cache_cleared'),
                             ),
                             duration: const Duration(seconds: 2),
                           ),

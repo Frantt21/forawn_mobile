@@ -161,6 +161,12 @@ class Playlist {
   }
 
   // Lógica Interna
+  void updateCurrentSong(Song updatedSong) {
+    if (_currentIndex >= 0 && _currentIndex < _songs.length) {
+      _songs[_currentIndex] = updatedSong;
+    }
+  }
+
   void _resetShuffledIndices() {
     _shuffledIndices = List.generate(_songs.length, (i) => i);
   }

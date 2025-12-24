@@ -773,8 +773,8 @@ class _MusicTileState extends State<_MusicTile>
         await MusicMetadataCache.save(cacheKey, tag);
 
         Uint8List? artwork;
-        if (tag.pictures != null && tag.pictures!.isNotEmpty) {
-          artwork = tag.pictures!.first.bytes;
+        if (tag.pictures.isNotEmpty) {
+          artwork = tag.pictures.first.bytes;
         }
 
         if (mounted) {
