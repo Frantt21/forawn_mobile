@@ -226,5 +226,12 @@
   "unlike": "Unlike",
   "playlist_empty": "Playlist is empty",
   "song_removed": "removed",
-  "song_removed_favorites": "removed from favorites"
+  "song_removed_favorites": "removed from favorites",
+  "song": "song",
+  "songs": "songs",
+  "play": "Play",
+  "shuffle": "Shuffle",
+  "clear_lyrics_cache": "Clear lyrics cache",
+  "clear_lyrics_cache_desc": "Remove saved lyrics",
+  "lyrics_cache_cleared": "Lyrics cache cleared"
 }

@@ -285,22 +285,16 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
     final history = MusicHistoryService().history.take(6).toList();
     final hasHistory = showHistory && history.isNotEmpty;
 
-    var itemCount = songs.length;
-    if (hasHistory) itemCount++;
-    if (showLibraryHeader) itemCount++;
-
-    return ListView.builder(
+    return CustomScrollView(
       key: PageStorageKey('song_list_${showHistory}_${songs.length}'),
-      padding: const EdgeInsets.only(top: 10, bottom: 100),
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        if (hasHistory) {
-          if (index == 0) return _buildHistorySection(context);
-          index--;
-        }
-        if (showLibraryHeader) {
-          if (index == 0) {
-            return Padding(
+      slivers: [
+        // History Section
+        if (hasHistory) _buildHistorySectionSliver(),
+
+        // Library Header
+        if (showLibraryHeader)
+          SliverToBoxAdapter(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Text(
                 LanguageService().getText('music_library'),
@@ -310,148 +304,163 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-            );
-          }
-          index--;
-        }
-        if (index < 0 || index >= songs.length) return const SizedBox.shrink();
+            ),
+          ),
 
-        final song = songs[index];
-        final isPlaying = _audioPlayer.currentSong?.id == song.id;
+        // Songs List
+        SliverPadding(
+          padding: const EdgeInsets.only(bottom: 100),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              if (index < 0 || index >= songs.length) {
+                return const SizedBox.shrink();
+              }
 
-        return LazyMusicTile(
-          key: ValueKey(song.id),
-          song: song,
-          isPlaying: isPlaying,
-          onTap: () {
-            _audioPlayer.loadPlaylist(
-              songs,
-              initialIndex: index,
-              autoPlay: true,
-            );
-            Navigator.of(context).push(
-              PageRouteBuilder(
-                pageBuilder: (context, animation, secondaryAnimation) =>
-                    const MusicPlayerScreen(),
-                transitionsBuilder:
-                    (context, animation, secondaryAnimation, child) {
-                      var tween = Tween(
-                        begin: const Offset(0.0, 1.0),
-                        end: Offset.zero,
-                      ).chain(CurveTween(curve: Curves.easeOutCubic));
-                      return SlideTransition(
-                        position: animation.drive(tween),
-                        child: child,
-                      );
-                    },
-              ),
-            );
-          },
-          onLongPress: () => _showSongOptions(context, song),
-        );
-      },
+              final song = songs[index];
+              final isPlaying = _audioPlayer.currentSong?.id == song.id;
+
+              return LazyMusicTile(
+                key: ValueKey(song.id),
+                song: song,
+                isPlaying: isPlaying,
+                onTap: () {
+                  _audioPlayer.loadPlaylist(
+                    songs,
+                    initialIndex: index,
+                    autoPlay: true,
+                  );
+                  Navigator.of(context).push(
+                    PageRouteBuilder(
+                      pageBuilder: (context, animation, secondaryAnimation) =>
+                          const MusicPlayerScreen(),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) {
+                            var tween = Tween(
+                              begin: const Offset(0.0, 1.0),
+                              end: Offset.zero,
+                            ).chain(CurveTween(curve: Curves.easeOutCubic));
+                            return SlideTransition(
+                              position: animation.drive(tween),
+                              child: child,
+                            );
+                          },
+                    ),
+                  );
+                },
+                onLongPress: () => _showSongOptions(context, song),
+              );
+            }, childCount: songs.length),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildHistorySection(BuildContext context) {
+  Widget _buildHistorySectionSliver() {
     final history = MusicHistoryService().history.take(6).toList();
-    if (history.isEmpty) return const SizedBox.shrink();
+    if (history.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Text(
-            LanguageService().getText('recent_history'),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+    return SliverToBoxAdapter(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Text(
+              LanguageService().getText('recent_history'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-        ),
-        GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: 0.75,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemCount: history.length,
-          itemBuilder: (context, index) {
-            final song = history[index];
-            return GestureDetector(
-              onTap: () {
-                _audioPlayer.playSong(song);
-                Navigator.of(context).push(
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        const MusicPlayerScreen(),
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                          var tween = Tween(
-                            begin: const Offset(0.0, 1.0),
-                            end: Offset.zero,
-                          ).chain(CurveTween(curve: Curves.easeOutCubic));
-                          return SlideTransition(
-                            position: animation.drive(tween),
-                            child: child,
-                          );
-                        },
-                  ),
-                );
-              },
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: song.artworkData != null
-                            ? Image.memory(song.artworkData!, fit: BoxFit.cover)
-                            : Container(
-                                color: Colors.grey[800],
-                                child: const Icon(
-                                  Icons.music_note,
-                                  color: Colors.white54,
+          GridView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.75,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: history.length,
+            itemBuilder: (context, index) {
+              final song = history[index];
+              return GestureDetector(
+                onTap: () {
+                  _audioPlayer.playSong(song);
+                  Navigator.of(context).push(
+                    PageRouteBuilder(
+                      pageBuilder: (context, animation, secondaryAnimation) =>
+                          const MusicPlayerScreen(),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) {
+                            var tween = Tween(
+                              begin: const Offset(0.0, 1.0),
+                              end: Offset.zero,
+                            ).chain(CurveTween(curve: Curves.easeOutCubic));
+                            return SlideTransition(
+                              position: animation.drive(tween),
+                              child: child,
+                            );
+                          },
+                    ),
+                  );
+                },
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: song.artworkData != null
+                              ? Image.memory(
+                                  song.artworkData!,
+                                  fit: BoxFit.cover,
+                                )
+                              : Container(
+                                  color: Colors.grey[800],
+                                  child: const Icon(
+                                    Icons.music_note,
+                                    color: Colors.white54,
+                                  ),
                                 ),
-                              ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(height: 8),
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 24),
-      ],
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 

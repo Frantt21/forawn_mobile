@@ -1,5 +1,6 @@
 // lib/services/audio_player_service.dart
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:rxdart/rxdart.dart';
@@ -10,6 +11,7 @@ import '../models/playback_state.dart'
     as app_state; // Alias para evitar conflicto con just_audio
 import 'music_history_service.dart';
 import 'music_metadata_cache.dart';
+import 'saf_helper.dart';
 
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
@@ -294,41 +296,69 @@ class AudioPlayerService {
     var rawSong = _playlist.currentSong;
     if (rawSong == null) return;
 
-    // Hidratar si falta artwork (porque vino de JSON optimizado o historial)
+    // Hidratar metadatos desde caché o archivo si es necesario
     if (rawSong.artworkData == null) {
       try {
         // 1. Intentar Caché primero
         final cached = await MusicMetadataCache.get(rawSong.id);
-        if (cached?.artwork != null) {
-          rawSong = rawSong.copyWith(artworkData: cached!.artwork);
+        if (cached != null) {
+          rawSong = rawSong.copyWith(
+            title: cached.title ?? rawSong.title,
+            artist: cached.artist ?? rawSong.artist,
+            album: cached.album ?? rawSong.album,
+            artworkData: cached.artwork,
+          );
         } else {
-          // 2. Cargar metadatos del archivo para obtener artwork
-          // PERO preservamos título y artista originales de la librería, ya que suelen ser más confiables (nombre de archivo)
-          // y evitamos que tags ID3 corruptos inviertan la información.
-          final metadataSong = await rawSong.loadMetadata();
+          // 2. Cargar metadatos del archivo (tags reales)
+          String? finalTitle;
+          String? finalArtist;
+          String? finalAlbum;
+          Uint8List? finalArtwork;
+
+          if (rawSong.filePath.startsWith('content://')) {
+            // Usar SafHelper para archivos SAF
+            final metadata = await SafHelper.getMetadataFromUri(
+              rawSong.filePath,
+            );
+            if (metadata != null) {
+              finalTitle = (metadata['title'] as String?)?.trim();
+              finalArtist = (metadata['artist'] as String?)?.trim();
+              finalAlbum = metadata['album'] as String?;
+              finalArtwork = metadata['artworkData'] as Uint8List?;
+            }
+          } else {
+            // Usar AudioTags para archivos locales
+            final metadataSong = await rawSong.loadMetadata();
+            finalTitle = metadataSong.title;
+            finalArtist = metadataSong.artist;
+            finalAlbum = metadataSong.album;
+            finalArtwork = metadataSong.artworkData;
+          }
 
           rawSong = rawSong.copyWith(
-            artworkData: metadataSong.artworkData,
-            album: rawSong.album ?? metadataSong.album,
-            // duration? No, mejor confiar en el player o library
-            // title y artist se mantienen del objeto original de la librería
+            title: (finalTitle != null && finalTitle.isNotEmpty)
+                ? finalTitle
+                : rawSong.title,
+            artist: (finalArtist != null && finalArtist.isNotEmpty)
+                ? finalArtist
+                : rawSong.artist,
+            album: finalAlbum ?? rawSong.album,
+            artworkData: finalArtwork,
           );
 
-          if (rawSong.artworkData != null) {
-            // Guardar en caché para futuro
-            MusicMetadataCache.saveFromMetadata(
-              key: rawSong.id,
-              title: rawSong.title,
-              artist: rawSong.artist,
-              album: rawSong.album,
-              durationMs: rawSong.duration?.inMilliseconds,
-              artworkData: rawSong.artworkData,
-            );
-          }
+          // Guardar en caché para futuro
+          MusicMetadataCache.saveFromMetadata(
+            key: rawSong.id,
+            title: rawSong.title,
+            artist: rawSong.artist,
+            album: rawSong.album,
+            durationMs: rawSong.duration?.inMilliseconds,
+            artworkData: rawSong.artworkData,
+          );
         }
         _playlist.updateCurrentSong(rawSong);
       } catch (e) {
-        print("[AudioPlayer] Error hydrating artwork: $e");
+        print("[AudioPlayer] Error hydrating metadata: $e");
       }
     }
 

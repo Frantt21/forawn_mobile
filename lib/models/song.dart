@@ -45,8 +45,8 @@ class Song {
       if (fileName.contains(' - ')) {
         final parts = fileName.split(' - ');
         if (parts.length >= 2) {
-          artist = parts[0].trim();
-          title = parts.sublist(1).join(' - ').trim();
+          title = parts[0].trim();
+          artist = parts.sublist(1).join(' - ').trim();
         }
       }
 

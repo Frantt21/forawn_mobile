@@ -64,11 +64,12 @@ class _LazyMusicTileState extends State<LazyMusicTile>
       final uri = widget.song.filePath;
       final cacheKey = uri.hashCode.toString();
 
-      // 1. Intentar desde caché (RÁPIDO)
+      // 1. Intentar desde caché
       final cached = await MusicMetadataCache.get(cacheKey);
       if (cached != null) {
         if (mounted) {
           setState(() {
+            // Usar metadatos del caché si existen, sino usar del Song object
             _title = cached.title ?? widget.song.title;
             _artist = cached.artist ?? widget.song.artist;
             _artwork = cached.artwork;
@@ -79,18 +80,26 @@ class _LazyMusicTileState extends State<LazyMusicTile>
         return;
       }
 
-      // 2. Cargar desde Android (solo si no está en caché)
+      // 2. Cargar desde Android (metadatos reales)
       final metadata = await SafHelper.getMetadataFromUri(uri);
       if (metadata != null) {
-        final title = metadata['title'] as String?;
-        final artist = metadata['artist'] as String?;
         final artworkData = metadata['artworkData'] as Uint8List?;
+        final realTitle = (metadata['title'] as String?)?.trim();
+        final realArtist = (metadata['artist'] as String?)?.trim();
 
-        // Guardar en caché
+        // Usar metadatos reales si existen, sino usar del Song object (parseo nombre)
+        final finalTitle = (realTitle != null && realTitle.isNotEmpty)
+            ? realTitle
+            : widget.song.title;
+        final finalArtist = (realArtist != null && realArtist.isNotEmpty)
+            ? realArtist
+            : widget.song.artist;
+
+        // Guardar en caché usando metadatos reales
         await MusicMetadataCache.saveFromMetadata(
           key: cacheKey,
-          title: title,
-          artist: artist,
+          title: finalTitle,
+          artist: finalArtist,
           album: metadata['album'] as String?,
           durationMs: metadata['duration'] as int?,
           artworkData: artworkData,
@@ -98,8 +107,8 @@ class _LazyMusicTileState extends State<LazyMusicTile>
 
         if (mounted) {
           setState(() {
-            _title = title ?? widget.song.title;
-            _artist = artist ?? widget.song.artist;
+            _title = finalTitle;
+            _artist = finalArtist;
             _artwork = artworkData;
             _isLoaded = true;
           });

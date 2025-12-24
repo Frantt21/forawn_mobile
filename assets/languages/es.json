@@ -226,5 +226,12 @@
   "unlike": "Ya no me gusta",
   "playlist_empty": "Playlist vacía",
   "song_removed": "eliminada",
-  "song_removed_favorites": "eliminada de favoritos"
+  "song_removed_favorites": "eliminada de favoritos",
+  "song": "canción",
+  "songs": "canciones",
+  "play": "Reproducir",
+  "shuffle": "Aleatorio",
+  "clear_lyrics_cache": "Limpiar caché de letras",
+  "clear_lyrics_cache_desc": "Elimina letras guardadas",
+  "lyrics_cache_cleared": "Caché de letras limpiado"
 }

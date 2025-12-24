@@ -41,7 +41,7 @@ class MusicLibraryService {
                 final cached = await MusicMetadataCache.get(cacheKey);
 
                 if (cached != null) {
-                  // Usar datos del caché
+                  // Usar datos del caché (incluyendo title/artist que ahora son metadatos reales)
                   song = song.copyWith(
                     title: cached.title ?? song.title,
                     artist: cached.artist ?? song.artist,
@@ -134,8 +134,8 @@ class MusicLibraryService {
     if (fileName.contains(' - ')) {
       final parts = title.split(' - ');
       if (parts.length >= 2) {
-        artist = parts[0].trim();
-        title = parts.sublist(1).join(' - ').trim();
+        title = parts[0].trim();
+        artist = parts.sublist(1).join(' - ').trim();
       }
     }
 
@@ -173,16 +173,29 @@ class MusicLibraryService {
             // Cargar desde Android y guardar en caché
             final metadata = await SafHelper.getMetadataFromUri(uri);
             if (metadata != null) {
-              // Guardar en caché
+              // Usar metadatos REALES del archivo, con fallback al nombre de archivo
+              final realTitle = (metadata['title'] as String?)?.trim();
+              final realArtist = (metadata['artist'] as String?)?.trim();
+
+              // Usar metadatos reales si existen y no están vacíos, sino usar parseo del nombre
+              final finalTitle = (realTitle != null && realTitle.isNotEmpty)
+                  ? realTitle
+                  : song.title;
+              final finalArtist = (realArtist != null && realArtist.isNotEmpty)
+                  ? realArtist
+                  : song.artist;
+
               await MusicMetadataCache.saveFromMetadata(
                 key: cacheKey,
-                title: metadata['title'] as String?,
-                artist: metadata['artist'] as String?,
+                title: finalTitle,
+                artist: finalArtist,
                 album: metadata['album'] as String?,
                 durationMs: metadata['duration'] as int?,
                 artworkData: metadata['artworkData'] as Uint8List?,
               );
-              print('[MusicLibrary] ✓ Cached: ${song.title}');
+              print(
+                '[MusicLibrary] ✓ Cached metadata for: $finalTitle - $finalArtist',
+              );
             }
           } catch (e) {
             print('[MusicLibrary] Background metadata error: $e');
