@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import '../models/song.dart';
 import '../services/saf_helper.dart';
 import '../services/music_metadata_cache.dart';
+import '../widgets/artwork_container.dart';
 
 /// Widget que carga metadatos de forma lazy (solo cuando es visible)
 class LazyMusicTile extends StatefulWidget {
@@ -129,22 +130,10 @@ class _LazyMusicTileState extends State<LazyMusicTile>
     final displayArtist = _artist ?? widget.song.artist;
 
     return ListTile(
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Colors.grey[800],
-          borderRadius: BorderRadius.circular(4),
-          image: _artwork != null
-              ? DecorationImage(
-                  image: MemoryImage(_artwork!),
-                  fit: BoxFit.cover,
-                )
-              : null,
-        ),
-        child: _artwork == null
-            ? const Icon(Icons.music_note, color: Colors.white54)
-            : null,
+      leading: ArtworkContainer.song(
+        artworkData: _artwork,
+        size: 48,
+        borderRadius: 4,
       ),
       title: Text(
         displayTitle,

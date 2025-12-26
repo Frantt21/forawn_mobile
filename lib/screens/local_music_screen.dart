@@ -11,10 +11,13 @@ import '../services/saf_helper.dart';
 import '../services/language_service.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/lazy_music_tile.dart';
+import '../widgets/artwork_container.dart';
+import '../widgets/song_options_bottom_sheet.dart';
 
 import '../services/playlist_service.dart';
 import '../models/playlist_model.dart';
 import '../models/song.dart';
+import '../utils/text_utils.dart';
 import 'playlist_detail_screen.dart';
 import 'music_player_screen.dart';
 
@@ -150,25 +153,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
               );
             }
 
-            // Normalización para búsqueda
-            String normalizeText(String text) {
-              return text
-                  .toLowerCase()
-                  .replaceAll('á', 'a')
-                  .replaceAll('é', 'e')
-                  .replaceAll('í', 'i')
-                  .replaceAll('ó', 'o')
-                  .replaceAll('ú', 'u')
-                  .replaceAll('ñ', 'n')
-                  .replaceAll('ü', 'u');
-            }
-
             final filteredSongs = widget.searchQuery.isEmpty
                 ? songs
                 : songs.where((song) {
-                    final nTitle = normalizeText(song.title);
-                    final nArtist = normalizeText(song.artist);
-                    final nQuery = normalizeText(widget.searchQuery);
+                    final nTitle = TextUtils.normalize(song.title);
+                    final nArtist = TextUtils.normalize(song.artist);
+                    final nQuery = TextUtils.normalize(widget.searchQuery);
                     return nTitle.contains(nQuery) || nArtist.contains(nQuery);
                   }).toList();
 
@@ -531,13 +521,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
                   decoration: BoxDecoration(
                     color: Colors.grey[800],
                     borderRadius: BorderRadius.circular(12),
-                    image: playlist.imagePath != null
+                    image: playlist.getImageProvider() != null
                         ? DecorationImage(
-                            image:
-                                (File(playlist.imagePath!).existsSync()
-                                        ? FileImage(File(playlist.imagePath!))
-                                        : NetworkImage(playlist.imagePath!))
-                                    as ImageProvider,
+                            image: playlist.getImageProvider()!,
                             fit: BoxFit.cover,
                           )
                         : null,
@@ -587,29 +573,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
 
   Widget _buildPlaylistTile(Playlist playlist, {bool isFavorite = false}) {
     return ListTile(
-      leading: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: isFavorite ? Colors.purple : Colors.grey[800],
-          borderRadius: BorderRadius.circular(4),
-          image: playlist.imagePath != null
-              ? DecorationImage(
-                  image:
-                      (File(playlist.imagePath!).existsSync()
-                              ? FileImage(File(playlist.imagePath!))
-                              : NetworkImage(playlist.imagePath!))
-                          as ImageProvider,
-                  fit: BoxFit.cover,
-                )
-              : null,
-        ),
-        child: playlist.imagePath == null
-            ? Icon(
-                isFavorite ? Icons.favorite : Icons.music_note,
-                color: Colors.white54,
-              )
-            : null,
+      leading: ArtworkContainer.playlist(
+        imagePath: playlist.imagePath,
+        size: 50,
+        borderRadius: 4,
+        backgroundColor: isFavorite ? Colors.purple : null,
+        placeholderIcon: isFavorite ? Icons.favorite : Icons.music_note,
       ),
       title: Text(playlist.name, style: const TextStyle(color: Colors.white)),
       subtitle: Text(
@@ -752,24 +721,10 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
             children: [
               const SizedBox(height: 10),
               ListTile(
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: song.artworkData != null
-                      ? Image.memory(
-                          song.artworkData!,
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          width: 50,
-                          height: 50,
-                          color: Colors.grey[800],
-                          child: const Icon(
-                            Icons.music_note,
-                            color: Colors.white54,
-                          ),
-                        ),
+                leading: ArtworkContainer.song(
+                  artworkData: song.artworkData,
+                  size: 50,
+                  borderRadius: 4,
                 ),
                 title: Text(
                   song.title,

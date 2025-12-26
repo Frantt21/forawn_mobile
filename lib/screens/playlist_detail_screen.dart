@@ -8,6 +8,7 @@ import '../models/song.dart';
 import '../services/playlist_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/language_service.dart';
+import '../utils/text_utils.dart';
 import '../widgets/lazy_music_tile.dart';
 import '../widgets/mini_player.dart';
 import '../services/music_metadata_cache.dart';
@@ -32,7 +33,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
   // Estado local para manejar favoritos (que no están en PlaylistService._playlists)
   late List<Song> _virtualSongs;
-  List<Song> _songsWithDuration = [];
 
   // Búsqueda
   final TextEditingController _searchController = TextEditingController();
@@ -48,7 +48,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     PlaylistService().addListener(_onPlaylistChanged);
     _loadCachedColorOrExtract();
     _scrollController.addListener(_onScroll);
-    _loadSongDurations();
 
     // Inicializar animación de búsqueda
     _animationController = AnimationController(
@@ -111,31 +110,24 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     }
   }
 
-  Future<void> _loadSongDurations() async {
-    final updatedSongs = <Song>[];
+  /// Calcula la duración total de la playlist cargando desde caché si es necesario
+  Future<Duration> _getTotalDurationFromCache() async {
+    int totalMs = 0;
 
     for (var song in _currentPlaylist.songs) {
-      // Intentar cargar desde caché
-      final cachedMetadata = await MusicMetadataCache.get(song.id);
-
-      if (cachedMetadata != null && cachedMetadata.durationMs != null) {
-        // Tiene duración en caché
-        updatedSongs.add(
-          song.copyWith(
-            duration: Duration(milliseconds: cachedMetadata.durationMs!),
-          ),
-        );
+      // Si la canción ya tiene duración, usarla
+      if (song.duration != null) {
+        totalMs += song.duration!.inMilliseconds;
       } else {
-        // No tiene duración, usar la canción original
-        updatedSongs.add(song);
+        // Intentar cargar desde caché
+        final cachedMetadata = await MusicMetadataCache.get(song.id);
+        if (cachedMetadata != null && cachedMetadata.durationMs != null) {
+          totalMs += cachedMetadata.durationMs!;
+        }
       }
     }
 
-    if (mounted) {
-      setState(() {
-        _songsWithDuration = updatedSongs;
-      });
-    }
+    return Duration(milliseconds: totalMs);
   }
 
   Future<void> _loadCachedColorOrExtract() async {
@@ -208,32 +200,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
         });
       }
     }
-  }
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-
-    if (hours > 0) {
-      return '$hours h $minutes min';
-    } else {
-      return '$minutes min';
-    }
-  }
-
-  Duration _getTotalDuration() {
-    // Usar canciones con duración cargada si están disponibles
-    final songsToCheck = _songsWithDuration.isNotEmpty
-        ? _songsWithDuration
-        : _currentPlaylist.songs;
-
-    int totalMs = 0;
-    for (var song in songsToCheck) {
-      if (song.duration != null) {
-        totalMs += song.duration!.inMilliseconds;
-      }
-    }
-    return Duration(milliseconds: totalMs);
   }
 
   void _removeSong(Song song) {
@@ -596,7 +562,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
   Widget build(BuildContext context) {
     final playlist = _currentPlaylist;
     final songs = playlist.songs;
-    final totalDuration = _getTotalDuration();
 
     // Si es normal y fue borrada
     if (widget.playlist.id != 'favorites_virtual' &&
@@ -948,14 +913,20 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                               color: Colors.white.withOpacity(0.6),
                             ),
                             const SizedBox(width: 6),
-                            Text(
-                              totalDuration.inSeconds > 0
-                                  ? '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${_formatDuration(totalDuration)}'
-                                  : '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 14,
-                              ),
+                            FutureBuilder<Duration>(
+                              future: _getTotalDurationFromCache(),
+                              builder: (context, snapshot) {
+                                final duration = snapshot.data ?? Duration.zero;
+                                return Text(
+                                  duration.inSeconds > 0
+                                      ? '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${TextUtils.formatDurationLong(duration)}'
+                                      : '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.6),
+                                    fontSize: 14,
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
