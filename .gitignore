@@ -56,3 +56,4 @@ LANGUAGE_SYSTEM_100_COMPLETE.md
 *.md
 *.png
 lib/config/api_config.dart
+pair_device.ps1
