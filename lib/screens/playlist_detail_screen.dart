@@ -32,6 +32,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   late List<Song> _virtualSongs;
   List<Song> _songsWithDuration = [];
 
+  // Búsqueda
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +51,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _searchController.dispose();
     PlaylistService().removeListener(_onPlaylistChanged);
     super.dispose();
   }
@@ -241,6 +247,62 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
+  List<Song> _getFilteredSongs(List<Song> songs) {
+    if (_searchQuery.isEmpty) {
+      return songs;
+    }
+
+    final query = _searchQuery.toLowerCase();
+    return songs.where((song) {
+      return song.title.toLowerCase().contains(query) ||
+          (song.artist?.toLowerCase().contains(query) ?? false) ||
+          (song.album?.toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      key: const ValueKey('search'),
+      controller: _searchController,
+      autofocus: true,
+      style: const TextStyle(color: Colors.white, fontSize: 16),
+      onChanged: (value) {
+        setState(() {
+          _searchQuery = value;
+        });
+      },
+      decoration: InputDecoration(
+        hintText: LanguageService().getText('search_songs'),
+        hintStyle: TextStyle(
+          color: Colors.white.withOpacity(0.5),
+          fontSize: 16,
+        ),
+        prefixIcon: const Icon(Icons.search, color: Colors.white, size: 20),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.1),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 10,
+        ),
+        suffixIcon: _searchController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, color: Colors.white70, size: 20),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() {
+                    _searchQuery = '';
+                  });
+                },
+              )
+            : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final playlist = _currentPlaylist;
@@ -274,6 +336,129 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
+        title: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          child: _isSearching
+              ? _buildSearchField()
+              : const SizedBox.shrink(key: ValueKey('empty')),
+        ),
+        actions: [
+          // Botón de búsqueda
+          IconButton(
+            icon: Icon(
+              _isSearching ? Icons.close : Icons.search,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  _searchController.clear();
+                  _searchQuery = '';
+                }
+              });
+            },
+          ),
+          // Menú de 3 puntos (solo si no está buscando)
+          if (!_isSearching)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              color: Colors.grey[900],
+              onSelected: (value) {
+                switch (value) {
+                  case 'shuffle':
+                    if (songs.isNotEmpty) {
+                      _audioPlayer.toggleShuffle();
+                      _audioPlayer.loadPlaylist(
+                        songs,
+                        initialIndex: 0,
+                        autoPlay: true,
+                      );
+                      Navigator.of(context).push(
+                        PageRouteBuilder(
+                          pageBuilder:
+                              (context, animation, secondaryAnimation) =>
+                                  const MusicPlayerScreen(),
+                          transitionsBuilder:
+                              (context, animation, secondaryAnimation, child) {
+                                var tween = Tween(
+                                  begin: const Offset(0.0, 1.0),
+                                  end: Offset.zero,
+                                ).chain(CurveTween(curve: Curves.easeOutCubic));
+                                return SlideTransition(
+                                  position: animation.drive(tween),
+                                  child: child,
+                                );
+                              },
+                        ),
+                      );
+                    }
+                    break;
+                  case 'sort_title':
+                    setState(() {
+                      songs.sort((a, b) => a.title.compareTo(b.title));
+                    });
+                    break;
+                  case 'sort_artist':
+                    setState(() {
+                      songs.sort(
+                        (a, b) => (a.artist ?? '').compareTo(b.artist ?? ''),
+                      );
+                    });
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'shuffle',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.shuffle, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        LanguageService().getText('shuffle'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'sort_title',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.sort_by_alpha,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        LanguageService().getText('sort_by_title'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'sort_artist',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        LanguageService().getText('sort_by_artist'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: Stack(
         children: [
@@ -554,12 +739,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   stream: _audioPlayer.currentSongStream,
                   builder: (context, snapshot) {
                     final currentSong = snapshot.data;
+                    final filteredSongs = _getFilteredSongs(songs);
 
                     return SliverPadding(
                       padding: const EdgeInsets.only(bottom: 100),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate((context, index) {
-                          final song = songs[index];
+                          final song = filteredSongs[index];
                           final isPlaying = currentSong?.id == song.id;
 
                           return Dismissible(
@@ -652,7 +838,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                               },
                             ),
                           );
-                        }, childCount: songs.length),
+                        }, childCount: filteredSongs.length),
                       ),
                     );
                   },

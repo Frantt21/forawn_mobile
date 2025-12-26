@@ -1,5 +1,6 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'screens/home.dart';
 import 'screens/music_downloader_screen.dart';
 import 'screens/images_ia_screen.dart';
@@ -18,12 +19,49 @@ import 'package:flutter_displaymode/flutter_displaymode.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Optimizar tasa de refresco para pantallas de 90Hz/120Hz
+  // Optimizar tasa de refresco para pantallas de 90Hz/120Hz/144Hz
   try {
-    await FlutterDisplayMode.setHighRefreshRate();
+    // Obtener todos los modos disponibles
+    final List<DisplayMode> modes = await FlutterDisplayMode.supported;
+
+    // Encontrar el modo con mayor refresh rate
+    DisplayMode? preferredMode;
+    double maxRefreshRate = 0;
+
+    for (var mode in modes) {
+      if (mode.refreshRate > maxRefreshRate) {
+        maxRefreshRate = mode.refreshRate;
+        preferredMode = mode;
+      }
+    }
+
+    if (preferredMode != null) {
+      await FlutterDisplayMode.setPreferredMode(preferredMode);
+      print(
+        '[Main] Display mode set to: ${preferredMode.width}x${preferredMode.height} @ ${preferredMode.refreshRate}Hz',
+      );
+    } else {
+      // Fallback al método anterior
+      await FlutterDisplayMode.setHighRefreshRate();
+      print('[Main] High refresh rate enabled (fallback)');
+    }
   } catch (e) {
     print('[Main] Error setting high refresh rate: $e');
   }
+
+  // Configuraciones adicionales de rendering para mejor performance
+  // Habilitar edge-to-edge (pantalla completa)
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+  // Configurar barra de estado transparente
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
 
   // Initialize Audio Service for background playback notification
   try {

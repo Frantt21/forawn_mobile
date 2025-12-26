@@ -233,5 +233,8 @@
   "shuffle": "Aleatorio",
   "clear_lyrics_cache": "Limpiar caché de letras",
   "clear_lyrics_cache_desc": "Elimina letras guardadas",
-  "lyrics_cache_cleared": "Caché de letras limpiado"
+  "lyrics_cache_cleared": "Caché de letras limpiado",
+  "search_songs": "Buscar canciones...",
+  "sort_by_title": "Ordenar por título",
+  "sort_by_artist": "Ordenar por artista"
 }

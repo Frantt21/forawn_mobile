@@ -233,5 +233,8 @@
   "shuffle": "Shuffle",
   "clear_lyrics_cache": "Clear lyrics cache",
   "clear_lyrics_cache_desc": "Remove saved lyrics",
-  "lyrics_cache_cleared": "Lyrics cache cleared"
+  "lyrics_cache_cleared": "Lyrics cache cleared",
+  "search_songs": "Search songs...",
+  "sort_by_title": "Sort by title",
+  "sort_by_artist": "Sort by artist"
 }
