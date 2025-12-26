@@ -144,9 +144,13 @@ class ArtworkContainer extends StatelessWidget {
             width: size,
             height: size,
             fit: BoxFit.cover,
-            // ✅ CRÍTICO: Pre-decodifica al tamaño correcto en UI thread
-            cacheWidth: effectiveSize.toInt(),
-            cacheHeight: effectiveSize.toInt(),
+            // ✅ CRÍTICO: Pre-decodifica considerando la densidad de píxeles
+            cacheWidth:
+                (effectiveSize * MediaQuery.of(context).devicePixelRatio)
+                    .toInt(),
+            cacheHeight:
+                (effectiveSize * MediaQuery.of(context).devicePixelRatio)
+                    .toInt(),
             gaplessPlayback: true, // Suaviza transiciones
             errorBuilder: (context, error, stackTrace) {
               return Icon(

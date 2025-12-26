@@ -1,7 +1,7 @@
 // lib/models/song.dart
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:audiotags/audiotags.dart';
+import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 
 /// Modelo para una canción
 class Song {
@@ -179,19 +179,22 @@ class Song {
     }
 
     try {
-      final tag = await AudioTags.read(filePath);
-      if (tag != null) {
+      final metadata = await MetadataRetriever.fromFile(File(filePath));
+      if (metadata != null) {
         return copyWith(
-          title: tag.title?.isNotEmpty == true ? tag.title : title,
-          artist: tag.trackArtist?.isNotEmpty == true
-              ? tag.trackArtist
+          title: metadata.trackName?.isNotEmpty == true
+              ? metadata.trackName
+              : title,
+          artist: metadata.trackArtistNames?.isNotEmpty == true
+              ? metadata.trackArtistNames!.first
               : artist,
-          album: tag.album,
-          // genre: tag.genre, // Audiotags a veces devuelve formato raro
-          year: tag.year?.toString(),
-          artworkData: tag.pictures.isNotEmpty
-              ? tag.pictures.first.bytes
-              : null,
+          album: metadata.albumName,
+          year: metadata.year?.toString(),
+          genre: metadata.genre,
+          artworkData: metadata.albumArt,
+          duration: metadata.trackDuration != null
+              ? Duration(milliseconds: metadata.trackDuration!)
+              : duration,
         );
       }
     } catch (e) {

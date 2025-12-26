@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../services/version_check_service.dart';
 import '../services/language_service.dart';
 import '../services/music_metadata_cache.dart';
+import '../services/metadata_service.dart';
 import '../services/lyrics_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -286,7 +287,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: const Icon(Icons.delete_sweep),
                     color: Colors.purpleAccent,
                     onPressed: () async {
-                      await MusicMetadataCache.clearCache();
+                      await MetadataService().clearAllCaches();
+                      // Force UI update if needed or notify listeners
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(

@@ -13,6 +13,7 @@ import '../widgets/mini_player.dart';
 import '../widgets/lazy_music_tile.dart';
 import '../widgets/artwork_container.dart';
 import '../widgets/song_options_bottom_sheet.dart';
+import '../services/music_metadata_cache.dart';
 
 import '../services/playlist_service.dart';
 import '../models/playlist_model.dart';
@@ -30,7 +31,8 @@ class LocalMusicScreen extends StatefulWidget {
   State<LocalMusicScreen> createState() => _LocalMusicScreenState();
 }
 
-class _LocalMusicScreenState extends State<LocalMusicScreen> {
+class _LocalMusicScreenState extends State<LocalMusicScreen>
+    with AutomaticKeepAliveClientMixin {
   final AudioPlayerService _audioPlayer = AudioPlayerService();
   List<Song> _librarySongs = [];
   bool _isLoading = false;
@@ -38,11 +40,17 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
   bool _isGridView = true; // Playlist view mode
 
   @override
+  bool get wantKeepAlive => true; // Mantener estado activo
+
+  @override
   void initState() {
     super.initState();
     _loadLastFolder();
     PlaylistService().init();
     PlaylistService().addListener(_onPlaylistServiceChanged);
+    MusicLibraryService.onMetadataUpdated.addListener(
+      _onMetadataUpdated,
+    ); // Escuchar actualizaciones de artwork
     // Cargar historial y actualizar UI cuando esté listo
     MusicHistoryService().init().then((_) {
       if (mounted) setState(() {});
@@ -52,11 +60,39 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
   @override
   void dispose() {
     PlaylistService().removeListener(_onPlaylistServiceChanged);
+    MusicLibraryService.onMetadataUpdated.removeListener(_onMetadataUpdated);
     super.dispose();
   }
 
   void _onPlaylistServiceChanged() {
     if (mounted) setState(() {});
+  }
+
+  // Cuando llega metadata nueva en background (ej. artwork), actualizar la canción en la lista
+  void _onMetadataUpdated() async {
+    final uri = MusicLibraryService.onMetadataUpdated.value;
+    if (uri != null && mounted) {
+      final index = _librarySongs.indexWhere((s) => s.filePath == uri);
+      if (index != -1) {
+        // Encontrada! Recargar sus datos del caché
+        final cacheKey = uri.hashCode.toString();
+        final cached = await MusicMetadataCache.get(cacheKey);
+
+        if (cached != null) {
+          setState(() {
+            _librarySongs[index] = _librarySongs[index].copyWith(
+              title: cached.title ?? _librarySongs[index].title,
+              artist: cached.artist ?? _librarySongs[index].artist,
+              album: cached.album,
+              duration: cached.durationMs != null
+                  ? Duration(milliseconds: cached.durationMs!)
+                  : null,
+              artworkData: cached.artwork, // Aquí llega el artwork
+            );
+          });
+        }
+      }
+    }
   }
 
   Future<void> _loadLastFolder() async {
@@ -122,6 +158,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Actualizar estado de KeepAlive
     return Stack(
       children: [
         StreamBuilder(
@@ -276,79 +313,89 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
     final history = MusicHistoryService().history.take(6).toList();
     final hasHistory = showHistory && history.isNotEmpty;
 
-    return CustomScrollView(
-      key: PageStorageKey('song_list_${showHistory}_${songs.length}'),
-      slivers: [
-        // History Section
-        if (hasHistory) _buildHistorySectionSliver(),
+    return RefreshIndicator(
+      onRefresh: () async {
+        final prefs = await SharedPreferences.getInstance();
+        final lastPath = prefs.getString('last_music_folder');
+        if (lastPath != null) {
+          await _scanFolder(lastPath);
+        }
+      },
+      child: CustomScrollView(
+        key: PageStorageKey('song_list_${showHistory}_${songs.length}'),
+        slivers: [
+          // History Section
+          if (hasHistory) _buildHistorySectionSliver(),
 
-        // Library Header
-        if (showLibraryHeader)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Text(
-                LanguageService().getText('music_library'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+          // Library Header
+          if (showLibraryHeader)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Text(
+                  LanguageService().getText('music_library'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-          ),
 
-        // Songs List
-        SliverPadding(
-          padding: const EdgeInsets.only(bottom: 100),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                if (index < 0 || index >= songs.length) {
-                  return const SizedBox.shrink();
-                }
+          // Songs List
+          SliverPadding(
+            padding: const EdgeInsets.only(bottom: 100),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (index < 0 || index >= songs.length) {
+                    return const SizedBox.shrink();
+                  }
 
-                final song = songs[index];
-                final isPlaying = _audioPlayer.currentSong?.id == song.id;
+                  final song = songs[index];
+                  final isPlaying = _audioPlayer.currentSong?.id == song.id;
 
-                return LazyMusicTile(
-                  key: ValueKey(song.id),
-                  song: song,
-                  isPlaying: isPlaying,
-                  onTap: () {
-                    _audioPlayer.loadPlaylist(
-                      songs,
-                      initialIndex: index,
-                      autoPlay: true,
-                    );
-                    Navigator.of(context).push(
-                      PageRouteBuilder(
-                        pageBuilder: (context, animation, secondaryAnimation) =>
-                            const MusicPlayerScreen(),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                              var tween = Tween(
-                                begin: const Offset(0.0, 1.0),
-                                end: Offset.zero,
-                              ).chain(CurveTween(curve: Curves.easeOutCubic));
-                              return SlideTransition(
-                                position: animation.drive(tween),
-                                child: child,
-                              );
-                            },
-                      ),
-                    );
-                  },
-                  onLongPress: () => _showSongOptions(context, song),
-                );
-              },
-              childCount: songs.length,
-              addRepaintBoundaries:
-                  true, // ✅ OPTIMIZACIÓN: Repaint boundaries automáticos
+                  return LazyMusicTile(
+                    key: ValueKey(song.id),
+                    song: song,
+                    isPlaying: isPlaying,
+                    onTap: () {
+                      _audioPlayer.loadPlaylist(
+                        songs,
+                        initialIndex: index,
+                        autoPlay: true,
+                      );
+                      Navigator.of(context).push(
+                        PageRouteBuilder(
+                          pageBuilder:
+                              (context, animation, secondaryAnimation) =>
+                                  const MusicPlayerScreen(),
+                          transitionsBuilder:
+                              (context, animation, secondaryAnimation, child) {
+                                var tween = Tween(
+                                  begin: const Offset(0.0, 1.0),
+                                  end: Offset.zero,
+                                ).chain(CurveTween(curve: Curves.easeOutCubic));
+                                return SlideTransition(
+                                  position: animation.drive(tween),
+                                  child: child,
+                                );
+                              },
+                        ),
+                      );
+                    },
+                    onLongPress: () => _showSongOptions(context, song),
+                  );
+                },
+                childCount: songs.length,
+                addRepaintBoundaries:
+                    true, // ✅ OPTIMIZACIÓN: Repaint boundaries automáticos
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

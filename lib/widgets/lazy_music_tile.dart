@@ -64,10 +64,13 @@ class _LazyMusicTileState extends State<LazyMusicTile>
       final uri = widget.song.filePath;
       final cacheKey = uri.hashCode.toString();
 
+      final isSaf = uri.startsWith('content://');
+
       // Usar MetadataService para cargar con retry y caché automático
       final metadata = await MetadataService().loadMetadata(
         id: cacheKey,
-        safUri: uri,
+        safUri: isSaf ? uri : null,
+        filePath: isSaf ? null : uri,
         priority: MetadataPriority.high, // Alta prioridad porque es visible
       );
 

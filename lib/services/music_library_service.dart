@@ -1,5 +1,6 @@
 // lib/services/music_library_service.dart
 import 'dart:io';
+import 'package:flutter/foundation.dart'; // Necesario para ValueNotifier
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:typed_data'; // Para Uint8List
 import '../models/song.dart';
@@ -7,6 +8,9 @@ import '../services/saf_helper.dart';
 import '../services/music_metadata_cache.dart';
 
 class MusicLibraryService {
+  /// Notificador para actualizar UI cuando se cargan metadatos en background
+  static final ValueNotifier<String?> onMetadataUpdated = ValueNotifier(null);
+
   /// Escanea una carpeta en busca de canciones
   /// Soporta rutas normales y URIs de SAF (content://)
   static Future<List<Song>> scanFolder(String pathOrUri) async {
@@ -177,7 +181,7 @@ class MusicLibraryService {
               final realTitle = (metadata['title'] as String?)?.trim();
               final realArtist = (metadata['artist'] as String?)?.trim();
 
-              // Usar metadatos reales si existen y no están vacíos, sino usar parseo del nombre
+              // Usar metadatos reales si existen y no están vacíos
               final finalTitle = (realTitle != null && realTitle.isNotEmpty)
                   ? realTitle
                   : song.title;
@@ -193,6 +197,10 @@ class MusicLibraryService {
                 durationMs: metadata['duration'] as int?,
                 artworkData: metadata['artworkData'] as Uint8List?,
               );
+
+              // 🔔 Notificar a la UI que esta canción tiene datos nuevos
+              onMetadataUpdated.value = uri;
+
               print(
                 '[MusicLibrary] ✓ Cached metadata for: $finalTitle - $finalArtist',
               );

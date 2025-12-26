@@ -1,5 +1,6 @@
+import 'dart:io';
 import 'dart:typed_data';
-import 'package:audiotags/audiotags.dart';
+import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'music_metadata_cache.dart';
 import 'saf_helper.dart';
 
@@ -161,9 +162,13 @@ class MetadataService {
       }
     } else if (filePath != null) {
       // Cargar desde archivo local
-      final tag = await AudioTags.read(filePath);
-      if (tag != null) {
-        return _convertTagToMetadata(tag, filePath);
+      try {
+        final metadata = await MetadataRetriever.fromFile(File(filePath));
+        if (metadata != null) {
+          return _convertMediaMetadataToSongMetadata(metadata, filePath);
+        }
+      } catch (e) {
+        print('[MetadataService] Error reading local file metadata: $e');
       }
     }
     return null;
@@ -180,18 +185,21 @@ class MetadataService {
     );
   }
 
-  /// Convierte Tag a SongMetadata
-  SongMetadata _convertTagToMetadata(Tag tag, String filePath) {
+  /// Convierte flutter_media_metadata Metadata a SongMetadata
+  SongMetadata _convertMediaMetadataToSongMetadata(
+    Metadata meta,
+    String filePath,
+  ) {
     return SongMetadata(
-      title: tag.title?.isNotEmpty == true
-          ? tag.title!
+      title: meta.trackName?.isNotEmpty == true
+          ? meta.trackName!
           : _getFileNameWithoutExtension(filePath),
-      artist: tag.trackArtist?.isNotEmpty == true
-          ? tag.trackArtist!
+      artist: meta.trackArtistNames?.isNotEmpty == true
+          ? meta.trackArtistNames!.first
           : 'Unknown Artist',
-      album: tag.album,
-      durationMs: tag.duration != null ? (tag.duration! * 1000).toInt() : null,
-      artwork: tag.pictures.isNotEmpty ? tag.pictures.first.bytes : null,
+      album: meta.albumName,
+      durationMs: meta.trackDuration,
+      artwork: meta.albumArt,
     );
   }
 
@@ -266,6 +274,17 @@ class MetadataService {
   /// Limpia entrada específica del caché
   void clearCacheEntry(String id) {
     _memoryCache.remove(id);
+  }
+
+  /// Limpia TODOS los cachés (Memoria + Disco)
+  Future<void> clearAllCaches() async {
+    // 1. Limpiar memoria local
+    clearMemoryCache();
+
+    // 2. Limpiar caché persistente y estático
+    await MusicMetadataCache.clearCache();
+
+    print('[MetadataService] All caches cleared (Memory + Disk)');
   }
 
   /// Obtiene estadísticas del caché en memoria

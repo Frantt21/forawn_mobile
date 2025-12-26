@@ -6,7 +6,6 @@ import 'screens/music_downloader_screen.dart';
 import 'screens/images_ia_screen.dart';
 import 'screens/translate_screen.dart';
 import 'screens/qr_generator_screen.dart';
-import 'screens/downloads_screen.dart';
 import 'services/global_download_manager.dart';
 import 'services/version_check_service.dart';
 import 'services/language_service.dart';
@@ -236,7 +235,6 @@ class _ForawnAppState extends State<ForawnApp> {
         '/images-ia': (context) => const ImagesIAScreen(),
         '/translate': (context) => const TranslateScreen(),
         '/qr-generator': (context) => const QRGeneratorScreen(),
-        '/downloads': (context) => const DownloadsScreen(),
       },
 
       // Handle unknown routes

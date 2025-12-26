@@ -178,8 +178,14 @@ class GlobalDownloadManager {
         // Usar URL de Google Drive directamente (desde caché)
         print('[GlobalDownloadManager] ⚡ Using cached Google Drive URL');
         downloadUrl = track.url;
+      } else if (forceYouTubeFallback) {
+        // ⚡ SI SE FUERZA FORANLY (Youtube Fallback), SALTAR SPOTIFY SERVICE
+        print(
+          '[GlobalDownloadManager] ⚡ Forzando modo búsqueda Foranly (Skip Spotify APIs)',
+        );
+        downloadUrl = ""; // Dejar vacío para que DownloadService use fallback
       } else {
-        // Intentar obtener URL de descarga desde Spotify/YouTube
+        // Intentar obtener URL de descarga desde Spotify Direct (FabDL)
         try {
           final downloadInfo = await _spotifyService.getDownloadUrl(
             track.url,

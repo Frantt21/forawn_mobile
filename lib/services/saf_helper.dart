@@ -56,68 +56,6 @@ class SafHelper {
     }
   }
 
-  // Nuevo: abrir un archivo SAF (lanza intent VIEW)
-  static Future<bool> openFileFromUri(String uri) async {
-    try {
-      final bool? res = await _channel.invokeMethod<bool>('openSafFile', {
-        'uri': uri,
-      });
-      return res ?? false;
-    } catch (e) {
-      print('openFileFromUri error: $e');
-      return false;
-    }
-  }
-
-  // Nuevo: eliminar archivo SAF
-  static Future<bool> deleteFileFromUri(String uri) async {
-    try {
-      final bool? res = await _channel.invokeMethod<bool>('deleteSafFile', {
-        'uri': uri,
-      });
-      return res ?? false;
-    } catch (e) {
-      print('deleteFileFromUri error: $e');
-      return false;
-    }
-  }
-
-  // Nuevo: compartir archivo SAF (lanza intent SEND)
-  static Future<bool> shareFileFromUri(
-    String uri,
-    String mimeType,
-    String? subject,
-  ) async {
-    try {
-      final bool? res = await _channel.invokeMethod<bool>('shareSafFile', {
-        'uri': uri,
-        'mimeType': mimeType,
-        'subject': subject ?? '',
-      });
-      return res ?? false;
-    } catch (e) {
-      print('shareFileFromUri error: $e');
-      return false;
-    }
-  }
-
-  // Nuevo: leer bytes de un archivo SAF para mostrar vista previa
-  static Future<Uint8List?> readBytesFromUri(
-    String uri, {
-    int maxBytes = 512 * 1024,
-  }) async {
-    try {
-      final Uint8List? bytes = await _channel.invokeMethod<Uint8List>(
-        'readBytesFromUri',
-        {'uri': uri, 'maxBytes': maxBytes},
-      );
-      return bytes;
-    } catch (e) {
-      print('readBytesFromUri error: $e');
-      return null;
-    }
-  }
-
   // Nuevo: Obtener metadatos desde URI (Saf)
   static Future<Map<String, dynamic>?> getMetadataFromUri(String uri) async {
     try {

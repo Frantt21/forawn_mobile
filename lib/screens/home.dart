@@ -623,11 +623,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPageChanged: _onPageChanged,
                     physics: const BouncingScrollPhysics(),
                     children: [
-                      _buildHomeContent(context),
-                      LocalMusicScreen(searchQuery: _searchQuery),
-                      ForaaiScreen(key: _foraaiKey),
-                      NotificationsScreen(key: _notificationsKey),
-                      const SettingsScreen(),
+                      RepaintBoundary(child: _buildHomeContent(context)),
+                      RepaintBoundary(
+                        child: LocalMusicScreen(searchQuery: _searchQuery),
+                      ),
+                      RepaintBoundary(
+                        child: ForaaiScreen(key: _foraaiKey),
+                      ), // ForaAI
+                      RepaintBoundary(
+                        child: NotificationsScreen(key: _notificationsKey),
+                      ),
+                      const RepaintBoundary(child: SettingsScreen()),
                     ],
                   ),
                 ),

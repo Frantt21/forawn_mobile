@@ -1,0 +1,33 @@
+{
+  "name": "forawn-backend",
+  "version": "1.0.0",
+  "description": "Backend server for Forawn music downloader with Google Drive cache",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "spotify-web-api-node": "^5.0.2",
+    "googleapis": "^128.0.0",
+    "better-sqlite3": "^11.7.0",
+    "youtube-sr": "^4.3.11",
+    "ytdl-core": "^4.11.5",
+    "node-id3": "^0.2.9"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "music",
+    "downloader",
+    "youtube",
+    "spotify",
+    "google-drive"
+  ],
+  "author": "Frantt21",
+  "license": "MIT"
+}

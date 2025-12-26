@@ -4,12 +4,12 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/saf_helper.dart';
-import '../services/youtube_fallback_service.dart';
+import '../services/foranly_service.dart';
 import '../services/permission_helper.dart';
 
 class DownloadService {
   final Dio _dio = Dio();
-  final YoutubeFallbackService _youtubeFallback = YoutubeFallbackService();
+  final ForanlyService _foranlyService = ForanlyService();
 
   /// Solicitar permisos de almacenamiento
   Future<bool> requestStoragePermission() async {
@@ -39,7 +39,7 @@ class DownloadService {
     final tempPath = '${tempDir.path}/$fileName';
 
     try {
-      // Soporte para archivos locales pre-descargados (ej: Spotify 246 API)
+      // Soporte para archivos locales pre-descargados
       if (url.startsWith('file://') || File(url).existsSync()) {
         final localFile = File(
           url.startsWith('file://') ? url.replaceFirst('file://', '') : url,
@@ -79,7 +79,7 @@ class DownloadService {
     }
   }
 
-  /// Descarga desde YouTube como fallback
+  /// Descarga desde Foranly como fallback
   /// Retorna la ruta del archivo temporal
   Future<String?> downloadFromYoutubeFallback({
     required String trackTitle,
@@ -87,43 +87,32 @@ class DownloadService {
     required Function(double) onProgress,
   }) async {
     try {
-      print('[DownloadService] Intentando descarga desde YouTube (fallback)');
       print(
-        '[DownloadService] Parámetros: track="$trackTitle", artist="$artistName"',
+        '[DownloadService] Iniciando búsqueda en Foranly: $trackTitle - $artistName',
       );
 
-      // Agregar timeout de 5 minutos para la descarga completa
-      final tempPath = await _youtubeFallback
-          .downloadAudioFromYoutube(
-            trackTitle: trackTitle,
-            artistName: artistName,
-            onProgress: onProgress,
-          )
-          .timeout(
-            const Duration(minutes: 5),
-            onTimeout: () {
-              print(
-                '[DownloadService] Timeout en descarga de YouTube (5 minutos)',
-              );
-              return null;
-            },
-          );
+      final query = '$trackTitle - $artistName';
+      final downloadUrl = await _foranlyService.getDownloadUrlWait(query);
 
-      if (tempPath != null) {
-        print('[DownloadService] Descarga desde YouTube exitosa: $tempPath');
+      if (downloadUrl != null) {
+        print('[DownloadService] URL obtenida de Foranly: $downloadUrl');
+        return await downloadToTempFile(
+          url: downloadUrl,
+          onProgress: onProgress,
+          customFileName: '$trackTitle - $artistName.mp3',
+        );
       } else {
-        print('[DownloadService] YouTube no pudo encontrar/descargar el audio');
+        print('[DownloadService] Foranly no pudo encontrar/generar la URL');
+        return null;
       }
-
-      return tempPath;
     } catch (e, st) {
-      print('[DownloadService] Error en fallback de YouTube: $e');
+      print('[DownloadService] Error en fallback de Foranly: $e');
       print(st);
       return null;
     }
   }
 
-  /// Descarga y guarda con fallback automático a YouTube
+  /// Descarga y guarda con fallback automático a Foranly
   Future<void> downloadAndSave({
     required String url,
     required String fileName,
@@ -134,29 +123,29 @@ class DownloadService {
     String? trackTitle,
     String? artistName,
     bool enableYoutubeFallback = true,
-    bool forceYouTubeFallback = false, // NUEVO: Forzar YouTube directamente
+    bool forceYouTubeFallback = false, // Ahora fuerza Foranly Search
   }) async {
     String? tempPath;
     final useYoutube = url.trim().isEmpty || forceYouTubeFallback;
 
     try {
-      // 1) Si la URL está vacía o se fuerza YouTube, saltar directo a YouTube
+      // 1) Si la URL está vacía o se fuerza YouTube, saltar directo a Foranly Search
       if (useYoutube) {
         if (forceYouTubeFallback) {
-          print('[DownloadService] Forzando YouTube Fallback (bypass de API)');
+          print('[DownloadService] Forzando Foranly Search (App Logic)');
         } else {
-          print('[DownloadService] URL vacía, usando YouTube directamente');
+          print('[DownloadService] URL vacía, usando Foranly directamente');
         }
         throw Exception('Empty URL or forced YouTube, forcing fallback');
       }
 
-      // 2) Intentar descargar desde la URL original
+      // 2) Intentar descargar desde la URL original (Spotify Direct/FabDL)
       print('[DownloadService] Descargando desde API: $url');
       tempPath = await downloadToTempFile(
         url: url,
         onProgress: onProgress,
         cancelToken: cancelToken,
-        customFileName: fileName, // Pasar el nombre de archivo deseado
+        customFileName: fileName,
       );
 
       print('[DownloadService] Descarga desde API exitosa');
@@ -169,13 +158,12 @@ class DownloadService {
         rethrow;
       }
 
-      // También verificar si es un DioException de tipo cancel (redundante pero seguro)
       if (e is DioException && e.type == DioExceptionType.cancel) {
         print('Error: Descarga cancelada por el usuario (DioException)');
         rethrow;
       }
 
-      // 3) Si falla y el fallback está habilitado, intenta YouTube
+      // 3) Si falla y el fallback está habilitado, intenta Foranly
       if (enableYoutubeFallback || forceYouTubeFallback) {
         // Validar que tengamos al menos el título de la canción
         final hasTitle = trackTitle != null && trackTitle.trim().isNotEmpty;
@@ -183,11 +171,11 @@ class DownloadService {
 
         if (!hasTitle && !hasArtist) {
           throw Exception(
-            'No se puede usar YouTube fallback: no hay información de track/artist',
+            'No se puede usar Foranly fallback: no hay información de track/artist',
           );
         }
 
-        print('[DownloadService] Activando fallback de YouTube...');
+        print('[DownloadService] Activando fallback de Foranly...');
         tempPath = await downloadFromYoutubeFallback(
           trackTitle: trackTitle ?? '',
           artistName: artistName ?? '',
@@ -196,7 +184,7 @@ class DownloadService {
 
         if (tempPath == null) {
           throw Exception(
-            'No se pudo descargar ni desde la API ni desde YouTube',
+            'No se pudo descargar ni desde la API ni desde Foranly',
           );
         }
       } else {
@@ -256,7 +244,7 @@ class DownloadService {
 
   /// Limpiar recursos
   void dispose() {
-    _youtubeFallback.dispose();
+    // _foranlyService.dispose(); // Si fuera necesario
   }
 
   String _sanitizeFileName(String name) {

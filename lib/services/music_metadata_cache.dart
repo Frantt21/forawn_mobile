@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:audiotags/audiotags.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
@@ -134,22 +133,7 @@ class MusicMetadataCache {
     }
   }
 
-  /// Guardar metadata (AudioTags object wrapper)
-  static Future<void> save(String key, Tag tag) async {
-    Uint8List? artBytes;
-    if (tag.pictures.isNotEmpty) {
-      artBytes = tag.pictures.first.bytes;
-    }
-
-    await saveFromMetadata(
-      key: key,
-      title: tag.title,
-      artist: tag.trackArtist ?? tag.albumArtist,
-      album: tag.album,
-      durationMs: tag.duration != null ? (tag.duration! * 1000).toInt() : null,
-      artworkData: artBytes,
-    );
-  }
+  // Eliminado método save(Tag tag) para desacoplar de librería específica
 
   /// Guardar metadata directamente
   static Future<void> saveFromMetadata({

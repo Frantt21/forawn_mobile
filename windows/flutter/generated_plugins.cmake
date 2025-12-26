@@ -3,8 +3,8 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  audiotags
   file_selector_windows
+  flutter_media_metadata
   permission_handler_windows
   share_plus
   url_launcher_windows
