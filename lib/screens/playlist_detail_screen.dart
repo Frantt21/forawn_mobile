@@ -11,6 +11,7 @@ import '../services/language_service.dart';
 import '../utils/text_utils.dart';
 import '../widgets/lazy_music_tile.dart';
 import '../widgets/mini_player.dart';
+import '../widgets/song_options_bottom_sheet.dart';
 import '../services/music_metadata_cache.dart';
 import 'music_player_screen.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1138,34 +1139,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                 );
                               },
                               onLongPress: () {
-                                showModalBottomSheet(
+                                SongOptionsBottomSheet.show(
                                   context: context,
-                                  backgroundColor: Colors.grey[900],
-                                  builder: (ctx) => SafeArea(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        ListTile(
-                                          leading: const Icon(
-                                            Icons.delete,
-                                            color: Colors.red,
-                                          ),
-                                          title: Text(
-                                            LanguageService().getText(
-                                              'remove_from_playlist',
-                                            ),
-                                            style: const TextStyle(
-                                              color: Colors.red,
-                                            ),
-                                          ),
-                                          onTap: () {
-                                            Navigator.pop(ctx);
-                                            _removeSong(song);
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                  song: song,
+                                  options: [SongOption.removeFromPlaylist],
+                                  onRemove: () => _removeSong(song),
                                 );
                               },
                             ),

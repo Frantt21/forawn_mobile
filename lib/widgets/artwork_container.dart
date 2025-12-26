@@ -114,9 +114,54 @@ class ArtworkContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageProvider = _getImageProvider();
     final bgColor = backgroundColor ?? Colors.grey[800];
     final iconColor = placeholderIconColor ?? Colors.white54;
+
+    // OPTIMIZACIÓN CRÍTICA: Para artworkData, usar Image.memory con cache
+    if (artworkData != null) {
+      final effectiveSize = size ?? 100.0;
+
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(borderRadius),
+          boxShadow: showShadow
+              ? [
+                  const BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Image.memory(
+            artworkData!,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            // ✅ CRÍTICO: Pre-decodifica al tamaño correcto en UI thread
+            cacheWidth: effectiveSize.toInt(),
+            cacheHeight: effectiveSize.toInt(),
+            gaplessPlayback: true, // Suaviza transiciones
+            errorBuilder: (context, error, stackTrace) {
+              return Icon(
+                placeholderIcon,
+                color: iconColor,
+                size: effectiveSize * 0.5,
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    // Para imagePath, usar el código existente con DecorationImage
+    final imageProvider = _getImageProvider();
 
     // Si size es null, usar LayoutBuilder para obtener constraints
     if (size == null) {
@@ -144,10 +189,10 @@ class ArtworkContainer extends StatelessWidget {
                   : null,
               boxShadow: showShadow
                   ? [
-                      BoxShadow(
+                      const BoxShadow(
                         color: Colors.black26,
                         blurRadius: 4,
-                        offset: const Offset(0, 2),
+                        offset: Offset(0, 2),
                       ),
                     ]
                   : null,
@@ -172,10 +217,10 @@ class ArtworkContainer extends StatelessWidget {
             : null,
         boxShadow: showShadow
             ? [
-                BoxShadow(
+                const BoxShadow(
                   color: Colors.black26,
                   blurRadius: 4,
-                  offset: const Offset(0, 2),
+                  offset: Offset(0, 2),
                 ),
               ]
             : null,

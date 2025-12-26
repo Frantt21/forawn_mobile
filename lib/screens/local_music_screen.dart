@@ -302,45 +302,50 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
         SliverPadding(
           padding: const EdgeInsets.only(bottom: 100),
           sliver: SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              if (index < 0 || index >= songs.length) {
-                return const SizedBox.shrink();
-              }
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                if (index < 0 || index >= songs.length) {
+                  return const SizedBox.shrink();
+                }
 
-              final song = songs[index];
-              final isPlaying = _audioPlayer.currentSong?.id == song.id;
+                final song = songs[index];
+                final isPlaying = _audioPlayer.currentSong?.id == song.id;
 
-              return LazyMusicTile(
-                key: ValueKey(song.id),
-                song: song,
-                isPlaying: isPlaying,
-                onTap: () {
-                  _audioPlayer.loadPlaylist(
-                    songs,
-                    initialIndex: index,
-                    autoPlay: true,
-                  );
-                  Navigator.of(context).push(
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) =>
-                          const MusicPlayerScreen(),
-                      transitionsBuilder:
-                          (context, animation, secondaryAnimation, child) {
-                            var tween = Tween(
-                              begin: const Offset(0.0, 1.0),
-                              end: Offset.zero,
-                            ).chain(CurveTween(curve: Curves.easeOutCubic));
-                            return SlideTransition(
-                              position: animation.drive(tween),
-                              child: child,
-                            );
-                          },
-                    ),
-                  );
-                },
-                onLongPress: () => _showSongOptions(context, song),
-              );
-            }, childCount: songs.length),
+                return LazyMusicTile(
+                  key: ValueKey(song.id),
+                  song: song,
+                  isPlaying: isPlaying,
+                  onTap: () {
+                    _audioPlayer.loadPlaylist(
+                      songs,
+                      initialIndex: index,
+                      autoPlay: true,
+                    );
+                    Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            const MusicPlayerScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              var tween = Tween(
+                                begin: const Offset(0.0, 1.0),
+                                end: Offset.zero,
+                              ).chain(CurveTween(curve: Curves.easeOutCubic));
+                              return SlideTransition(
+                                position: animation.drive(tween),
+                                child: child,
+                              );
+                            },
+                      ),
+                    );
+                  },
+                  onLongPress: () => _showSongOptions(context, song),
+                );
+              },
+              childCount: songs.length,
+              addRepaintBoundaries:
+                  true, // ✅ OPTIMIZACIÓN: Repaint boundaries automáticos
+            ),
           ),
         ),
       ],
@@ -707,74 +712,11 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
   }
 
   void _showSongOptions(BuildContext context, Song song) {
-    showModalBottomSheet(
+    SongOptionsBottomSheet.show(
       context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        final isLiked = PlaylistService().isLiked(song.id);
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 10),
-              ListTile(
-                leading: ArtworkContainer.song(
-                  artworkData: song.artworkData,
-                  size: 50,
-                  borderRadius: 4,
-                ),
-                title: Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  song.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              ),
-              const Divider(color: Colors.white24),
-              ListTile(
-                leading: Icon(
-                  isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: isLiked ? Colors.purpleAccent : Colors.white,
-                ),
-                title: Text(
-                  isLiked
-                      ? LanguageService().getText('remove_from_favorites')
-                      : LanguageService().getText('add_to_favorites'),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                onTap: () async {
-                  await PlaylistService().toggleLike(song.id);
-                  if (mounted) Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add, color: Colors.white),
-                title: Text(
-                  LanguageService().getText('add_to_playlist'),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showAddToPlaylistDialog(context, song);
-                },
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        );
-      },
+      song: song,
+      options: [SongOption.like, SongOption.addToPlaylist],
+      onAddToPlaylist: () => _showAddToPlaylistDialog(context, song),
     );
   }
 

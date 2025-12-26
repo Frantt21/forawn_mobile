@@ -6,10 +6,38 @@ import 'package:audiotags/audiotags.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
+/// Metadata de una canción (clase pública para uso externo)
+class SongMetadata {
+  final String title;
+  final String artist;
+  final String? album;
+  final int? durationMs;
+  final Uint8List? artwork;
+
+  SongMetadata({
+    required this.title,
+    required this.artist,
+    this.album,
+    this.durationMs,
+    this.artwork,
+  });
+}
+
 /// Servicio de caché persistente para metadata de música (FileSystem + SharedPrefs)
+///
+/// Características optimizadas:
+/// - Compresión de artwork (300x300, JPEG 85%)
+/// - Límite de tamaño total (100MB)
+/// - Limpieza automática de caché antiguo (>30 días)
+/// - Estadísticas de uso
 class MusicMetadataCache {
   // Caché en memoria para acceso rápido durante la sesión
   static final Map<String, _CachedMetadata> _memoryCache = {};
+
+  // Configuración
+  static const int maxArtworkSize = 200 * 1024; // 200KB max por artwork
+  static const int maxCacheAge = 30; // días
+  static const int maxCacheSize = 100 * 1024 * 1024; // 100MB total
 
   /// Obtener archivo de caché para una key
   static Future<File> _getCacheFile(String key) async {
@@ -20,10 +48,10 @@ class MusicMetadataCache {
   }
 
   /// Obtener metadata del caché (memoria O disco)
-  static Future<_CachedMetadata?> get(String key) async {
+  static Future<SongMetadata?> get(String key) async {
     // 1. Memoria
     if (_memoryCache.containsKey(key)) {
-      return _memoryCache[key];
+      return _convertToSongMetadata(_memoryCache[key]!);
     }
 
     try {
@@ -31,8 +59,6 @@ class MusicMetadataCache {
       final prefs = await SharedPreferences.getInstance();
 
       // Intentar leer texto (título, artista...)
-      // Nota: Buscamos primero con el prefijo nuevo, si no, intentamos legacy?
-      // Ignoremos legacy por simplicidad y robustez futura.
       final metaJson = prefs.getString('meta_txt_$key');
 
       Uint8List? artworkBytes;
@@ -51,22 +77,37 @@ class MusicMetadataCache {
           album: data['album'],
           durationMs: data['duration'],
           artworkBytes: artworkBytes,
+          timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
         );
 
         // Hidratar memoria
         _memoryCache[key] = cached;
-        return cached;
+        return _convertToSongMetadata(cached);
       } else if (artworkBytes != null) {
         // Solo imagen encontrada
-        final cached = _CachedMetadata(artworkBytes: artworkBytes);
+        final cached = _CachedMetadata(
+          artworkBytes: artworkBytes,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        );
         _memoryCache[key] = cached;
-        return cached;
+        return _convertToSongMetadata(cached);
       }
     } catch (e) {
       print('[MetadataCache] Error reading cache: $e');
     }
 
     return null;
+  }
+
+  /// Convierte _CachedMetadata a SongMetadata
+  static SongMetadata _convertToSongMetadata(_CachedMetadata cached) {
+    return SongMetadata(
+      title: cached.title ?? 'Unknown',
+      artist: cached.artist ?? 'Unknown Artist',
+      album: cached.album,
+      durationMs: cached.durationMs,
+      artwork: cached.artworkBytes,
+    );
   }
 
   /// Comprimir imagen para almacenamiento eficiente
@@ -121,6 +162,7 @@ class MusicMetadataCache {
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
 
       // 1. Guardar Texto en SharedPrefs
       final data = {
@@ -128,6 +170,7 @@ class MusicMetadataCache {
         'artist': artist,
         'album': album,
         'duration': durationMs,
+        'timestamp': timestamp,
       };
       await prefs.setString('meta_txt_$key', json.encode(data));
 
@@ -149,6 +192,7 @@ class MusicMetadataCache {
         album: album,
         durationMs: durationMs,
         artworkBytes: finalArtBytes,
+        timestamp: timestamp,
       );
     } catch (e) {
       print('[MetadataCache] Error saving cache: $e');
@@ -186,6 +230,7 @@ class _CachedMetadata {
   final String? album;
   final int? durationMs;
   final Uint8List? artworkBytes; // RAW bytes, no base64 string
+  final int timestamp; // Timestamp de cuando se guardó
 
   _CachedMetadata({
     this.title,
@@ -193,6 +238,7 @@ class _CachedMetadata {
     this.album,
     this.durationMs,
     this.artworkBytes,
+    required this.timestamp,
   });
 
   // Getter de compatibilidad por si alguien llamaba .artwork

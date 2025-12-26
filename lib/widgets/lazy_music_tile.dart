@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../models/song.dart';
-import '../services/saf_helper.dart';
-import '../services/music_metadata_cache.dart';
+import '../services/metadata_service.dart';
 import '../widgets/artwork_container.dart';
 
 /// Widget que carga metadatos de forma lazy (solo cuando es visible)
@@ -65,58 +64,38 @@ class _LazyMusicTileState extends State<LazyMusicTile>
       final uri = widget.song.filePath;
       final cacheKey = uri.hashCode.toString();
 
-      // 1. Intentar desde caché
-      final cached = await MusicMetadataCache.get(cacheKey);
-      if (cached != null) {
-        if (mounted) {
-          setState(() {
-            // Usar metadatos del caché si existen, sino usar del Song object
-            _title = cached.title ?? widget.song.title;
-            _artist = cached.artist ?? widget.song.artist;
-            _artwork = cached.artwork;
-            _isLoaded = true;
-          });
-        }
-        _isLoading = false;
-        return;
-      }
+      // Usar MetadataService para cargar con retry y caché automático
+      final metadata = await MetadataService().loadMetadata(
+        id: cacheKey,
+        safUri: uri,
+        priority: MetadataPriority.high, // Alta prioridad porque es visible
+      );
 
-      // 2. Cargar desde Android (metadatos reales)
-      final metadata = await SafHelper.getMetadataFromUri(uri);
-      if (metadata != null) {
-        final artworkData = metadata['artworkData'] as Uint8List?;
-        final realTitle = (metadata['title'] as String?)?.trim();
-        final realArtist = (metadata['artist'] as String?)?.trim();
-
-        // Usar metadatos reales si existen, sino usar del Song object (parseo nombre)
-        final finalTitle = (realTitle != null && realTitle.isNotEmpty)
-            ? realTitle
-            : widget.song.title;
-        final finalArtist = (realArtist != null && realArtist.isNotEmpty)
-            ? realArtist
-            : widget.song.artist;
-
-        // Guardar en caché usando metadatos reales
-        await MusicMetadataCache.saveFromMetadata(
-          key: cacheKey,
-          title: finalTitle,
-          artist: finalArtist,
-          album: metadata['album'] as String?,
-          durationMs: metadata['duration'] as int?,
-          artworkData: artworkData,
-        );
-
-        if (mounted) {
-          setState(() {
-            _title = finalTitle;
-            _artist = finalArtist;
-            _artwork = artworkData;
-            _isLoaded = true;
-          });
-        }
+      if (metadata != null && mounted) {
+        setState(() {
+          _title = metadata.title;
+          _artist = metadata.artist;
+          _artwork = metadata.artwork;
+          _isLoaded = true;
+        });
+      } else if (mounted) {
+        // Si falla, usar datos del Song object
+        setState(() {
+          _title = widget.song.title;
+          _artist = widget.song.artist;
+          _isLoaded = true;
+        });
       }
     } catch (e) {
       print('[LazyMusicTile] Error loading metadata: $e');
+      // Fallback a datos del Song object
+      if (mounted) {
+        setState(() {
+          _title = widget.song.title;
+          _artist = widget.song.artist;
+          _isLoaded = true;
+        });
+      }
     } finally {
       _isLoading = false;
     }
@@ -129,31 +108,33 @@ class _LazyMusicTileState extends State<LazyMusicTile>
     final displayTitle = _title ?? widget.song.title;
     final displayArtist = _artist ?? widget.song.artist;
 
-    return ListTile(
-      leading: ArtworkContainer.song(
-        artworkData: _artwork,
-        size: 48,
-        borderRadius: 4,
-      ),
-      title: Text(
-        displayTitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: widget.isPlaying ? Colors.purpleAccent : Colors.white,
-          fontWeight: widget.isPlaying ? FontWeight.bold : null,
+    return RepaintBoundary(
+      child: ListTile(
+        leading: ArtworkContainer.song(
+          artworkData: _artwork,
+          size: 48,
+          borderRadius: 4,
         ),
+        title: Text(
+          displayTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: widget.isPlaying ? Colors.purpleAccent : Colors.white,
+            fontWeight: widget.isPlaying ? FontWeight.bold : null,
+          ),
+        ),
+        subtitle: Text(
+          displayArtist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: widget.isPlaying
+            ? const Icon(Icons.graphic_eq, color: Colors.purpleAccent)
+            : null,
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
       ),
-      subtitle: Text(
-        displayArtist,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: widget.isPlaying
-          ? const Icon(Icons.graphic_eq, color: Colors.purpleAccent)
-          : null,
-      onTap: widget.onTap,
-      onLongPress: widget.onLongPress,
     );
   }
 }
