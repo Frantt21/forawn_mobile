@@ -152,7 +152,7 @@ class _LyricsViewState extends State<LyricsView> {
 
     if (newIndex != _currentIndex) {
       _currentIndex = newIndex;
-      // Auto-scroll si no está scrolleando el usuario (simplificado)
+      // Auto-scroll si no está scrolleando el usuario
       if (newIndex >= 0 && !_isUserScrolling) {
         _itemScrollController.scrollTo(
           index: newIndex,

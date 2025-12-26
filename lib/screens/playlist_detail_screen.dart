@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'dart:ui';
+import 'dart:ui' as ui;
 import 'package:palette_generator/palette_generator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/playlist_model.dart';
@@ -12,6 +12,7 @@ import '../widgets/lazy_music_tile.dart';
 import '../widgets/mini_player.dart';
 import '../services/music_metadata_cache.dart';
 import 'music_player_screen.dart';
+import 'package:image_picker/image_picker.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -22,7 +23,8 @@ class PlaylistDetailScreen extends StatefulWidget {
   State<PlaylistDetailScreen> createState() => _PlaylistDetailScreenState();
 }
 
-class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
+class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
+    with SingleTickerProviderStateMixin {
   final AudioPlayerService _audioPlayer = AudioPlayerService();
   final ScrollController _scrollController = ScrollController();
   Color? _dominantColor;
@@ -36,6 +38,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   String _searchQuery = '';
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
@@ -45,6 +49,15 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     _loadCachedColorOrExtract();
     _scrollController.addListener(_onScroll);
     _loadSongDurations();
+
+    // Inicializar animación de búsqueda
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -52,6 +65,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _searchController.dispose();
+    _animationController.dispose();
     PlaylistService().removeListener(_onPlaylistChanged);
     super.dispose();
   }
@@ -71,7 +85,15 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   void _onPlaylistChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      // Detectar si cambió la imagen de la playlist
+      final updatedPlaylist = _currentPlaylist;
+      if (updatedPlaylist.imagePath != widget.playlist.imagePath) {
+        // La imagen cambió, recalcular color dominante
+        _loadCachedColorOrExtract();
+      }
+      setState(() {});
+    }
   }
 
   Playlist get _currentPlaylist {
@@ -138,12 +160,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   Future<void> _extractDominantColor() async {
     try {
       ImageProvider? imageProvider;
+      final currentPlaylist = _currentPlaylist;
 
-      if (widget.playlist.imagePath != null) {
-        if (File(widget.playlist.imagePath!).existsSync()) {
-          imageProvider = FileImage(File(widget.playlist.imagePath!));
+      if (currentPlaylist.imagePath != null) {
+        if (File(currentPlaylist.imagePath!).existsSync()) {
+          imageProvider = FileImage(File(currentPlaylist.imagePath!));
         } else {
-          imageProvider = NetworkImage(widget.playlist.imagePath!);
+          imageProvider = NetworkImage(currentPlaylist.imagePath!);
         }
       }
 
@@ -160,9 +183,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             paletteGenerator.vibrantColor?.color ??
             Colors.purple;
 
-        // Guardar en caché
+        // Guardar en caché con la clave correcta
         final prefs = await SharedPreferences.getInstance();
-        final cacheKey = 'playlist_color_${widget.playlist.id}';
+        final cacheKey = 'playlist_color_${currentPlaylist.id}';
         await prefs.setInt(cacheKey, extractedColor.value);
 
         if (mounted) {
@@ -205,16 +228,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         : _currentPlaylist.songs;
 
     int totalMs = 0;
-    int songsWithDuration = 0;
     for (var song in songsToCheck) {
       if (song.duration != null) {
         totalMs += song.duration!.inMilliseconds;
-        songsWithDuration++;
       }
     }
-    print(
-      '[PlaylistDetail] Total songs: ${songsToCheck.length}, Songs with duration: $songsWithDuration, Total duration: ${Duration(milliseconds: totalMs)}',
-    );
     return Duration(milliseconds: totalMs);
   }
 
@@ -261,45 +279,316 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   Widget _buildSearchField() {
-    return TextField(
+    return AnimatedBuilder(
       key: const ValueKey('search'),
-      controller: _searchController,
-      autofocus: true,
-      style: const TextStyle(color: Colors.white, fontSize: 16),
-      onChanged: (value) {
-        setState(() {
-          _searchQuery = value;
-        });
+      animation: _animationController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(
+            (1 - _fadeAnimation.value) * 300,
+            0,
+          ), // Slide from right
+          child: Opacity(
+            opacity: _fadeAnimation.value,
+            child: TextField(
+              controller: _searchController,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: LanguageService().getText('search_songs'),
+                hintStyle: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 16,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.1),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.clear,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        );
       },
-      decoration: InputDecoration(
-        hintText: LanguageService().getText('search_songs'),
-        hintStyle: TextStyle(
-          color: Colors.white.withOpacity(0.5),
-          fontSize: 16,
-        ),
-        prefixIcon: const Icon(Icons.search, color: Colors.white, size: 20),
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.1),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 10,
-        ),
-        suffixIcon: _searchController.text.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.clear, color: Colors.white70, size: 20),
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() {
-                    _searchQuery = '';
-                  });
-                },
-              )
-            : null,
-      ),
+    );
+  }
+
+  Future<void> _showEditPlaylistDialog(
+    BuildContext context,
+    Playlist playlist,
+  ) async {
+    final nameController = TextEditingController(text: playlist.name);
+    final descController = TextEditingController(text: playlist.description);
+    String? selectedImagePath = playlist.imagePath;
+
+    await showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900]!.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Título
+                          Text(
+                            LanguageService().getText('edit_playlist'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Imagen cuadrada más grande
+                          Center(
+                            child: GestureDetector(
+                              onTap: () async {
+                                final picker = ImagePicker();
+                                final image = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                );
+                                if (image != null) {
+                                  setState(
+                                    () => selectedImagePath = image.path,
+                                  );
+                                }
+                              },
+                              child: Container(
+                                width: 180,
+                                height: 180,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1C1C1E),
+                                  borderRadius: BorderRadius.circular(16),
+                                  image: selectedImagePath != null
+                                      ? DecorationImage(
+                                          image:
+                                              File(
+                                                selectedImagePath!,
+                                              ).existsSync()
+                                              ? FileImage(
+                                                  File(selectedImagePath!),
+                                                )
+                                              : NetworkImage(selectedImagePath!)
+                                                    as ImageProvider,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: selectedImagePath == null
+                                    ? const Icon(
+                                        Icons.add_photo_alternate,
+                                        color: Colors.white54,
+                                        size: 56,
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Input de nombre estilo Card
+                          Card(
+                            color: const Color(0xFF1C1C1E),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    LanguageService().getText('playlist_name'),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: nameController,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                    cursorColor: Colors.purpleAccent,
+                                    decoration: InputDecoration(
+                                      hintText: LanguageService().getText(
+                                        'playlist_name',
+                                      ),
+                                      hintStyle: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Input de descripción estilo Card
+                          Card(
+                            color: const Color(0xFF1C1C1E),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    LanguageService().getText('playlist_desc'),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: descController,
+                                    maxLines: 3,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                    cursorColor: Colors.purpleAccent,
+                                    decoration: InputDecoration(
+                                      hintText: LanguageService().getText(
+                                        'playlist_desc',
+                                      ),
+                                      hintStyle: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Botones
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(
+                                  LanguageService().getText('cancel'),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purpleAccent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  if (nameController.text.isNotEmpty) {
+                                    await PlaylistService().updatePlaylist(
+                                      playlist.id,
+                                      name: nameController.text,
+                                      description: descController.text,
+                                      imagePath: selectedImagePath,
+                                    );
+
+                                    // Recalcular color dominante si cambió la imagen
+                                    if (selectedImagePath !=
+                                        playlist.imagePath) {
+                                      await _extractDominantColor();
+                                    }
+
+                                    if (mounted) Navigator.pop(ctx);
+                                  }
+                                },
+                                child: Text(
+                                  LanguageService().getText('save'),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -355,7 +644,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             onPressed: () {
               setState(() {
                 _isSearching = !_isSearching;
-                if (!_isSearching) {
+                if (_isSearching) {
+                  _animationController.forward();
+                } else {
+                  _animationController.reverse();
                   _searchController.clear();
                   _searchQuery = '';
                 }
@@ -399,15 +691,40 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     break;
                   case 'sort_title':
                     setState(() {
-                      songs.sort((a, b) => a.title.compareTo(b.title));
+                      songs.sort(
+                        (a, b) => a.title.toLowerCase().compareTo(
+                          b.title.toLowerCase(),
+                        ),
+                      );
                     });
                     break;
                   case 'sort_artist':
                     setState(() {
                       songs.sort(
-                        (a, b) => (a.artist ?? '').compareTo(b.artist ?? ''),
+                        (a, b) => (a.artist ?? '').toLowerCase().compareTo(
+                          (b.artist ?? '').toLowerCase(),
+                        ),
                       );
                     });
+                    break;
+                  case 'sort_date':
+                    // Restaurar orden original (orden de agregado)
+                    setState(() {
+                      if (widget.playlist.id == 'favorites_virtual') {
+                        _virtualSongs = List.from(widget.playlist.songs);
+                      }
+                    });
+                    break;
+                  case 'edit_playlist':
+                    _showEditPlaylistDialog(context, _currentPlaylist);
+                    break;
+                  case 'add_songs':
+                    // TODO: Implementar agregar canciones
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(LanguageService().getText('add_songs')),
+                      ),
+                    );
                     break;
                 }
               },
@@ -420,6 +737,33 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       const SizedBox(width: 12),
                       Text(
                         LanguageService().getText('shuffle'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'edit_playlist',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.edit, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        LanguageService().getText('edit_playlist'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'add_songs',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.add, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        LanguageService().getText('add_songs'),
                         style: const TextStyle(color: Colors.white),
                       ),
                     ],
@@ -451,6 +795,23 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       const SizedBox(width: 12),
                       Text(
                         LanguageService().getText('sort_by_artist'),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'sort_date',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.access_time,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        LanguageService().getText('sort_by_date'),
                         style: const TextStyle(color: Colors.white),
                       ),
                     ],
@@ -488,7 +849,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             ),
 
           BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+            filter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
             child: Container(color: Colors.black.withOpacity(0.3)),
           ),
 

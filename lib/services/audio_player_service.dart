@@ -1,5 +1,6 @@
 // lib/services/audio_player_service.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
@@ -94,6 +95,11 @@ class AudioPlayerService {
       }
     });
 
+    // Guardar estado periódicamente
+    _audioPlayer.positionStream.listen((position) {
+      _savePlaybackPreferences(); // Guardar posición cada vez que cambia
+    });
+
     // Inicializar streams subjects
     if (!_playlistSubject.hasValue) _playlistSubject.add(_playlist);
     if (!_currentSongSubject.hasValue) _currentSongSubject.add(null);
@@ -102,6 +108,8 @@ class AudioPlayerService {
   Future<void> _loadPlaybackPreferences() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // Cargar shuffle y repeat
       final shuffle = prefs.getBool('playback_shuffle') ?? false;
       final repeatIndex =
           prefs.getInt('playback_repeat') ??
@@ -109,6 +117,40 @@ class AudioPlayerService {
 
       _playlist.setShuffle(shuffle);
       _playlist.setRepeatMode(app_state.RepeatMode.values[repeatIndex]);
+
+      // Cargar playlist guardada
+      final playlistJson = prefs.getString('playback_playlist');
+      final currentIndex = prefs.getInt('playback_current_index') ?? -1;
+      final savedPosition = prefs.getInt('playback_position') ?? 0;
+
+      if (playlistJson != null && playlistJson.isNotEmpty) {
+        try {
+          final List<dynamic> songsJson = json.decode(playlistJson);
+          final songs = songsJson.map((s) => Song.fromJson(s)).toList();
+
+          if (songs.isNotEmpty &&
+              currentIndex >= 0 &&
+              currentIndex < songs.length) {
+            // Restaurar playlist sin auto-play
+            await loadPlaylist(
+              songs,
+              initialIndex: currentIndex,
+              autoPlay: false,
+            );
+
+            // Restaurar posición
+            if (savedPosition > 0) {
+              await seek(Duration(milliseconds: savedPosition));
+            }
+
+            print(
+              '[AudioPlayer] Restored: ${songs.length} songs, index=$currentIndex, position=${Duration(milliseconds: savedPosition)}',
+            );
+          }
+        } catch (e) {
+          print('[AudioPlayer] Error parsing saved playlist: $e');
+        }
+      }
 
       print(
         '[AudioPlayer] Loaded preferences: shuffle=$shuffle, repeat=${app_state.RepeatMode.values[repeatIndex]}',
@@ -123,8 +165,23 @@ class AudioPlayerService {
   Future<void> _savePlaybackPreferences() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // Guardar shuffle y repeat
       await prefs.setBool('playback_shuffle', _playlist.isShuffle);
       await prefs.setInt('playback_repeat', _playlist.repeatMode.index);
+
+      // Guardar playlist actual
+      if (_playlist.songs.isNotEmpty) {
+        final playlistJson = json.encode(
+          _playlist.songs.map((s) => s.toJson()).toList(),
+        );
+        await prefs.setString('playback_playlist', playlistJson);
+        await prefs.setInt('playback_current_index', _playlist.currentIndex);
+
+        // Guardar posición actual
+        final position = _audioPlayer.position.inMilliseconds;
+        await prefs.setInt('playback_position', position);
+      }
     } catch (e) {
       print('[AudioPlayer] Error saving preferences: $e');
     }

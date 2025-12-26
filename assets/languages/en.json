@@ -236,5 +236,16 @@
   "lyrics_cache_cleared": "Lyrics cache cleared",
   "search_songs": "Search songs...",
   "sort_by_title": "Sort by title",
-  "sort_by_artist": "Sort by artist"
+  "sort_by_artist": "Sort by artist",
+  "sort_by_date": "Sort by date",
+  "edit_playlist": "Edit playlist",
+  "add_songs": "Add songs",
+  "added": "Added",
+  "songs": "songs",
+  "show_lyrics": "Show lyrics",
+  "hide_lyrics": "Hide lyrics",
+  "add_to_favorites": "Add to favorites",
+  "removed_from_favorites": "Removed from favorites",
+  "feature_coming_soon": "Coming soon",
+  "remove_from_favorites": "Remove from favorites"
 }

@@ -1,8 +1,10 @@
 // lib/screens/music_player_screen.dart
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/audio_player_service.dart';
 import '../services/language_service.dart';
+import '../services/playlist_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart';
 import '../services/lyrics_service.dart';
@@ -179,13 +181,90 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 letterSpacing: 2,
               ),
             ),
-            IconButton(
-              icon: Icon(
-                _showLyrics ? Icons.music_note : Icons.lyrics,
-                color: Colors.white,
-              ),
-              onPressed: () {
-                setState(() => _showLyrics = !_showLyrics);
+
+            // Menú de opciones
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              color: Colors.grey[900],
+              onSelected: (value) async {
+                final currentSong = await _player.currentSongStream.first;
+                if (currentSong == null) return;
+
+                switch (value) {
+                  case 'like':
+                    // Toggle favoritos usando el servicio
+                    final isLiked = PlaylistService().isLiked(currentSong.id);
+                    await PlaylistService().toggleLike(currentSong.id);
+
+                    // if (mounted) {
+                    //   ScaffoldMessenger.of(context).showSnackBar(
+                    //     SnackBar(
+                    //       content: Text(
+                    //         isLiked
+                    //             ? LanguageService().getText(
+                    //                 'removed_from_favorites',
+                    //               )
+                    //             : LanguageService().getText(
+                    //                 'added_to_favorites',
+                    //               ),
+                    //       ),
+                    //       backgroundColor: isLiked
+                    //           ? Colors.grey[700]
+                    //           : Colors.purpleAccent,
+                    //     ),
+                    //   );
+                    // }
+                    break;
+                  case 'add_to_playlist':
+                    // Mostrar diálogo de agregar a playlist
+                    if (mounted) {
+                      _showAddToPlaylistDialog(context, currentSong);
+                    }
+                    break;
+                }
+              },
+              itemBuilder: (context) {
+                // Obtener canción actual para verificar estado
+                final currentSong = _player.currentSong;
+                final isLiked = currentSong != null
+                    ? PlaylistService().isLiked(currentSong.id)
+                    : false;
+
+                return [
+                  PopupMenuItem(
+                    value: 'like',
+                    child: Row(
+                      children: [
+                        Icon(
+                          isLiked ? Icons.favorite : Icons.favorite_border,
+                          color: isLiked ? Colors.purpleAccent : Colors.white,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          isLiked
+                              ? LanguageService().getText(
+                                  'remove_from_favorites',
+                                )
+                              : LanguageService().getText('add_to_favorites'),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'add_to_playlist',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.playlist_add, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Text(
+                          LanguageService().getText('add_to_playlist'),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ];
               },
             ),
           ],
@@ -432,8 +511,332 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
             ],
           ),
+
+          const SizedBox(height: 24),
+
+          // Botón de Lyrics translúcido
+          GestureDetector(
+            onTap: () {
+              setState(() => _showLyrics = !_showLyrics);
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _showLyrics ? Icons.music_note : Icons.lyrics,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _showLyrics
+                            ? LanguageService().getText('hide_lyrics')
+                            : LanguageService().getText('show_lyrics'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  // Mostrar diálogo para agregar a playlist
+  void _showAddToPlaylistDialog(BuildContext context, Song song) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 500),
+              decoration: BoxDecoration(
+                color: Colors.grey[900]!.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Título
+                    Text(
+                      LanguageService().getText('add_to_playlist'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Botón de nueva playlist
+                    InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        // TODO: Mostrar diálogo de crear playlist con la canción
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              LanguageService().getText('feature_coming_soon'),
+                            ),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.purpleAccent.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.purpleAccent.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.purpleAccent.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.add_circle_outline,
+                                color: Colors.purpleAccent,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Text(
+                              LanguageService().getText('new_playlist'),
+                              style: const TextStyle(
+                                color: Colors.purpleAccent,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Lista de playlists
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: PlaylistService().playlists.map((playlist) {
+                            // Verificar si la canción ya está en la playlist
+                            final songExists = playlist.songs.any(
+                              (s) => s.id == song.id,
+                            );
+
+                            return InkWell(
+                              onTap: songExists
+                                  ? null
+                                  : () async {
+                                      await PlaylistService().addSongToPlaylist(
+                                        playlist.id,
+                                        song,
+                                      );
+                                      if (mounted) {
+                                        Navigator.pop(context);
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              LanguageService()
+                                                  .getText('added_to')
+                                                  .replaceFirst(
+                                                    '%s',
+                                                    playlist.name,
+                                                  ),
+                                            ),
+                                            backgroundColor:
+                                                Colors.purpleAccent,
+                                          ),
+                                        );
+                                      }
+                                    },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: songExists
+                                      ? Colors.white.withOpacity(0.03)
+                                      : Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Imagen de la playlist
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1C1C1E),
+                                        borderRadius: BorderRadius.circular(8),
+                                        image: playlist.imagePath != null
+                                            ? DecorationImage(
+                                                image:
+                                                    File(
+                                                      playlist.imagePath!,
+                                                    ).existsSync()
+                                                    ? FileImage(
+                                                        File(
+                                                          playlist.imagePath!,
+                                                        ),
+                                                      )
+                                                    : NetworkImage(
+                                                            playlist.imagePath!,
+                                                          )
+                                                          as ImageProvider,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : null,
+                                      ),
+                                      child: playlist.imagePath == null
+                                          ? const Icon(
+                                              Icons.music_note,
+                                              color: Colors.white54,
+                                              size: 24,
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    // Info de la playlist
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            playlist.name,
+                                            style: TextStyle(
+                                              color: songExists
+                                                  ? Colors.white54
+                                                  : Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            "${playlist.songs.length} ${LanguageService().getText('songs')}",
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(
+                                                0.5,
+                                              ),
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Indicador si ya existe
+                                    if (songExists)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.check_circle,
+                                              color: Colors.green,
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              LanguageService().getText(
+                                                'added',
+                                              ),
+                                              style: const TextStyle(
+                                                color: Colors.green,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Botón cerrar
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(
+                          LanguageService().getText('cancel'),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

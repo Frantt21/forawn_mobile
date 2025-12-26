@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import '../services/music_library_service.dart';
 import '../services/music_history_service.dart';
@@ -790,12 +791,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
               ListTile(
                 leading: Icon(
                   isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: isLiked ? Colors.red : Colors.white,
+                  color: isLiked ? Colors.purpleAccent : Colors.white,
                 ),
                 title: Text(
                   isLiked
-                      ? LanguageService().getText('unlike')
-                      : LanguageService().getText('like'),
+                      ? LanguageService().getText('remove_from_favorites')
+                      : LanguageService().getText('add_to_favorites'),
                   style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () async {
@@ -826,74 +827,263 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.grey[900],
-          title: Text(
-            LanguageService().getText('add_to_playlist'),
-            style: const TextStyle(color: Colors.white),
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ListTile(
-                  leading: const Icon(
-                    Icons.add_circle_outline,
-                    color: Colors.purpleAccent,
-                  ),
-                  title: Text(
-                    LanguageService().getText('new_playlist'),
-                    style: const TextStyle(color: Colors.purpleAccent),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showCreatePlaylistDialog(context, songToAdd: song);
-                  },
+        return BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 500),
+              decoration: BoxDecoration(
+                color: Colors.grey[900]!.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
                 ),
-                ...PlaylistService().playlists.map((playlist) {
-                  return ListTile(
-                    title: Text(
-                      playlist.name,
-                      style: const TextStyle(color: Colors.white),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Título
+                    Text(
+                      LanguageService().getText('add_to_playlist'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    subtitle: Text(
-                      "${playlist.songs.length} canciones",
-                      style: const TextStyle(color: Colors.white54),
-                    ),
-                    onTap: () async {
-                      await PlaylistService().addSongToPlaylist(
-                        playlist.id,
-                        song,
-                      );
-                      if (mounted) {
+                    const SizedBox(height: 24),
+
+                    // Botón de nueva playlist
+                    InkWell(
+                      onTap: () {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              LanguageService()
-                                  .getText('added_to')
-                                  .replaceFirst('%s', playlist.name),
-                            ),
-                            backgroundColor: Colors.purpleAccent,
+                        _showCreatePlaylistDialog(context, songToAdd: song);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.purpleAccent.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.purpleAccent.withOpacity(0.3),
+                            width: 1,
                           ),
-                        );
-                      }
-                    },
-                  );
-                }),
-              ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.purpleAccent.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.add_circle_outline,
+                                color: Colors.purpleAccent,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Text(
+                              LanguageService().getText('new_playlist'),
+                              style: const TextStyle(
+                                color: Colors.purpleAccent,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Lista de playlists
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: PlaylistService().playlists.map((playlist) {
+                            // Verificar si la canción ya está en la playlist
+                            final songExists = playlist.songs.any(
+                              (s) => s.id == song.id,
+                            );
+
+                            return InkWell(
+                              onTap: songExists
+                                  ? null
+                                  : () async {
+                                      await PlaylistService().addSongToPlaylist(
+                                        playlist.id,
+                                        song,
+                                      );
+                                      if (mounted) {
+                                        Navigator.pop(context);
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              LanguageService()
+                                                  .getText('added_to')
+                                                  .replaceFirst(
+                                                    '%s',
+                                                    playlist.name,
+                                                  ),
+                                            ),
+                                            backgroundColor:
+                                                Colors.purpleAccent,
+                                          ),
+                                        );
+                                      }
+                                    },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: songExists
+                                      ? Colors.white.withOpacity(0.03)
+                                      : Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Imagen de la playlist
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1C1C1E),
+                                        borderRadius: BorderRadius.circular(8),
+                                        image: playlist.imagePath != null
+                                            ? DecorationImage(
+                                                image:
+                                                    File(
+                                                      playlist.imagePath!,
+                                                    ).existsSync()
+                                                    ? FileImage(
+                                                        File(
+                                                          playlist.imagePath!,
+                                                        ),
+                                                      )
+                                                    : NetworkImage(
+                                                            playlist.imagePath!,
+                                                          )
+                                                          as ImageProvider,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : null,
+                                      ),
+                                      child: playlist.imagePath == null
+                                          ? const Icon(
+                                              Icons.music_note,
+                                              color: Colors.white54,
+                                              size: 24,
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    // Info de la playlist
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            playlist.name,
+                                            style: TextStyle(
+                                              color: songExists
+                                                  ? Colors.white54
+                                                  : Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            "${playlist.songs.length} ${LanguageService().getText('songs')}",
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(
+                                                0.5,
+                                              ),
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // Indicador si ya existe
+                                    if (songExists)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.check_circle,
+                                              color: Colors.green,
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              LanguageService().getText(
+                                                'added',
+                                              ),
+                                              style: const TextStyle(
+                                                color: Colors.green,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Botón cerrar
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(
+                          LanguageService().getText('cancel'),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              child: Text(
-                LanguageService().getText('cancel'),
-                style: const TextStyle(color: Colors.white70),
-              ),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
         );
       },
     );
@@ -909,98 +1099,231 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
 
     await showDialog(
       context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.grey[900],
-              title: Text(
-                LanguageService().getText('new_playlist'),
-                style: const TextStyle(color: Colors.white),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTap: () async {
-                      final picker = ImagePicker();
-                      final image = await picker.pickImage(
-                        source: ImageSource.gallery,
-                      );
-                      if (image != null) {
-                        setState(() => selectedImagePath = image.path);
-                      }
-                    },
-                    child: CircleAvatar(
-                      radius: 40,
-                      backgroundColor: Colors.grey[800],
-                      backgroundImage: selectedImagePath != null
-                          ? FileImage(File(selectedImagePath!))
-                          : null,
-                      child: selectedImagePath == null
-                          ? const Icon(Icons.add_a_photo, color: Colors.white54)
-                          : null,
+            return BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900]!.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: LanguageService().getText('playlist_name'),
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      enabledBorder: const UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: const UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.purpleAccent),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Título
+                          Text(
+                            LanguageService().getText('new_playlist'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Imagen cuadrada
+                          Center(
+                            child: GestureDetector(
+                              onTap: () async {
+                                final picker = ImagePicker();
+                                final image = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                );
+                                if (image != null) {
+                                  setState(
+                                    () => selectedImagePath = image.path,
+                                  );
+                                }
+                              },
+                              child: Container(
+                                width: 180,
+                                height: 180,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1C1C1E),
+                                  borderRadius: BorderRadius.circular(16),
+                                  image: selectedImagePath != null
+                                      ? DecorationImage(
+                                          image: FileImage(
+                                            File(selectedImagePath!),
+                                          ),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: selectedImagePath == null
+                                    ? const Icon(
+                                        Icons.add_photo_alternate,
+                                        color: Colors.white54,
+                                        size: 56,
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Input de nombre estilo Card
+                          Card(
+                            color: const Color(0xFF1C1C1E),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    LanguageService().getText('playlist_name'),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: nameController,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                    cursorColor: Colors.purpleAccent,
+                                    decoration: InputDecoration(
+                                      hintText: LanguageService().getText(
+                                        'playlist_name',
+                                      ),
+                                      hintStyle: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Input de descripción estilo Card
+                          Card(
+                            color: const Color(0xFF1C1C1E),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    LanguageService().getText('playlist_desc'),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: descController,
+                                    maxLines: 3,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                    cursorColor: Colors.purpleAccent,
+                                    decoration: InputDecoration(
+                                      hintText: LanguageService().getText(
+                                        'playlist_desc',
+                                      ),
+                                      hintStyle: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Botones
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(
+                                  LanguageService().getText('cancel'),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purpleAccent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  if (nameController.text.isNotEmpty) {
+                                    final playlist = await PlaylistService()
+                                        .createPlaylist(
+                                          nameController.text,
+                                          description: descController.text,
+                                          imagePath: selectedImagePath,
+                                        );
+                                    if (songToAdd != null) {
+                                      await PlaylistService().addSongToPlaylist(
+                                        playlist.id,
+                                        songToAdd,
+                                      );
+                                    }
+                                    if (mounted) Navigator.pop(ctx);
+                                  }
+                                },
+                                child: Text(
+                                  LanguageService().getText('create'),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  TextField(
-                    controller: descController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: LanguageService().getText('playlist_desc'),
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      enabledBorder: const UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: const UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.purpleAccent),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(LanguageService().getText('cancel')),
                 ),
-                TextButton(
-                  onPressed: () async {
-                    if (nameController.text.isNotEmpty) {
-                      final playlist = await PlaylistService().createPlaylist(
-                        nameController.text,
-                        description: descController.text,
-                        imagePath: selectedImagePath,
-                      );
-                      if (songToAdd != null) {
-                        await PlaylistService().addSongToPlaylist(
-                          playlist.id,
-                          songToAdd,
-                        );
-                      }
-                      if (mounted) Navigator.pop(ctx);
-                    }
-                  },
-                  child: Text(
-                    LanguageService().getText('create'),
-                    style: const TextStyle(color: Colors.purpleAccent),
-                  ),
-                ),
-              ],
+              ),
             );
           },
         );
@@ -1018,84 +1341,231 @@ class _LocalMusicScreenState extends State<LocalMusicScreen> {
 
     await showDialog(
       context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.grey[900],
-              title: Text(
-                LanguageService().getText('edit_playlist'),
-                style: const TextStyle(color: Colors.white),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTap: () async {
-                      final picker = ImagePicker();
-                      final image = await picker.pickImage(
-                        source: ImageSource.gallery,
-                      );
-                      if (image != null) {
-                        setState(() => selectedImagePath = image.path);
-                      }
-                    },
-                    child: CircleAvatar(
-                      radius: 40,
-                      backgroundColor: Colors.grey[800],
-                      backgroundImage: selectedImagePath != null
-                          ? (File(selectedImagePath!).existsSync()
-                                ? FileImage(File(selectedImagePath!))
-                                : NetworkImage(selectedImagePath!)
-                                      as ImageProvider)
-                          : null,
-                      child: selectedImagePath == null
-                          ? const Icon(Icons.add_a_photo, color: Colors.white54)
-                          : null,
+            return BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900]!.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: LanguageService().getText('playlist_name'),
-                      labelStyle: const TextStyle(color: Colors.white70),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Título
+                          Text(
+                            LanguageService().getText('edit_playlist'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Imagen cuadrada
+                          Center(
+                            child: GestureDetector(
+                              onTap: () async {
+                                final picker = ImagePicker();
+                                final image = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                );
+                                if (image != null) {
+                                  setState(
+                                    () => selectedImagePath = image.path,
+                                  );
+                                }
+                              },
+                              child: Container(
+                                width: 180,
+                                height: 180,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1C1C1E),
+                                  borderRadius: BorderRadius.circular(16),
+                                  image: selectedImagePath != null
+                                      ? DecorationImage(
+                                          image:
+                                              File(
+                                                selectedImagePath!,
+                                              ).existsSync()
+                                              ? FileImage(
+                                                  File(selectedImagePath!),
+                                                )
+                                              : NetworkImage(selectedImagePath!)
+                                                    as ImageProvider,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: selectedImagePath == null
+                                    ? const Icon(
+                                        Icons.add_photo_alternate,
+                                        color: Colors.white54,
+                                        size: 56,
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Input de nombre estilo Card
+                          Card(
+                            color: const Color(0xFF1C1C1E),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    LanguageService().getText('playlist_name'),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: nameController,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                    cursorColor: Colors.purpleAccent,
+                                    decoration: InputDecoration(
+                                      hintText: LanguageService().getText(
+                                        'playlist_name',
+                                      ),
+                                      hintStyle: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Input de descripción estilo Card
+                          Card(
+                            color: const Color(0xFF1C1C1E),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    LanguageService().getText('playlist_desc'),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: descController,
+                                    maxLines: 3,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                    cursorColor: Colors.purpleAccent,
+                                    decoration: InputDecoration(
+                                      hintText: LanguageService().getText(
+                                        'playlist_desc',
+                                      ),
+                                      hintStyle: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Botones
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(
+                                  LanguageService().getText('cancel'),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purpleAccent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  if (nameController.text.isNotEmpty) {
+                                    await PlaylistService().updatePlaylist(
+                                      playlist.id,
+                                      name: nameController.text,
+                                      description: descController.text,
+                                      imagePath: selectedImagePath,
+                                    );
+                                    if (mounted) Navigator.pop(ctx);
+                                  }
+                                },
+                                child: Text(
+                                  LanguageService().getText('save'),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  TextField(
-                    controller: descController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: LanguageService().getText('playlist_desc'),
-                      labelStyle: const TextStyle(color: Colors.white70),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("Cancelar"),
                 ),
-                TextButton(
-                  onPressed: () async {
-                    if (nameController.text.isNotEmpty) {
-                      await PlaylistService().updatePlaylist(
-                        playlist.id,
-                        name: nameController.text,
-                        description: descController.text,
-                        imagePath: selectedImagePath,
-                      );
-                      if (mounted) Navigator.pop(ctx);
-                    }
-                  },
-                  child: const Text(
-                    "Guardar",
-                    style: TextStyle(color: Colors.purpleAccent),
-                  ),
-                ),
-              ],
+              ),
             );
           },
         );
