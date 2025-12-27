@@ -258,64 +258,37 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
               );
             },
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.purpleAccent,
-                    Colors.purpleAccent.withOpacity(0.8),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
+                color: const Color(0xFF2C2C2C), // Color oscuro tipo tarjeta
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.purpleAccent.withOpacity(0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min, // Ajustar al contenido
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.download_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                  const Icon(
+                    Icons.download_rounded,
+                    color: Colors.purpleAccent, // Acento sutil
+                    size: 20,
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          '✓ Descarga agregada',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Ver progreso en Historial →',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                  const Text(
+                    'Download added',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.history, color: Colors.white),
+                  const Spacer(), // Empujar botón a la derecha si es ancho completo, o remover spacer para compacto
+                  TextButton(
                     onPressed: () {
                       overlayEntry.remove();
                       Navigator.push(
@@ -325,7 +298,22 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
                         ),
                       );
                     },
-                    tooltip: 'Ir al historial',
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      LanguageService().getText('view'), // 'Ver'
+                      style: const TextStyle(
+                        color: Colors.purpleAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ],
               ),
