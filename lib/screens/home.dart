@@ -260,20 +260,18 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _NavigationCard(
-                  icon: Icons.notifications_outlined,
-                  title: LanguageService().getText('notifications'),
-                  color: Colors.blueAccent,
-                  onTap: () => Navigator.pushNamed(context, '/notifications'),
+                  icon: Icons.music_note,
+                  title: LanguageService().getText('music_downloader'),
+                  color: accentColor,
+                  onTap: () => _navigateToScreen(
+                    '/music-downloader',
+                    LanguageService().getText('music_downloader'),
+                    Icons.music_note,
+                    accentColor,
+                  ),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          _NavigationCard(
-            icon: Icons.settings,
-            title: LanguageService().getText('settings'),
-            color: Colors.grey,
-            onTap: () => Navigator.pushNamed(context, '/settings'),
           ),
 
           const SizedBox(height: 24),
@@ -292,20 +290,6 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: _NavigationCard(
-                  icon: Icons.music_note,
-                  title: LanguageService().getText('music_downloader'),
-                  color: accentColor,
-                  onTap: () => _navigateToScreen(
-                    '/music-downloader',
-                    LanguageService().getText('music_downloader'),
-                    Icons.music_note,
-                    accentColor,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _NavigationCard(
                   icon: Icons.image,
                   title: LanguageService().getText('image_generator'),
                   color: Colors.yellowAccent,
@@ -317,11 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
+              const SizedBox(width: 12),
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.translate,
@@ -335,7 +315,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.qr_code,
@@ -347,6 +331,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     Icons.qr_code,
                     Colors.orangeAccent,
                   ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _NavigationCard(
+                  icon: Icons.notifications_outlined,
+                  title: LanguageService().getText('notifications'),
+                  color: Colors.blueAccent,
+                  onTap: () => Navigator.pushNamed(context, '/notifications'),
                 ),
               ),
             ],
@@ -424,9 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           onTap: () {
                             // Navegar usando la ruta guardada
-                            if (screen.route != null) {
-                              Navigator.pushNamed(context, screen.route!);
-                            }
+                            Navigator.pushNamed(context, screen.route!);
                           },
                           subtitle: Text(
                             screen.timeAgo,
@@ -526,7 +517,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color.fromARGB(255, 34, 34, 34),
       extendBodyBehindAppBar: true,
       appBar: AnimatedSearchAppBar(
         title: LanguageService().getText('app_name'),
@@ -534,27 +525,30 @@ class _HomeScreenState extends State<HomeScreen> {
         showSearch: false,
         onSearch: (query) {},
         leading: null,
-        actions: [],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => Navigator.pushNamed(context, '/settings'),
+            tooltip: LanguageService().getText('settings'),
+          ),
+        ],
       ),
-      body: Container(
-        color: const Color.fromARGB(255, 34, 34, 34),
-        child: NotificationListener<ScrollNotification>(
-          onNotification: (ScrollNotification scrollInfo) {
-            if (scrollInfo.depth == 0) {
-              if (scrollInfo.metrics.pixels > 10 && !_isScrolled) {
-                setState(() {
-                  _isScrolled = true;
-                });
-              } else if (scrollInfo.metrics.pixels <= 10 && _isScrolled) {
-                setState(() {
-                  _isScrolled = false;
-                });
-              }
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (ScrollNotification scrollInfo) {
+          if (scrollInfo.depth == 0) {
+            if (scrollInfo.metrics.pixels > 10 && !_isScrolled) {
+              setState(() {
+                _isScrolled = true;
+              });
+            } else if (scrollInfo.metrics.pixels <= 10 && _isScrolled) {
+              setState(() {
+                _isScrolled = false;
+              });
             }
-            return false;
-          },
-          child: _buildHomeContent(context),
-        ),
+          }
+          return false;
+        },
+        child: _buildHomeContent(context),
       ),
     );
   }

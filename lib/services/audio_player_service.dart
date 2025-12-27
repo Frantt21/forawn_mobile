@@ -136,6 +136,7 @@ class AudioPlayerService {
               songs,
               initialIndex: currentIndex,
               autoPlay: false,
+              addToHistory: false,
             );
 
             // Restaurar posición
@@ -219,6 +220,7 @@ class AudioPlayerService {
     List<Song> songs, {
     int initialIndex = 0,
     bool autoPlay = true,
+    bool addToHistory = true,
   }) async {
     // Verificar si la playlist es la misma para no reiniciar estado
     final currentSongs = _playlist.songs;
@@ -239,7 +241,7 @@ class AudioPlayerService {
         // Solo reproducir si es diferente a la actual o si no está reproduciendo
         if (_playlist.currentIndex != initialIndex) {
           _playlist.setCurrentIndex(initialIndex);
-          if (autoPlay) await _playCurrentSong();
+          await _playCurrentSong(playNow: autoPlay, addToHistory: addToHistory);
         } else if (autoPlay && !_audioPlayer.playing) {
           await play();
         }
@@ -253,7 +255,8 @@ class AudioPlayerService {
 
     if (initialIndex >= 0 && initialIndex < songs.length) {
       _playlist.setCurrentIndex(initialIndex);
-      if (autoPlay) await _playCurrentSong();
+      // Siempre cargar la canción actual, pero reproducir solo si autoPlay es true
+      await _playCurrentSong(playNow: autoPlay, addToHistory: addToHistory);
     }
 
     _playlistSubject.add(_playlist);
@@ -303,7 +306,13 @@ class AudioPlayerService {
       final nextIndex = _playlist.nextIndex;
       if (nextIndex != null) {
         _playlist.setCurrentIndex(nextIndex);
-        await _playCurrentSong();
+        await _playCurrentSong().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('[AudioPlayer] Playback timeout in skipToNext');
+            return false;
+          },
+        );
       } else {
         // Fin de playlist
         await stop();
@@ -311,6 +320,8 @@ class AudioPlayerService {
 
       // Pequeño delay para evitar skips muy rápidos
       await Future.delayed(const Duration(milliseconds: 300));
+    } catch (e) {
+      print('[AudioPlayer] Error in skipToNext: $e');
     } finally {
       _isSkipping = false;
     }
@@ -334,7 +345,13 @@ class AudioPlayerService {
       final prevIndex = _playlist.previousIndex;
       if (prevIndex != null) {
         _playlist.setCurrentIndex(prevIndex);
-        await _playCurrentSong();
+        await _playCurrentSong().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('[AudioPlayer] Playback timeout in skipToPrevious');
+            return false;
+          },
+        );
       } else {
         // Al principio de playlist, parar o reiniciar
         await seek(Duration.zero);
@@ -342,6 +359,8 @@ class AudioPlayerService {
 
       // Pequeño delay para evitar skips muy rápidos
       await Future.delayed(const Duration(milliseconds: 300));
+    } catch (e) {
+      print('[AudioPlayer] Error in skipToPrevious: $e');
     } finally {
       _isSkipping = false;
     }
@@ -355,9 +374,12 @@ class AudioPlayerService {
 
   // --- Internals ---
 
-  Future<void> _playCurrentSong() async {
+  Future<bool> _playCurrentSong({
+    bool playNow = true,
+    bool addToHistory = true,
+  }) async {
     var rawSong = _playlist.currentSong;
-    if (rawSong == null) return;
+    if (rawSong == null) return false;
 
     // Hidratar metadatos desde caché o archivo si es necesario
     if (rawSong.artworkData == null || rawSong.dominantColor == null) {
@@ -432,7 +454,10 @@ class AudioPlayerService {
     try {
       _currentSongSubject.add(song);
       _history.add(song.id); // Historial de sesión (playback)
-      await MusicHistoryService().addToHistory(song); // Historial persistente
+
+      if (addToHistory) {
+        await MusicHistoryService().addToHistory(song); // Historial persistente
+      }
 
       // Cargar archivo
       if (song.filePath.startsWith('content://') ||
@@ -446,13 +471,16 @@ class AudioPlayerService {
         await _audioPlayer.setFilePath(song.filePath);
       }
 
-      await _audioPlayer.play();
+      // NO usar await aquí, ya que play() espera hasta que termine la canción
+      if (playNow) {
+        _audioPlayer.play();
+      }
 
       _playlistSubject.add(_playlist); // Actualizar UI
+      return true;
     } catch (e) {
       print('[AudioPlayer] Error playing song: $e');
-      // Intentar siguiente si falla
-      await skipToNext();
+      return false;
     }
   }
 

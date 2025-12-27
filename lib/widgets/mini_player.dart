@@ -86,7 +86,9 @@ class MiniPlayer extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut,
                   decoration: BoxDecoration(
                     color:
                         (song?.dominantColor != null
@@ -131,15 +133,33 @@ class MiniPlayer extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               child: AspectRatio(
                 aspectRatio: 1,
-                child: song.artworkData != null
-                    ? Image.memory(song.artworkData!, fit: BoxFit.cover)
-                    : Container(
-                        color: Colors.grey[850],
-                        child: const Icon(
-                          Icons.music_note,
-                          color: Colors.white54,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder:
+                      (Widget child, Animation<double> animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: animation,
+                            child: child,
+                          ),
+                        );
+                      },
+                  child: song.artworkData != null
+                      ? Image.memory(
+                          song.artworkData!,
+                          key: ValueKey(song.id),
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          key: const ValueKey('placeholder'),
+                          color: Colors.grey[850],
+                          child: const Icon(
+                            Icons.music_note,
+                            color: Colors.white54,
+                          ),
                         ),
-                      ),
+                ),
               ),
             ),
           ),

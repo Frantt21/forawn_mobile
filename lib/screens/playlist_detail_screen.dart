@@ -286,7 +286,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     final query = _searchQuery.toLowerCase();
     return songs.where((song) {
       return song.title.toLowerCase().contains(query) ||
-          (song.artist?.toLowerCase().contains(query) ?? false) ||
+          (song.artist.toLowerCase().contains(query) ?? false) ||
           (song.album?.toLowerCase().contains(query) ?? false);
     }).toList();
   }

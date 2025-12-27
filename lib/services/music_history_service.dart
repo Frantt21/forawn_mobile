@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import '../services/music_metadata_cache.dart';
 
-class MusicHistoryService {
+class MusicHistoryService extends ChangeNotifier {
   static final MusicHistoryService _instance = MusicHistoryService._internal();
   factory MusicHistoryService() => _instance;
   MusicHistoryService._internal();
@@ -49,6 +50,7 @@ class MusicHistoryService {
         });
 
         _history = await Future.wait(hydrationFutures);
+        notifyListeners();
       }
     } catch (e) {
       print('[MusicHistory] Error loading history: $e');
@@ -67,6 +69,7 @@ class MusicHistoryService {
       _history = _history.sublist(0, _maxHistory);
     }
 
+    notifyListeners();
     await _saveHistory();
   }
 

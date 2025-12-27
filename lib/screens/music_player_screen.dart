@@ -9,6 +9,7 @@ import '../models/song.dart';
 import '../models/playback_state.dart';
 import '../services/lyrics_service.dart';
 import '../widgets/lyrics_view.dart';
+import '../widgets/lyrics_sheet.dart';
 
 class MusicPlayerScreen extends StatefulWidget {
   const MusicPlayerScreen({super.key});
@@ -19,33 +20,13 @@ class MusicPlayerScreen extends StatefulWidget {
 
 class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   final AudioPlayerService _player = AudioPlayerService();
-  bool _showLyrics = false;
-  Lyrics? _currentLyrics;
   String? _lastSongId;
 
   @override
   void initState() {
     super.initState();
-    // Cargar lyrics cuando cambia la canción
-    _player.currentSongStream.listen((song) {
-      if (song != null) {
-        if (_lastSongId != song.id) {
-          _lastSongId = song.id;
-          _loadLyrics(song);
-        }
-      } else {
-        if (mounted) setState(() => _currentLyrics = null);
-      }
-    });
-  }
-
-  Future<void> _loadLyrics(Song song) async {
-    // Buscar en caché/API
-    // Usamos el título y artista LIMPIOS de los metadatos si es posible
-    final lyrics = await LyricsService().fetchLyrics(song.title, song.artist);
-    if (mounted) {
-      setState(() => _currentLyrics = lyrics);
-    }
+    // Listener vacío o para debug si es necesario,
+    // pero ya no necesitamos lógica aquí para el UI básico
   }
 
   @override
@@ -89,21 +70,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           }
                         },
                         onVerticalDragEnd: (details) {
-                          // Detectar swipe hacia abajo (velocidad positiva) para cerrar
                           if (details.primaryVelocity! > 500) {
                             Navigator.of(context).pop();
                           }
                         },
-                        child: _showLyrics
-                            ? LyricsView(
-                                lyrics: _currentLyrics,
-                                progressStream: _player.progressStream,
-                                onSeek: (pos) => _player.seek(pos),
-                                key: ValueKey(
-                                  song.id,
-                                ), // Forzar rebuild al cambiar canción
-                              )
-                            : _buildArtwork(song),
+                        child: _buildArtwork(song),
                       ),
                     ),
 
@@ -125,7 +96,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         ? Color(song.dominantColor!)
         : Colors.grey[900]!;
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeInOut,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -159,9 +132,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
 
             // Título dinámico
             Text(
-              _showLyrics
-                  ? LanguageService().getText('lyrics').toUpperCase()
-                  : LanguageService().getText('now_playing').toUpperCase(),
+              LanguageService().getText('now_playing').toUpperCase(),
               style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 12,
@@ -273,23 +244,45 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
+                    color: Colors.black.withOpacity(0.25),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
                 ],
               ),
               clipBehavior: Clip.antiAlias,
-              child: song.artworkData != null
-                  ? Image.memory(song.artworkData!, fit: BoxFit.cover)
-                  : Container(
-                      color: Colors.grey[800],
-                      child: const Icon(
-                        Icons.music_note,
-                        size: 80,
-                        color: Colors.white30,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 500),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOut,
+                        ),
                       ),
+                      child: child,
                     ),
+                  );
+                },
+                child: song.artworkData != null
+                    ? Image.memory(
+                        song.artworkData!,
+                        key: ValueKey(song.id),
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        key: const ValueKey('placeholder'),
+                        color: Colors.grey[800],
+                        child: const Icon(
+                          Icons.music_note,
+                          size: 80,
+                          color: Colors.white30,
+                        ),
+                      ),
+              ),
             ),
           ),
         ),
@@ -507,7 +500,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
           // Botón de Lyrics translúcido
           GestureDetector(
             onTap: () {
-              setState(() => _showLyrics = !_showLyrics);
+              _showLyricsSheet(context, song);
             },
             child: ClipRRect(
               borderRadius: BorderRadius.circular(30),
@@ -529,16 +522,10 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        _showLyrics ? Icons.music_note : Icons.lyrics,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      const Icon(Icons.lyrics, color: Colors.white, size: 20),
                       const SizedBox(width: 8),
                       Text(
-                        _showLyrics
-                            ? LanguageService().getText('hide_lyrics')
-                            : LanguageService().getText('show_lyrics'),
+                        LanguageService().getText('show_lyrics'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 15,
@@ -553,6 +540,16 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Mostrar Lyrics Sheet
+  void _showLyricsSheet(BuildContext context, Song song) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => LyricsSheet(song: song, player: _player),
     );
   }
 

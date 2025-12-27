@@ -52,6 +52,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   String? _loadingMessage;
   double? _loadingProgress;
   StreamSubscription? _progressSubscription;
+  StreamSubscription? _songSubscription;
 
   @override
   bool get wantKeepAlive => true; // Mantener estado activo
@@ -83,6 +84,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
       }
     });
 
+    // Escuchar servicio de historial directamente
+    // Escuchar servicio de historial directamente
+    MusicHistoryService().addListener(_onHistoryChanged);
+    // Iniciar carga de historial
+    MusicHistoryService().init();
+
     // Inicializar animación de búsqueda
     _animationController = AnimationController(
       vsync: this,
@@ -102,7 +109,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     PlaylistService().removeListener(_onPlaylistServiceChanged);
     MusicLibraryService.onMetadataUpdated.removeListener(_onMetadataUpdated);
     _progressSubscription?.cancel();
+    _songSubscription?.cancel();
     super.dispose();
+  }
+
+  void _onHistoryChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onMusicStateChanged() {
@@ -623,8 +635,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
   Widget _buildHistorySectionSliver() {
     final history = MusicHistoryService().history.take(6).toList();
-    if (history.isEmpty)
+    if (history.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
 
     return SliverToBoxAdapter(
       child: Column(

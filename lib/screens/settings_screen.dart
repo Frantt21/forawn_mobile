@@ -219,7 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     contentPadding: EdgeInsets.zero,
                   ),
-                  const Divider(),
+
                   // Notifications Switch
                   SwitchListTile(
                     value: _notificationsEnabled,
@@ -275,7 +275,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 children: [
                   const StorageBar(),
-                  const Divider(),
+
                   ListTile(
                     leading: const Icon(
                       Icons.music_note,
@@ -314,7 +314,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     contentPadding: EdgeInsets.zero,
                   ),
-                  const Divider(),
+
                   ListTile(
                     leading: const Icon(Icons.lyrics, color: Colors.pinkAccent),
                     title: Text(

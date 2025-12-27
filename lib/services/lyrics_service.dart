@@ -2,7 +2,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'lyrics_adjuster.dart';
+import '../config/api_config.dart';
 
 /// Modelo para una línea de lyrics sincronizada
 class LyricLine {
@@ -97,7 +99,6 @@ class LyricsService {
   factory LyricsService() => _instance;
   LyricsService._internal();
 
-  static const String _baseUrl = 'https://lrclib.net/api';
   static const String _cachePrefix = 'lyrics_cache_';
 
   /// Obtiene lyrics desde la API o caché
@@ -138,7 +139,7 @@ class LyricsService {
       final params = {'q': '$cleanArtist $cleanTrack'};
 
       final uri = Uri.parse(
-        '$_baseUrl/search',
+        '${ApiConfig.lyricsBaseUrl}/search',
       ).replace(queryParameters: params);
       print('[LyricsService] LRCLIB URL: $uri');
 
@@ -147,7 +148,7 @@ class LyricsService {
       if (response.statusCode == 200) {
         final results = jsonDecode(response.body) as List;
 
-        if (!results.isEmpty) {
+        if (results.isNotEmpty) {
           // Buscar el mejor match en los resultados
           for (final item in results) {
             final data = item as Map<String, dynamic>;
@@ -238,7 +239,7 @@ class LyricsService {
 
         final fallbackParams = {'q': cleanTrack};
         final fallbackUri = Uri.parse(
-          '$_baseUrl/search',
+          '${ApiConfig.lyricsBaseUrl}/search',
         ).replace(queryParameters: fallbackParams);
         print('[LyricsService] LRCLIB Fallback URL: $fallbackUri');
 
@@ -324,6 +325,70 @@ class LyricsService {
     } catch (e) {
       print('[LyricsService] Error fetching lyrics: $e');
       return null;
+    }
+  }
+
+  /// Busca lyrics manualmente sin filtrado estricto
+  Future<List<Lyrics>> searchLyrics(String query) async {
+    try {
+      final uri = Uri.parse(
+        '${ApiConfig.lyricsBaseUrl}/search',
+      ).replace(queryParameters: {'q': query});
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final List results = jsonDecode(response.body);
+        return results.map((item) {
+          final data = item as Map<String, dynamic>;
+          final syncedLyricsRaw = data['syncedLyrics'] as String?;
+          final plainLyrics = data['plainLyrics'] as String? ?? '';
+
+          List<LyricLine> syncedLines = [];
+          if (syncedLyricsRaw != null && syncedLyricsRaw.isNotEmpty) {
+            syncedLines = syncedLyricsRaw
+                .split('\n')
+                .where((line) => line.trim().isNotEmpty)
+                .map((line) => LyricLine.fromString(line))
+                .where((line) => line.text.isNotEmpty)
+                .toList();
+          }
+
+          return Lyrics(
+            trackName: data['trackName'] as String? ?? '',
+            artistName: data['artistName'] as String? ?? '',
+            albumName: data['albumName'] as String?,
+            duration: (data['duration'] as num?)?.toInt(),
+            instrumental: data['instrumental'] as bool? ?? false,
+            plainLyrics: plainLyrics,
+            syncedLyrics: syncedLines,
+          );
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      print('[LyricsService] Error searching lyrics: $e');
+      return [];
+    }
+  }
+
+  /// Guarda lyrics en caché asociados a una canción local
+  Future<void> saveLyricsToCache({
+    required String localTrackName,
+    required String localArtistName,
+    required Lyrics lyrics,
+  }) async {
+    try {
+      final cacheKey =
+          _cachePrefix +
+          '${localTrackName.toLowerCase()}_${localArtistName.toLowerCase()}'
+              .replaceAll(RegExp(r'[^a-z0-9_]'), '_');
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(cacheKey, jsonEncode(lyrics.toJson()));
+      print('[LyricsService] Manual lyrics saved for $localTrackName');
+    } catch (e) {
+      print('[LyricsService] Error saving manual lyrics: $e');
     }
   }
 
