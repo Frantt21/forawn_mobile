@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/download_history_item.dart';
 import '../services/download_history_service.dart';
+import '../services/global_download_manager.dart';
 import '../services/language_service.dart';
 import '../utils/safe_http_mixin.dart';
 
@@ -13,6 +14,7 @@ class DownloadHistoryScreen extends StatefulWidget {
 
 class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
     with SafeHttpMixin {
+  final GlobalDownloadManager _downloadManager = GlobalDownloadManager();
   List<DownloadHistoryItem> _history = [];
   List<DownloadHistoryItem> _filteredHistory = [];
   bool _isLoading = true;
@@ -130,6 +132,10 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accentColor = theme.colorScheme.primary;
+    final textColor = theme.colorScheme.onSurface;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(LanguageService().getText('download_history')),
@@ -195,7 +201,173 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
             ),
           ),
 
-          // Lista de historial
+          // Descargas activas
+          StreamBuilder<Map<String, dynamic>>(
+            stream: _downloadManager.downloadsStream,
+            initialData: _downloadManager.activeDownloads,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              final activeDownloads = snapshot.data!.values.toList();
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Text(
+                      '${LanguageService().getText('active_downloads')} (${activeDownloads.length})',
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  ...activeDownloads.map((download) {
+                    final track = download.track;
+                    final progress = download.progress;
+                    final isCompleted = download.isCompleted;
+                    final hasError = download.error != null;
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      color: const Color.fromARGB(255, 45, 45, 45),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: accentColor.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            color: accentColor.withOpacity(0.2),
+                            child: download.pinterestImageUrl != null
+                                ? Image.network(
+                                    download.pinterestImageUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.music_note,
+                                      color: accentColor,
+                                    ),
+                                  )
+                                : Icon(Icons.music_note, color: accentColor),
+                          ),
+                        ),
+                        title: Text(
+                          track.title,
+                          style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              track.artists,
+                              style: TextStyle(
+                                color: textColor.withOpacity(0.6),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            if (!isCompleted && !hasError)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${(progress * 100).toInt()}%',
+                                    style: TextStyle(
+                                      color: accentColor,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  LinearProgressIndicator(
+                                    value: progress,
+                                    backgroundColor: textColor.withOpacity(0.1),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      accentColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            if (isCompleted)
+                              Text(
+                                LanguageService().getText('completed'),
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            if (hasError)
+                              Text(
+                                'Error: ${download.error}',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                        trailing: !isCompleted && !hasError
+                            ? IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () {
+                                  _downloadManager.cancelDownload(download.id);
+                                },
+                                color: Colors.red.withOpacity(0.7),
+                              )
+                            : null,
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Divider(color: textColor.withOpacity(0.1)),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          // Título de historial completado
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              LanguageService().getText('completed'),
+              style: TextStyle(
+                color: textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          // Lista de historial completado
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())

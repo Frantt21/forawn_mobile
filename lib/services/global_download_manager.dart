@@ -123,6 +123,12 @@ class GlobalDownloadManager {
     );
 
     _activeDownloads[downloadId] = activeDownload;
+    print(
+      '[GlobalDownloadManager] ✅ Download added to active list: $downloadId - ${track.title}',
+    );
+    print(
+      '[GlobalDownloadManager] 📊 Active downloads count: ${_activeDownloads.length}',
+    );
     _notifyListeners();
 
     // Iniciar descarga en segundo plano
@@ -174,10 +180,21 @@ class GlobalDownloadManager {
       // ⚡ DETECTAR SI ES URL DE GOOGLE DRIVE (CACHÉ)
       final isGoogleDriveUrl = track.url.contains('drive.google.com');
 
+      // ⚡ DETECTAR SI ES URL DE YOUTUBE
+      final isYouTubeUrl =
+          track.url.contains('youtube.com') || track.url.contains('youtu.be');
+
       if (isGoogleDriveUrl) {
         // Usar URL de Google Drive directamente (desde caché)
         print('[GlobalDownloadManager] ⚡ Using cached Google Drive URL');
         downloadUrl = track.url;
+      } else if (isYouTubeUrl) {
+        // ⚡ SI ES URL DE YOUTUBE, PASAR URL DIRECTA A FORANLY
+        print(
+          '[GlobalDownloadManager] ⚡ YouTube URL detected → Sending directly to Foranly',
+        );
+        print('[GlobalDownloadManager]    URL: ${track.url}');
+        downloadUrl = track.url; // ✅ Pasar URL de YouTube directamente
       } else if (forceYouTubeFallback) {
         // ⚡ SI SE FUERZA FORANLY (Youtube Fallback), SALTAR SPOTIFY SERVICE
         print(
@@ -186,6 +203,7 @@ class GlobalDownloadManager {
         downloadUrl = ""; // Dejar vacío para que DownloadService use fallback
       } else {
         // Intentar obtener URL de descarga desde Spotify Direct (FabDL)
+        // SOLO si la URL es de Spotify
         try {
           final downloadInfo = await _spotifyService.getDownloadUrl(
             track.url,

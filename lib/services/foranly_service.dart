@@ -5,6 +5,44 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 
 class ForanlyService {
+  /// Obtener URL de descarga usando URL directa de YouTube (SIN BÚSQUEDA)
+  /// Retorna la URL de descarga directa o null si falla
+  Future<String?> getDownloadUrlFromYouTubeUrl(
+    String youtubeUrl, {
+    String? trackTitle,
+    String? artistName,
+  }) async {
+    final query = trackTitle != null && artistName != null
+        ? '$trackTitle - $artistName'
+        : '';
+
+    // 1. Intentar con servidor primario
+    try {
+      final url = await _tryGetUrlDirect(
+        ApiConfig.foranlyBackendPrimary,
+        youtubeUrl,
+        query,
+      );
+      if (url != null) return url;
+    } catch (e) {
+      print('[ForanlyService] Error en primario (direct): $e');
+    }
+
+    // 2. Intentar con servidor de respaldo
+    try {
+      final url = await _tryGetUrlDirect(
+        ApiConfig.foranlyBackendBackup,
+        youtubeUrl,
+        query,
+      );
+      if (url != null) return url;
+    } catch (e) {
+      print('[ForanlyService] Error en backup (direct): $e');
+    }
+
+    return null;
+  }
+
   /// Obtener URL de descarga buscando por Query (Título - Artista)
   /// Retorna la URL de descarga directa o null si falla
   Future<String?> getDownloadUrlWait(String query) async {
@@ -25,6 +63,45 @@ class ForanlyService {
     }
 
     return null;
+  }
+
+  /// Método para procesar URL directa de YouTube (SIN BÚSQUEDA)
+  Future<String?> _tryGetUrlDirect(
+    String baseUrl,
+    String youtubeUrl,
+    String query,
+  ) async {
+    print('[ForanlyService] 🎵 Processing direct YouTube URL (NO SEARCH)');
+    print('[ForanlyService]    URL: $youtubeUrl');
+
+    // Iniciar Trabajo de Conversión/Descarga directamente
+    final downloadEndpoint = query.isNotEmpty
+        ? '$baseUrl/download?url=${Uri.encodeComponent(youtubeUrl)}&format=audio&enrich=true&query=${Uri.encodeComponent(query)}'
+        : '$baseUrl/download?url=${Uri.encodeComponent(youtubeUrl)}&format=audio&enrich=true';
+
+    print('[ForanlyService] Iniciando job: $downloadEndpoint');
+
+    final jobResponse = await http
+        .get(Uri.parse(downloadEndpoint))
+        .timeout(const Duration(seconds: 15));
+
+    if (jobResponse.statusCode != 200) {
+      print('[ForanlyService] Error al iniciar job: ${jobResponse.statusCode}');
+      return null;
+    }
+
+    final jobData = json.decode(jobResponse.body);
+    final String? jobId = jobData['jobId'];
+
+    if (jobId == null) {
+      print('[ForanlyService] No se recibió jobId');
+      return null;
+    }
+
+    print('[ForanlyService] Job iniciado: $jobId. Conectando a SSE stream...');
+
+    // Consumir SSE Stream (igual que en _tryGetUrl)
+    return await _waitForJobCompletion(baseUrl, jobId);
   }
 
   /// Método auxiliar privado para intentar obtener la URL
@@ -78,6 +155,11 @@ class ForanlyService {
     print('[ForanlyService] Job iniciado: $jobId. Conectando a SSE stream...');
 
     // 3. Consumir SSE Stream (Server-Sent Events)
+    return await _waitForJobCompletion(baseUrl, jobId);
+  }
+
+  /// Esperar a que el job se complete usando SSE stream
+  Future<String?> _waitForJobCompletion(String baseUrl, String jobId) async {
     final client = http.Client();
     final progressUrl = '$baseUrl/progress/$jobId';
 

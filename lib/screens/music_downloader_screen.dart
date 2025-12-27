@@ -17,7 +17,8 @@ class MusicDownloaderScreen extends StatefulWidget {
   State<MusicDownloaderScreen> createState() => _MusicDownloaderScreenState();
 }
 
-class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
+class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final YouTubeService _youtubeService = YouTubeService();
   final GlobalDownloadManager _downloadManager = GlobalDownloadManager();
@@ -25,16 +26,23 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
   String? _treeUri;
   List<YouTubeVideo> _searchResults = [];
   bool _isSearching = false;
+  bool _hasSearched = false; // Indica si ya se realizó una búsqueda
+  late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
     _loadSavedTreeUri();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
@@ -106,6 +114,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
       setState(() {
         _searchResults = results;
         _isSearching = false;
+        _hasSearched = true; // Marcar que ya se buscó
       });
 
       if (results.isEmpty && mounted) {
@@ -146,16 +155,8 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
 
       if (cachedSong.cached && cachedSong.downloadUrl != null) {
         // ⚡ DESCARGA DESDE CACHÉ (Google Drive)
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '⚡ Descarga rápida desde caché: ${video.displayTitle}',
-              ),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        // Mostrar animación indicando que está en el historial
+        _showDownloadAddedAnimation(video.displayTitle);
 
         print('[CACHE] Using cached download URL: ${cachedSong.downloadUrl}');
 
@@ -184,36 +185,40 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
         );
       } else {
         // 📥 DESCARGA NORMAL DESDE YOUTUBE
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Descargando: ${video.displayTitle}'),
-              backgroundColor: Colors.blue,
-            ),
-          );
-        }
+        // Mostrar animación indicando que está en el historial
+        _showDownloadAddedAnimation(video.displayTitle);
+
+        print('[MusicDownloaderScreen] 🎵 Downloading selected video:');
+        print('[MusicDownloaderScreen]   - Title: ${video.title}');
+        print('[MusicDownloaderScreen]   - URL: ${video.url}');
+        print('[MusicDownloaderScreen]   - Parsed Song: ${video.parsedSong}');
+        print(
+          '[MusicDownloaderScreen]   - Parsed Artist: ${video.parsedArtist}',
+        );
 
         // Convertir YouTubeVideo a SpotifyTrack
+        // IMPORTANTE: Usar video.url directamente para evitar búsqueda adicional
         final track = SpotifyTrack(
           title: video.parsedSong.isNotEmpty ? video.parsedSong : video.title,
           artists: video.parsedArtist.isNotEmpty
               ? video.parsedArtist
               : video.author,
-          url: video.url, // URL de YouTube
+          url: video.url, // ✅ URL DIRECTA del video seleccionado
           duration: video.durationText,
           popularity: '0',
         );
 
-        // Agregar descarga normal desde YouTube
+        // Agregar descarga con la URL directa del video
+        // forceYouTubeFallback: false para que use la URL directamente
         final downloadId = await _downloadManager.addDownload(
           track: track,
           pinterestImageUrl: video.thumbnail,
           treeUri: _treeUri,
-          forceYouTubeFallback: true, // Usar YouTube
+          forceYouTubeFallback: false, // ✅ NO hacer búsqueda, usar URL directa
         );
 
         print(
-          '[MusicDownloaderScreen] YouTube download added with ID: $downloadId',
+          '[MusicDownloaderScreen] ✅ Download added with direct URL: $downloadId',
         );
       }
     } catch (e) {
@@ -227,6 +232,119 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
     }
   }
 
+  void _showDownloadAddedAnimation(String title) {
+    if (!mounted) return;
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 60,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutBack,
+            builder: (context, value, child) {
+              // Clamp value to ensure it's within valid range
+              final clampedValue = value.clamp(0.0, 1.0);
+              return Transform.scale(
+                scale: clampedValue,
+                child: Opacity(opacity: clampedValue, child: child),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purpleAccent,
+                    Colors.purpleAccent.withOpacity(0.8),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purpleAccent.withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.download_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '✓ Descarga agregada',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Ver progreso en Historial →',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.history, color: Colors.white),
+                    onPressed: () {
+                      overlayEntry.remove();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DownloadHistoryScreen(),
+                        ),
+                      );
+                    },
+                    tooltip: 'Ir al historial',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+
+    // Remover después de 3 segundos
+    Future.delayed(const Duration(seconds: 3), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -237,6 +355,19 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
       appBar: AppBar(
         title: Text(LanguageService().getText('music_downloader')),
         actions: [
+          // Solo mostrar icono de búsqueda cuando ya se ha buscado
+          if (_hasSearched)
+            IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: () {
+                setState(() {
+                  _hasSearched = false;
+                  _searchResults = [];
+                  _searchController.clear();
+                });
+              },
+              tooltip: LanguageService().getText('search'),
+            ),
           // Botón de historial
           IconButton(
             icon: const Icon(Icons.history),
@@ -317,244 +448,101 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
             Expanded(
               child: CustomScrollView(
                 slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.all(16.0),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        const SizedBox(height: 12),
-                        Card(
-                          color: const Color(0xFF1C1C1E),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  LanguageService().getText('search_music'),
-                                  style: TextStyle(
-                                    color: textColor.withOpacity(0.5),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: _searchController,
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 16,
-                                  ),
-                                  cursorColor: accentColor,
-                                  decoration: InputDecoration(
-                                    hintText: LanguageService().getText(
-                                      'song_or_artist',
-                                    ),
-                                    hintStyle: TextStyle(
-                                      color: textColor.withOpacity(0.3),
-                                    ),
-                                    border: InputBorder.none,
-                                  ),
-                                  onSubmitted: (_) => _searchSongs(),
-                                  textInputAction: TextInputAction.search,
-                                ),
-                              ],
+                  // Campo de búsqueda - solo visible si NO se ha buscado
+                  if (!_hasSearched)
+                    SliverPadding(
+                      padding: const EdgeInsets.all(16.0),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          const SizedBox(height: 12),
+                          Card(
+                            color: const Color(0xFF1C1C1E),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _isSearching ? null : _searchSongs,
-                            icon: _isSearching
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.black,
-                                    ),
-                                  )
-                                : const Icon(Icons.search),
-                            label: Text(
-                              _isSearching
-                                  ? LanguageService().getText('searching')
-                                  : LanguageService().getText('search'),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ]),
-                    ),
-                  ),
-
-                  // Descargas activas
-                  StreamBuilder<Map<String, dynamic>>(
-                    stream: _downloadManager.downloadsStream,
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const SliverToBoxAdapter(
-                          child: SizedBox.shrink(),
-                        );
-                      }
-
-                      final activeDownloads = snapshot.data!.values.toList();
-
-                      return SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            Text(
-                              '${LanguageService().getText('active_downloads')} (${activeDownloads.length})',
-                              style: TextStyle(
-                                color: textColor,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            ...activeDownloads.map((download) {
-                              final track = download.track;
-                              final progress = download.progress;
-                              final isCompleted = download.isCompleted;
-                              final hasError = download.error != null;
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                child: ListTile(
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Container(
-                                      width: 56,
-                                      height: 56,
-                                      color: accentColor.withOpacity(0.2),
-                                      child: download.pinterestImageUrl != null
-                                          ? Image.network(
-                                              download.pinterestImageUrl!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
-                                                  Icon(
-                                                    Icons.music_note,
-                                                    color: accentColor,
-                                                  ),
-                                            )
-                                          : Icon(
-                                              Icons.music_note,
-                                              color: accentColor,
-                                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    LanguageService().getText('search_music'),
+                                    style: TextStyle(
+                                      color: textColor.withOpacity(0.5),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                  title: Text(
-                                    track.title,
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: _searchController,
                                     style: TextStyle(
                                       color: textColor,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        track.artists,
-                                        style: TextStyle(
-                                          color: textColor.withOpacity(0.6),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                    cursorColor: accentColor,
+                                    decoration: InputDecoration(
+                                      hintText: LanguageService().getText(
+                                        'song_or_artist',
                                       ),
-                                      const SizedBox(height: 4),
-                                      if (!isCompleted && !hasError)
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              '${(progress * 100).toInt()}%',
-                                              style: TextStyle(
-                                                color: accentColor,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            LinearProgressIndicator(
-                                              value: progress,
-                                              backgroundColor: textColor
-                                                  .withOpacity(0.1),
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    accentColor,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                      if (isCompleted)
-                                        Text(
-                                          LanguageService().getText(
-                                            'completed',
-                                          ),
-                                          style: TextStyle(
-                                            color: Colors.green,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      if (hasError)
-                                        Text(
-                                          'Error: ${download.error}',
-                                          style: TextStyle(
-                                            color: Colors.red,
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                    ],
+                                      hintStyle: TextStyle(
+                                        color: textColor.withOpacity(0.3),
+                                      ),
+                                      border: InputBorder.none,
+                                    ),
+                                    onSubmitted: (_) => _searchSongs(),
+                                    textInputAction: TextInputAction.search,
                                   ),
-                                  trailing: !isCompleted && !hasError
-                                      ? IconButton(
-                                          icon: const Icon(Icons.close),
-                                          onPressed: () {
-                                            _downloadManager.cancelDownload(
-                                              download.id,
-                                            );
-                                          },
-                                        )
-                                      : null,
-                                ),
-                              );
-                            }),
-                            const SizedBox(height: 12),
-                          ]),
-                        ),
-                      );
-                    },
-                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _isSearching ? null : _searchSongs,
+                              icon: _isSearching
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.black,
+                                      ),
+                                    )
+                                  : const Icon(Icons.search),
+                              label: Text(
+                                _isSearching
+                                    ? LanguageService().getText('searching')
+                                    : LanguageService().getText('search'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ]),
+                      ),
+                    ),
 
                   // Results header
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        Text(
-                          _searchResults.isEmpty
-                              ? LanguageService().getText('results')
-                              : '${LanguageService().getText('results')} (${_searchResults.length})',
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                  if (_searchResults.isNotEmpty || _isSearching)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          Text(
+                            _searchResults.isEmpty
+                                ? LanguageService().getText('results')
+                                : '${LanguageService().getText('results')} (${_searchResults.length})',
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ]),
+                        ]),
+                      ),
                     ),
-                  ),
                   _isSearching
                       ? SliverFillRemaining(
                           hasScrollBody: false,
@@ -562,7 +550,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen> {
                             child: CircularProgressIndicator(),
                           ),
                         )
-                      : _searchResults.isEmpty
+                      : _searchResults.isEmpty && !_hasSearched
                       ? SliverFillRemaining(
                           hasScrollBody: false,
                           child: Center(

@@ -96,7 +96,8 @@ class LocalMusicHome extends StatelessWidget {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 3,
-                          childAspectRatio: 0.7,
+                          childAspectRatio:
+                              0.7, // Formato tipo 'poster' vertical
                           crossAxisSpacing: 8,
                           mainAxisSpacing: 8,
                         ),
@@ -108,117 +109,112 @@ class LocalMusicHome extends StatelessWidget {
 
                       return GestureDetector(
                         onTap: () => onSongTap(song),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Artwork with overlay text
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  color: Colors.grey[900],
-                                  border: isPlaying
-                                      ? Border.all(
-                                          color: Colors.purpleAccent,
-                                          width: 2,
-                                        )
-                                      : null,
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      // Background image
-                                      song.artworkData != null
-                                          ? Image.memory(
-                                              song.artworkData!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                    return const Center(
-                                                      child: Icon(
-                                                        Icons.music_note,
-                                                        color: Colors.white24,
-                                                        size: 40,
-                                                      ),
-                                                    );
-                                                  },
-                                            )
-                                          : const Center(
-                                              child: Icon(
-                                                Icons.music_note,
-                                                color: Colors.white24,
-                                                size: 40,
-                                              ),
-                                            ),
-                                      // Gradient overlay
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            colors: [
-                                              Colors.transparent,
-                                              Colors.black.withOpacity(0.7),
-                                            ],
-                                            stops: const [0.5, 1.0],
-                                          ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                // Background Image
+                                song.artworkData != null
+                                    ? Image.memory(
+                                        song.artworkData!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        color: Colors.grey[900],
+                                        child: const Icon(
+                                          Icons.music_note,
+                                          color: Colors.white24,
+                                          size: 32,
                                         ),
                                       ),
-                                      // Text overlay
-                                      Positioned(
-                                        bottom: 8,
-                                        left: 8,
-                                        right: 8,
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              song.title,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 13,
-                                                shadows: [
-                                                  Shadow(
-                                                    color: Colors.black,
-                                                    blurRadius: 4,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              song.artist,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(
-                                                  0.8,
-                                                ),
-                                                fontSize: 11,
-                                                shadows: const [
-                                                  Shadow(
-                                                    color: Colors.black,
-                                                    blurRadius: 4,
-                                                  ),
-                                                ],
-                                              ),
+                                // Gradient Overlay
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.8),
+                                      ],
+                                      stops: const [0.6, 1.0],
+                                    ),
+                                  ),
+                                ),
+                                // Text Content
+                                Positioned(
+                                  left: 8,
+                                  right: 8,
+                                  bottom: 8,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        song.title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black,
+                                              blurRadius: 4,
                                             ),
                                           ],
                                         ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        song.artist,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.8),
+                                          fontSize: 10,
+                                          shadows: const [
+                                            Shadow(
+                                              color: Colors.black,
+                                              blurRadius: 4,
+                                            ),
+                                          ],
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
-                              ),
+                                // Active Indicator
+                                if (isPlaying)
+                                  Positioned.fill(
+                                    child: Container(
+                                      color: Colors.black.withOpacity(0.5),
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.graphic_eq,
+                                          color: Colors.purpleAccent,
+                                          size: 32,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       );
                     },
@@ -226,19 +222,20 @@ class LocalMusicHome extends StatelessWidget {
                 ),
               ],
 
-              const SizedBox(height: 24),
-
               // Playlists Recientes
               if (recentPlaylists.isNotEmpty) ...[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(
+                    16,
+                    0,
+                    16,
+                    12,
+                  ), // ✅ Reducido a 0px
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        LanguageService().getText(
-                          'recent_playlists',
-                        ), // Check key 'Playlists Recientes'
+                        LanguageService().getText('recent_playlists'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -254,7 +251,7 @@ class LocalMusicHome extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  height: 180, // Increased from 160 to prevent overflow
+                  height: 180,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),

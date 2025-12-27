@@ -241,47 +241,81 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
             tag: 'artwork_${song.id}',
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.25),
+                    color: Colors.black.withOpacity(0.3),
                     blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-              clipBehavior: Clip.antiAlias,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 500),
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.95, end: 1.0).animate(
-                        CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOut,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AnimatedSwitcher(
+                  duration: const Duration(
+                    milliseconds: 350,
+                  ), // Un poco más rápido para slide
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    // Animación para el elemento que ENTRA (Nueva canción)
+                    // Viene desde la derecha (Offset 1, 0) hacia el centro (0, 0)
+                    final inAnimation =
+                        Tween<Offset>(
+                          begin: const Offset(1.0, 0.0),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutQuad,
+                          ),
+                        );
+
+                    // Animación para el elemento que SALE (Canción anterior)
+                    // Va del centro (0, 0) hacia la izquierda (Offset -1, 0)
+                    // Como la animación de salida va de 1.0 a 0.0, definimos el Tween
+                    // de tal forma que en 1.0 esté en 0 (centro) y en 0.0 esté en -1 (izquierda)
+                    final outAnimation =
+                        Tween<Offset>(
+                          begin: const Offset(-1.0, 0.0),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeInQuad,
+                          ),
+                        );
+
+                    // Decidir qué animación usar comparando la key
+                    if (child.key == ValueKey(song.id)) {
+                      return SlideTransition(
+                        position: inAnimation,
+                        child: child,
+                      );
+                    } else {
+                      return SlideTransition(
+                        position: outAnimation,
+                        child: child,
+                      );
+                    }
+                  },
+                  child: song.artworkData != null
+                      ? Image.memory(
+                          song.artworkData!,
+                          key: ValueKey(song.id),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                        )
+                      : Container(
+                          key: const ValueKey('placeholder'),
+                          color: const Color(0xFF2C2C2C),
+                          child: const Icon(
+                            Icons.music_note,
+                            size: 80,
+                            color: Colors.white24,
+                          ),
                         ),
-                      ),
-                      child: child,
-                    ),
-                  );
-                },
-                child: song.artworkData != null
-                    ? Image.memory(
-                        song.artworkData!,
-                        key: ValueKey(song.id),
-                        fit: BoxFit.cover,
-                      )
-                    : Container(
-                        key: const ValueKey('placeholder'),
-                        color: Colors.grey[800],
-                        child: const Icon(
-                          Icons.music_note,
-                          size: 80,
-                          color: Colors.white30,
-                        ),
-                      ),
+                ),
               ),
             ),
           ),

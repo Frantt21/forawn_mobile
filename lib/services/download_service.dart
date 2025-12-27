@@ -128,9 +128,38 @@ class DownloadService {
     String? tempPath;
     final useYoutube = url.trim().isEmpty || forceYouTubeFallback;
 
+    // Detectar si es URL de YouTube
+    final isYouTubeUrl =
+        url.contains('youtube.com') || url.contains('youtu.be');
+
     try {
-      // 1) Si la URL está vacía o se fuerza YouTube, saltar directo a Foranly Search
-      if (useYoutube) {
+      // 1) Si es URL de YouTube, usar Foranly directamente (SIN BÚSQUEDA)
+      if (isYouTubeUrl && !useYoutube) {
+        print(
+          '[DownloadService] 🎵 YouTube URL detected → Using Foranly directly (NO SEARCH)',
+        );
+        print('[DownloadService]    URL: $url');
+
+        final downloadUrl = await _foranlyService.getDownloadUrlFromYouTubeUrl(
+          url,
+          trackTitle: trackTitle,
+          artistName: artistName,
+        );
+
+        if (downloadUrl != null) {
+          print('[DownloadService] URL obtenida de Foranly: $downloadUrl');
+          tempPath = await downloadToTempFile(
+            url: downloadUrl,
+            onProgress: onProgress,
+            customFileName: fileName,
+          );
+          print('[DownloadService] Descarga desde Foranly exitosa');
+        } else {
+          throw Exception('Foranly no pudo procesar la URL de YouTube');
+        }
+      }
+      // 2) Si la URL está vacía o se fuerza YouTube, saltar directo a Foranly Search
+      else if (useYoutube) {
         if (forceYouTubeFallback) {
           print('[DownloadService] Forzando Foranly Search (App Logic)');
         } else {
@@ -138,17 +167,18 @@ class DownloadService {
         }
         throw Exception('Empty URL or forced YouTube, forcing fallback');
       }
+      // 3) Intentar descargar desde la URL original (Spotify Direct/FabDL)
+      else {
+        print('[DownloadService] Descargando desde API: $url');
+        tempPath = await downloadToTempFile(
+          url: url,
+          onProgress: onProgress,
+          cancelToken: cancelToken,
+          customFileName: fileName,
+        );
 
-      // 2) Intentar descargar desde la URL original (Spotify Direct/FabDL)
-      print('[DownloadService] Descargando desde API: $url');
-      tempPath = await downloadToTempFile(
-        url: url,
-        onProgress: onProgress,
-        cancelToken: cancelToken,
-        customFileName: fileName,
-      );
-
-      print('[DownloadService] Descarga desde API exitosa');
+        print('[DownloadService] Descarga desde API exitosa');
+      }
     } catch (e) {
       print('[DownloadService] Error al descargar desde API: $e');
 
