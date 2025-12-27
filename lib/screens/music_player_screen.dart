@@ -120,31 +120,18 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   }
 
   Widget _buildBackground(Song song) {
-    return Container(
-      decoration: const BoxDecoration(color: Colors.black),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (song.artworkData != null)
-            Image.memory(
-              song.artworkData!,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            )
-          else
-            // Intentar usar un color derivado o fallback
-            Container(color: Colors.grey[900]),
+    // Usar color cacheado si está disponible
+    final backgroundColor = song.dominantColor != null
+        ? Color(song.dominantColor!)
+        : Colors.grey[900]!;
 
-          // Blur y oscurecimiento
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
-              color: Colors.black.withOpacity(
-                0.6,
-              ), // Más oscuro para legibilidad
-            ),
-          ),
-        ],
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [backgroundColor, Colors.black],
+        ),
       ),
     );
   }
@@ -279,28 +266,31 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         padding: const EdgeInsets.all(32.0),
         child: AspectRatio(
           aspectRatio: 1,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: song.artworkData != null
-                ? Image.memory(song.artworkData!, fit: BoxFit.cover)
-                : Container(
-                    color: Colors.grey[800],
-                    child: const Icon(
-                      Icons.music_note,
-                      size: 80,
-                      color: Colors.white30,
-                    ),
+          child: Hero(
+            tag: 'artwork_${song.id}',
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: song.artworkData != null
+                  ? Image.memory(song.artworkData!, fit: BoxFit.cover)
+                  : Container(
+                      color: Colors.grey[800],
+                      child: const Icon(
+                        Icons.music_note,
+                        size: 80,
+                        color: Colors.white30,
+                      ),
+                    ),
+            ),
           ),
         ),
       ),

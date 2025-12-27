@@ -21,6 +21,36 @@ class MiniPlayer extends StatelessWidget {
 
         // Siempre mostrar el contenedor con estilo del Nav
         return GestureDetector(
+          // Detectar arrastre vertical
+          onVerticalDragUpdate: song != null
+              ? (details) {
+                  // Si arrastra hacia arriba (delta negativo), abrir reproductor
+                  if (details.primaryDelta! < -5) {
+                    Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            const MusicPlayerScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              const begin = Offset(0.0, 1.0);
+                              const end = Offset.zero;
+                              const curve = Curves.easeOutCubic;
+
+                              var tween = Tween(
+                                begin: begin,
+                                end: end,
+                              ).chain(CurveTween(curve: curve));
+
+                              return SlideTransition(
+                                position: animation.drive(tween),
+                                child: child,
+                              );
+                            },
+                      ),
+                    );
+                  }
+                }
+              : null,
           onTap: song != null
               ? () {
                   Navigator.of(context).push(
@@ -58,12 +88,11 @@ class MiniPlayer extends StatelessWidget {
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color.fromARGB(
-                      255,
-                      45,
-                      45,
-                      45,
-                    ).withOpacity(0.7),
+                    color:
+                        (song?.dominantColor != null
+                                ? Color(song!.dominantColor!)
+                                : const Color.fromARGB(255, 45, 45, 45))
+                            .withOpacity(0.7),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: Colors.white.withOpacity(0.1),
@@ -96,19 +125,22 @@ class MiniPlayer extends StatelessWidget {
         // Artwork
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: song.artworkData != null
-                  ? Image.memory(song.artworkData!, fit: BoxFit.cover)
-                  : Container(
-                      color: Colors.grey[850],
-                      child: const Icon(
-                        Icons.music_note,
-                        color: Colors.white54,
+          child: Hero(
+            tag: 'artwork_${song.id}',
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: song.artworkData != null
+                    ? Image.memory(song.artworkData!, fit: BoxFit.cover)
+                    : Container(
+                        color: Colors.grey[850],
+                        child: const Icon(
+                          Icons.music_note,
+                          color: Colors.white54,
+                        ),
                       ),
-                    ),
+              ),
             ),
           ),
         ),

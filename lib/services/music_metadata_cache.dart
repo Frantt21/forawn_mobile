@@ -13,6 +13,7 @@ class SongMetadata {
   final int? durationMs;
   final Uint8List? artwork;
   final String? artworkUri; // URI content:// de Android
+  final int? dominantColor; // Color dominante cacheado
 
   SongMetadata({
     required this.title,
@@ -21,6 +22,7 @@ class SongMetadata {
     this.durationMs,
     this.artwork,
     this.artworkUri,
+    this.dominantColor,
   });
 }
 
@@ -79,6 +81,7 @@ class MusicMetadataCache {
           durationMs: data['duration'],
           artworkBytes: artworkBytes,
           artworkUri: data['artworkUri'], // Cargar URI
+          dominantColor: data['dominantColor'], // Cargar color
           timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
         );
 
@@ -110,6 +113,7 @@ class MusicMetadataCache {
       durationMs: cached.durationMs,
       artwork: cached.artworkBytes,
       artworkUri: cached.artworkUri,
+      dominantColor: cached.dominantColor,
     );
   }
 
@@ -148,6 +152,7 @@ class MusicMetadataCache {
     int? durationMs,
     Uint8List? artworkData,
     String? artworkUri,
+    int? dominantColor,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -160,6 +165,7 @@ class MusicMetadataCache {
         'album': album,
         'duration': durationMs,
         'artworkUri': artworkUri, // Guardar URI
+        'dominantColor': dominantColor, // Guardar color
         'timestamp': timestamp,
       };
       await prefs.setString('meta_txt_$key', json.encode(data));
@@ -183,6 +189,7 @@ class MusicMetadataCache {
         durationMs: durationMs,
         artworkBytes: finalArtBytes,
         artworkUri: artworkUri,
+        dominantColor: dominantColor,
         timestamp: timestamp,
       );
     } catch (e) {
@@ -222,6 +229,7 @@ class _CachedMetadata {
   final int? durationMs;
   final Uint8List? artworkBytes; // RAW bytes, no base64 string
   final String? artworkUri; // URI content://
+  final int? dominantColor; // Color dominante cacheado
   final int timestamp; // Timestamp de cuando se guardó
 
   _CachedMetadata({
@@ -231,6 +239,7 @@ class _CachedMetadata {
     this.durationMs,
     this.artworkBytes,
     this.artworkUri,
+    this.dominantColor,
     required this.timestamp,
   });
 

@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/language_service.dart';
 import '../widgets/animated_search_appbar.dart';
-import '../widgets/assistant_chat_dialog.dart';
 
 /// Servicio persistente para pantallas recientes
 class RecentScreensService {
@@ -535,35 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
         showSearch: false,
         onSearch: (query) {},
         leading: null,
-        actions: [
-          // AI Assistant button
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).primaryColor,
-                    Theme.of(context).primaryColor.withOpacity(0.7),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.smart_toy_outlined,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            tooltip: 'Asistente Musical',
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => const AssistantChatDialog(),
-              );
-            },
-          ),
-        ],
+        actions: [],
       ),
       body: Container(
         color: const Color.fromARGB(255, 34, 34, 34),

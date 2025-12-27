@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -14,6 +15,8 @@ import '../widgets/lazy_music_tile.dart';
 import '../widgets/artwork_container.dart';
 import '../widgets/song_options_bottom_sheet.dart';
 import '../services/music_metadata_cache.dart';
+import '../services/metadata_service.dart';
+import '../widgets/assistant_chat_dialog.dart';
 
 import '../services/playlist_service.dart';
 import '../models/playlist_model.dart';
@@ -32,11 +35,23 @@ class LocalMusicScreen extends StatefulWidget {
 }
 
 class _LocalMusicScreenState extends State<LocalMusicScreen>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   final AudioPlayerService _audioPlayer = AudioPlayerService();
   final LocalMusicStateService _musicState = LocalMusicStateService();
   int _tabIndex = 0; // 0: Library, 1: Playlists
   bool _isGridView = true; // Playlist view mode
+
+  // Búsqueda
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+  String _searchQuery = '';
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
+  // Estado de carga de metadatos
+  String? _loadingMessage;
+  double? _loadingProgress;
+  StreamSubscription? _progressSubscription;
 
   @override
   bool get wantKeepAlive => true; // Mantener estado activo
@@ -57,13 +72,36 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     MusicHistoryService().init().then((_) {
       if (mounted) setState(() {});
     });
+
+    // Escuchar progreso de metadatos
+    _progressSubscription = MetadataService().progressStream.listen((data) {
+      if (mounted) {
+        setState(() {
+          _loadingMessage = data['message'];
+          _loadingProgress = data['progress'];
+        });
+      }
+    });
+
+    // Inicializar animación de búsqueda
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
+    _searchController.dispose();
     _musicState.removeListener(_onMusicStateChanged);
     PlaylistService().removeListener(_onPlaylistServiceChanged);
     MusicLibraryService.onMetadataUpdated.removeListener(_onMetadataUpdated);
+    _progressSubscription?.cancel();
     super.dispose();
   }
 
@@ -145,6 +183,47 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     );
   }
 
+  // Filtrar canciones basado en la búsqueda
+  List<Song> _getFilteredSongs(List<Song> songs) {
+    if (_searchQuery.isEmpty) {
+      return songs;
+    }
+
+    final query = _searchQuery.toLowerCase();
+    return songs.where((song) {
+      return song.title.toLowerCase().contains(query) ||
+          (song.artist.toLowerCase().contains(query)) ||
+          (song.album?.toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
+  // Campo de búsqueda animado
+  Widget _buildSearchField() {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: TextField(
+            controller: _searchController,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+              });
+            },
+            decoration: InputDecoration(
+              hintText: 'Buscar canciones...',
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+              border: InputBorder.none,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Actualizar estado de KeepAlive
@@ -152,10 +231,55 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 34, 34, 34),
       appBar: AppBar(
-        title: const Text('Local Music'),
+        title: _isSearching ? _buildSearchField() : const Text('Local Music'),
         backgroundColor: const Color.fromARGB(255, 34, 34, 34),
         elevation: 0,
         actions: [
+          // Search button
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+                if (_isSearching) {
+                  _animationController.forward();
+                } else {
+                  _animationController.reverse();
+                  _searchController.clear();
+                  _searchQuery = '';
+                }
+              });
+            },
+            tooltip: _isSearching ? 'Cerrar búsqueda' : 'Buscar',
+          ),
+          // AI Assistant button
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).primaryColor,
+                    Theme.of(context).primaryColor.withOpacity(0.7),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.smart_toy_outlined,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            tooltip: 'Asistente Musical',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => const AssistantChatDialog(),
+              );
+            },
+          ),
+          // Folder picker button
           IconButton(
             icon: const Icon(Icons.folder_open),
             onPressed: _pickFolder,
@@ -173,7 +297,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
               }
 
               final visibleSongs = _musicState.librarySongs;
-              final songs = visibleSongs;
+              final songs = _getFilteredSongs(visibleSongs);
 
               if (songs.isEmpty) {
                 return Center(
@@ -239,6 +363,58 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
             },
           ),
 
+          // Indicador de progreso de metadatos
+          if (_loadingMessage != null && _loadingMessage!.isNotEmpty)
+            Positioned(
+              bottom: 80, // Encima del MiniPlayer
+              left: 16,
+              right: 16,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            value: _loadingProgress,
+                            strokeWidth: 2,
+                            color: Theme.of(context).primaryColor,
+                            backgroundColor: Colors.white10,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _loadingMessage!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           // Mini Player Positioned
           const Positioned(
             bottom: 16,
@@ -254,32 +430,61 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   Widget _buildCustomTabBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 56, // Altura fija para evitar desplazamientos
       color: Colors.transparent,
       child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.center, // Alineación vertical fija
         children: [
           _buildTabItem(LanguageService().getText('library'), 0),
-          const SizedBox(width: 20),
+          const SizedBox(width: 12), // Reducido de 20 a 12
           _buildTabItem(LanguageService().getText('playlists'), 1),
           const Spacer(),
           if (_tabIndex == 1) ...[
-            IconButton(
-              icon: Icon(
-                Icons.grid_view,
-                color: _isGridView ? Colors.white : Colors.white24,
+            // Grid view button - estilo pastilla
+            GestureDetector(
+              onTap: () => setState(() => _isGridView = true),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: _isGridView
+                      ? Colors.white.withOpacity(0.2) // Activo
+                      : Colors.white.withOpacity(0.05), // Inactivo
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.grid_view,
+                  color: _isGridView ? Colors.white : Colors.white60,
+                  size: 20,
+                ),
               ),
-              onPressed: () => setState(() => _isGridView = true),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
             ),
-            const SizedBox(width: 16),
-            IconButton(
-              icon: Icon(
-                Icons.view_list,
-                color: !_isGridView ? Colors.white : Colors.white24,
+            const SizedBox(width: 8),
+            // List view button - estilo pastilla
+            GestureDetector(
+              onTap: () => setState(() => _isGridView = false),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: !_isGridView
+                      ? Colors.white.withOpacity(0.2) // Activo
+                      : Colors.white.withOpacity(0.05), // Inactivo
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.view_list,
+                  color: !_isGridView ? Colors.white : Colors.white60,
+                  size: 20,
+                ),
               ),
-              onPressed: () => setState(() => _isGridView = false),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
             ),
           ],
         ],
@@ -291,26 +496,26 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     final isSelected = _tabIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _tabIndex = index),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.white38,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white.withOpacity(0.2) // Más claro cuando está activo
+              : Colors.white.withOpacity(
+                  0.05,
+                ), // Más oscuro cuando no está activo
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          title,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.white60,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            height: 1.0, // Altura de línea fija para consistencia
           ),
-          if (isSelected)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              height: 3,
-              width: 30,
-              color: Colors.purpleAccent,
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -533,7 +738,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
     if (_isGridView) {
       return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: const EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          100,
+        ), // Cambiado de 16 a 0
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           childAspectRatio: 0.75,
@@ -553,7 +763,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
       );
     } else {
       return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(0, 10, 0, 100),
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 100), // Cambiado de 10 a 0
         itemCount: itemCount,
         itemBuilder: (context, index) {
           if (index == 0) {

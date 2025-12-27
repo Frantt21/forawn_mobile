@@ -360,7 +360,7 @@ class AudioPlayerService {
     if (rawSong == null) return;
 
     // Hidratar metadatos desde caché o archivo si es necesario
-    if (rawSong.artworkData == null) {
+    if (rawSong.artworkData == null || rawSong.dominantColor == null) {
       try {
         // 1. Intentar Caché primero
         final cached = await MusicMetadataCache.get(rawSong.id);
@@ -369,9 +369,11 @@ class AudioPlayerService {
             title: cached.title ?? rawSong.title,
             artist: cached.artist ?? rawSong.artist,
             album: cached.album ?? rawSong.album,
-            artworkData: cached.artwork,
+            artworkData: cached.artwork ?? rawSong.artworkData,
+            dominantColor: cached.dominantColor ?? rawSong.dominantColor,
           );
-        } else {
+        } else if (rawSong.artworkData == null) {
+          // Solo cargar de archivo si REALMENTE falta el artwork (evita recarga lenta por solo color)
           // 2. Cargar metadatos del archivo (tags reales)
           String? finalTitle;
           String? finalArtist;

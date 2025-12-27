@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:palette_generator/palette_generator.dart';
 import 'music_metadata_cache.dart';
 import 'saf_helper.dart';
-
-// ... (resto del archivo)
 
 /// Prioridad de carga de metadatos
 enum MetadataPriority {
@@ -62,6 +63,15 @@ class MetadataService {
   // Límite de caché en memoria (100 canciones)
   static const int _maxMemoryCacheSize = 100;
 
+  // Stream para progreso de carga (mensaje, porcentaje 0-1)
+  final _progressController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get progressStream => _progressController.stream;
+
+  void _notifyProgress(String message, double? progress) {
+    _progressController.add({'message': message, 'progress': progress});
+  }
+
   /// Carga metadatos con prioridad y retry
   ///
   /// Parámetros:
@@ -119,7 +129,13 @@ class MetadataService {
         );
 
         if (metadata != null) {
-          // Guardar en caché persistente
+          // Extraer color dominante del artwork (si existe)
+          int? dominantColor;
+          if (metadata.artwork != null) {
+            dominantColor = await _extractDominantColor(metadata.artwork!);
+          }
+
+          // Guardar en caché persistente (incluyendo color)
           await MusicMetadataCache.saveFromMetadata(
             key: id,
             title: metadata.title,
@@ -127,13 +143,23 @@ class MetadataService {
             album: metadata.album,
             durationMs: metadata.durationMs,
             artworkData: metadata.artwork,
-            artworkUri: metadata.artworkUri, // Guardar URI
+            artworkUri: metadata.artworkUri,
+            dominantColor: dominantColor,
           );
 
-          // Guardar en caché de memoria
-          _addToMemoryCache(id, metadata);
+          // Crear metadata con color y guardar en memoria
+          final metadataWithColor = SongMetadata(
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album,
+            durationMs: metadata.durationMs,
+            artwork: metadata.artwork,
+            artworkUri: metadata.artworkUri,
+            dominantColor: dominantColor,
+          );
+          _addToMemoryCache(id, metadataWithColor);
 
-          return metadata;
+          return metadataWithColor;
         }
       } catch (e) {
         print(
@@ -260,6 +286,38 @@ class MetadataService {
     );
   }
 
+  /// Extrae el color dominante del artwork
+  Future<int?> _extractDominantColor(Uint8List artworkBytes) async {
+    try {
+      print(
+        '[MetadataService] Extracting dominant color for image of size: ${artworkBytes.length}',
+      );
+      // Decodificar imagen
+      final codec = await ui.instantiateImageCodec(artworkBytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+
+      // Generar paleta
+      final paletteGenerator = await PaletteGenerator.fromImage(
+        image,
+        maximumColorCount: 16, // Reducido para mejor rendimiento
+      );
+
+      // Obtener color dominante o vibrante
+      final dominantColor =
+          paletteGenerator.dominantColor?.color ??
+          paletteGenerator.vibrantColor?.color;
+
+      print(
+        '[MetadataService] Dominant color extracted: ${dominantColor?.value.toRadixString(16)}',
+      );
+      return dominantColor?.value;
+    } catch (e) {
+      print('[MetadataService] Error extracting dominant color: $e');
+      return null;
+    }
+  }
+
   /// Carga en lote con priorización
   ///
   /// Carga múltiples metadatos de forma eficiente:
@@ -295,11 +353,24 @@ class MetadataService {
 
       results.addAll(batchResults);
 
+      // Notificar progreso
+      final progress = results.length / requests.length;
+      _notifyProgress(
+        'Optimizando experiencia... ${(progress * 100).toInt()}%',
+        progress,
+      );
+
       // Pequeño delay entre lotes para no saturar
       if (i + batchSize < requests.length) {
         await Future.delayed(const Duration(milliseconds: 50));
       }
     }
+
+    _notifyProgress('¡Listo!', 1.0);
+    // Ocultar mensaje después de un tiempo
+    Future.delayed(const Duration(seconds: 2), () {
+      _notifyProgress('', null);
+    });
 
     return results;
   }

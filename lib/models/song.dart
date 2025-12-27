@@ -14,6 +14,7 @@ class Song {
   final int? trackNumber;
   final String? year;
   final String? genre;
+  final int? dominantColor; // Color dominante del artwork (cacheado)
 
   Song({
     required this.id,
@@ -26,6 +27,7 @@ class Song {
     this.trackNumber,
     this.year,
     this.genre,
+    this.dominantColor,
   });
 
   /// Crear Song desde archivo MP3
@@ -66,6 +68,7 @@ class Song {
     'trackNumber': trackNumber,
     'year': year,
     'genre': genre,
+    'dominantColor': dominantColor,
   };
 
   /// Deserializar desde JSON
@@ -82,6 +85,7 @@ class Song {
     trackNumber: json['trackNumber'] as int?,
     year: json['year'] as String?,
     genre: json['genre'] as String?,
+    dominantColor: json['dominantColor'] as int?,
   );
 
   /// Copiar con modificaciones
@@ -96,6 +100,7 @@ class Song {
     int? trackNumber,
     String? year,
     String? genre,
+    int? dominantColor,
   }) => Song(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -107,6 +112,7 @@ class Song {
     trackNumber: trackNumber ?? this.trackNumber,
     year: year ?? this.year,
     genre: genre ?? this.genre,
+    dominantColor: dominantColor ?? this.dominantColor,
   );
 
   @override
