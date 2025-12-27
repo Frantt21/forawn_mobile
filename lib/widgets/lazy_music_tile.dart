@@ -23,16 +23,12 @@ class LazyMusicTile extends StatefulWidget {
   State<LazyMusicTile> createState() => _LazyMusicTileState();
 }
 
-class _LazyMusicTileState extends State<LazyMusicTile>
-    with AutomaticKeepAliveClientMixin {
+class _LazyMusicTileState extends State<LazyMusicTile> {
   String? _title;
   String? _artist;
   Uint8List? _artwork;
   bool _isLoading = false;
   bool _isLoaded = false;
-
-  @override
-  bool get wantKeepAlive => true; // Mantener estado al hacer scroll
 
   @override
   void initState() {
@@ -58,6 +54,18 @@ class _LazyMusicTileState extends State<LazyMusicTile>
 
   Future<void> _loadMetadata() async {
     if (_isLoading || _isLoaded) return;
+
+    // Si el Song ya tiene datos completos, usarlos directamente
+    if (widget.song.artworkData != null) {
+      setState(() {
+        _title = widget.song.title;
+        _artist = widget.song.artist;
+        _artwork = widget.song.artworkData;
+        _isLoaded = true;
+      });
+      return;
+    }
+
     _isLoading = true;
 
     try {
@@ -71,7 +79,7 @@ class _LazyMusicTileState extends State<LazyMusicTile>
         id: cacheKey,
         safUri: isSaf ? uri : null,
         filePath: isSaf ? null : uri,
-        priority: MetadataPriority.high, // Alta prioridad porque es visible
+        priority: MetadataPriority.low, // Baja prioridad para no bloquear
       );
 
       if (metadata != null && mounted) {
@@ -90,8 +98,7 @@ class _LazyMusicTileState extends State<LazyMusicTile>
         });
       }
     } catch (e) {
-      print('[LazyMusicTile] Error loading metadata: $e');
-      // Fallback a datos del Song object
+      // Fallback a datos del Song object sin logging excesivo
       if (mounted) {
         setState(() {
           _title = widget.song.title;
@@ -106,8 +113,6 @@ class _LazyMusicTileState extends State<LazyMusicTile>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
-
     final displayTitle = _title ?? widget.song.title;
     final displayArtist = _artist ?? widget.song.artist;
 

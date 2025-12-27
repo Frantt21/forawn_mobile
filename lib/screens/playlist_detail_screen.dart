@@ -198,14 +198,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             paletteGenerator.vibrantColor?.color ??
             Colors.purple;
 
+        // Oscurecer el color para que no sea tan chillón
+        final darkenedColor = _darkenColor(extractedColor, 0.4);
+
         // Guardar en caché con la clave correcta
         final prefs = await SharedPreferences.getInstance();
         final cacheKey = 'playlist_color_${currentPlaylist.id}';
-        await prefs.setInt(cacheKey, extractedColor.value);
+        await prefs.setInt(cacheKey, darkenedColor.value);
 
         if (mounted) {
           setState(() {
-            _dominantColor = extractedColor;
+            _dominantColor = darkenedColor;
           });
         }
       } else {
@@ -223,6 +226,27 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
         });
       }
     }
+  }
+
+  /// Oscurece un color en el porcentaje especificado (0.0 - 1.0)
+  Color _darkenColor(Color color, double amount) {
+    assert(amount >= 0 && amount <= 1);
+
+    final hsl = HSLColor.fromColor(color);
+    // Reducir la luminosidad
+    final darkened = hsl.withLightness(
+      (hsl.lightness * (1 - amount)).clamp(0.0, 1.0),
+    );
+    return darkened.toColor();
+  }
+
+  /// Calcula si el texto debe ser blanco o negro basado en la luminancia del fondo
+  Color _getTextColor(Color backgroundColor) {
+    // Calcular luminancia relativa (0.0 = negro, 1.0 = blanco)
+    final luminance = backgroundColor.computeLuminance();
+
+    // Si la luminancia es mayor a 0.5, usar texto negro, sino blanco
+    return luminance > 0.5 ? Colors.black : Colors.white;
   }
 
   void _removeSong(Song song) {
@@ -267,7 +291,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     }).toList();
   }
 
-  Widget _buildSearchField() {
+  Widget _buildSearchField(Color textColor) {
     return AnimatedBuilder(
       key: const ValueKey('search'),
       animation: _animationController,
@@ -282,7 +306,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             child: TextField(
               controller: _searchController,
               autofocus: true,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              style: TextStyle(color: textColor, fontSize: 16),
               onChanged: (value) {
                 setState(() {
                   _searchQuery = value;
@@ -291,16 +315,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               decoration: InputDecoration(
                 hintText: LanguageService().getText('search_songs'),
                 hintStyle: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: textColor.withOpacity(0.5),
                   fontSize: 16,
                 ),
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: Colors.white,
-                  size: 20,
-                ),
+                prefixIcon: Icon(Icons.search, color: textColor, size: 20),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.1),
+                fillColor: textColor.withOpacity(0.1),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide.none,
@@ -311,9 +331,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                 ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.clear,
-                          color: Colors.white70,
+                          color: textColor.withOpacity(0.7),
                           size: 20,
                         ),
                         onPressed: () {
@@ -603,6 +623,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     }
 
     final backgroundColor = _dominantColor ?? Colors.purple;
+    final textColor = _getTextColor(backgroundColor);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -610,7 +631,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: AnimatedSwitcher(
@@ -619,7 +640,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             return FadeTransition(opacity: animation, child: child);
           },
           child: _isSearching
-              ? _buildSearchField()
+              ? _buildSearchField(textColor)
               : const SizedBox.shrink(key: ValueKey('empty')),
         ),
         actions: [
@@ -627,7 +648,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
           IconButton(
             icon: Icon(
               _isSearching ? Icons.close : Icons.search,
-              color: Colors.white,
+              color: textColor,
             ),
             onPressed: () {
               setState(() {
@@ -645,7 +666,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
           // Menú de 3 puntos (solo si no está buscando)
           if (!_isSearching)
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
+              icon: Icon(Icons.more_vert, color: textColor),
               color: Colors.grey[900],
               onSelected: (value) {
                 switch (value) {
@@ -811,40 +832,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
       ),
       body: Stack(
         children: [
-          // Background con color dominante
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  backgroundColor.withOpacity(0.8),
-                  backgroundColor.withOpacity(0.4),
-                  Colors.black,
-                ],
-              ),
-            ),
-          ),
-
-          // Blur effect
-          if (coverImage != null)
-            Positioned.fill(
-              child: Image(
-                image: coverImage,
-                fit: BoxFit.cover,
-                opacity: const AlwaysStoppedAnimation(0.15),
-              ),
-            ),
-
-          BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-            child: Container(color: Colors.black.withOpacity(0.3)),
-          ),
+          // Background con color plano - máximo rendimiento
+          Container(color: backgroundColor),
 
           // Content
           CustomScrollView(
             controller: _scrollController,
-            cacheExtent: 3000, // Keep optimization enabled for release
+            cacheExtent: 1500, // Reduced for better memory usage
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
             slivers: [
               // Header con portada, título, descripción y botones
               SliverToBoxAdapter(
@@ -901,8 +898,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                         // Título
                         Text(
                           playlist.name,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: textColor,
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                           ),
@@ -917,7 +914,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                           Text(
                             playlist.description!,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
+                              color: textColor.withOpacity(0.7),
                               fontSize: 15,
                             ),
                             textAlign: TextAlign.center,
@@ -934,7 +931,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             Icon(
                               Icons.music_note,
                               size: 16,
-                              color: Colors.white.withOpacity(0.6),
+                              color: textColor.withOpacity(0.6),
                             ),
                             const SizedBox(width: 6),
                             FutureBuilder<Duration>(
@@ -946,7 +943,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                       ? '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${TextUtils.formatDurationLong(duration)}'
                                       : '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
+                                    color: textColor.withOpacity(0.6),
                                     fontSize: 14,
                                   ),
                                 );
@@ -1098,8 +1095,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                     return SliverPadding(
                       padding: const EdgeInsets.only(bottom: 100),
                       sliver: SliverFixedExtentList(
-                        itemExtent:
-                            72.0, // Fixed height for massive performance boost
+                        itemExtent: 72.0, // Fixed height for performance
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
                             if (index < 0 || index >= filteredSongs.length) {
@@ -1110,79 +1106,118 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             final isPlaying =
                                 _audioPlayer.currentSong?.id == song.id;
 
-                            // No need for RepaintBoundary here if using FixedExtentList and RepaintBoundary inside
-                            return Dismissible(
-                              key: Key("${song.id}_${playlist.id}"),
-                              direction: DismissDirection.endToStart,
-                              background: Container(
-                                color: Colors.red,
-                                alignment: Alignment.centerRight,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                child: const Icon(
-                                  Icons.delete,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              onDismissed: (direction) => _removeSong(song),
-                              child: LazyMusicTile(
-                                key: ValueKey(song.id),
-                                song: song,
-                                isPlaying: isPlaying,
-                                onTap: () {
-                                  _audioPlayer.loadPlaylist(
-                                    songs,
-                                    initialIndex: songs.indexOf(song),
-                                    autoPlay: true,
-                                  );
-                                  Navigator.of(context).push(
-                                    PageRouteBuilder(
-                                      pageBuilder:
-                                          (
-                                            context,
-                                            animation,
-                                            secondaryAnimation,
-                                          ) => const MusicPlayerScreen(),
-                                      transitionsBuilder:
-                                          (
-                                            context,
-                                            animation,
-                                            secondaryAnimation,
-                                            child,
-                                          ) {
-                                            var tween =
-                                                Tween(
-                                                  begin: const Offset(0.0, 1.0),
-                                                  end: Offset.zero,
-                                                ).chain(
-                                                  CurveTween(
-                                                    curve: Curves.easeOutCubic,
-                                                  ),
-                                                );
-                                            return SlideTransition(
-                                              position: animation.drive(tween),
-                                              child: child,
-                                            );
-                                          },
+                            // Wrap in RepaintBoundary for better isolation
+                            return RepaintBoundary(
+                              child: Dismissible(
+                                key: Key("${song.id}_${playlist.id}"),
+                                direction: DismissDirection.endToStart,
+                                confirmDismiss: (direction) async {
+                                  // Show confirmation to avoid accidental deletes
+                                  return await showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      backgroundColor: Colors.grey[900],
+                                      title: const Text(
+                                        'Remove Song',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                      content: Text(
+                                        'Remove "${song.title}" from this playlist?',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, true),
+                                          child: const Text(
+                                            'Remove',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   );
                                 },
-                                onLongPress: () {
-                                  SongOptionsBottomSheet.show(
-                                    context: context,
-                                    song: song,
-                                    options: [SongOption.removeFromPlaylist],
-                                    onRemove: () => _removeSong(song),
-                                  );
-                                },
+                                background: Container(
+                                  color: Colors.red.withOpacity(0.8),
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 20),
+                                  child: const Icon(
+                                    Icons.delete,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                onDismissed: (direction) => _removeSong(song),
+                                child: LazyMusicTile(
+                                  key: ValueKey(song.id),
+                                  song: song,
+                                  isPlaying: isPlaying,
+                                  onTap: () {
+                                    _audioPlayer.loadPlaylist(
+                                      songs,
+                                      initialIndex: songs.indexOf(song),
+                                      autoPlay: true,
+                                    );
+                                    Navigator.of(context).push(
+                                      PageRouteBuilder(
+                                        pageBuilder:
+                                            (
+                                              context,
+                                              animation,
+                                              secondaryAnimation,
+                                            ) => const MusicPlayerScreen(),
+                                        transitionsBuilder:
+                                            (
+                                              context,
+                                              animation,
+                                              secondaryAnimation,
+                                              child,
+                                            ) {
+                                              return SlideTransition(
+                                                position:
+                                                    Tween(
+                                                      begin: const Offset(
+                                                        0.0,
+                                                        1.0,
+                                                      ),
+                                                      end: Offset.zero,
+                                                    ).animate(
+                                                      CurvedAnimation(
+                                                        parent: animation,
+                                                        curve:
+                                                            Curves.easeOutCubic,
+                                                      ),
+                                                    ),
+                                                child: child,
+                                              );
+                                            },
+                                      ),
+                                    );
+                                  },
+                                  onLongPress: () {
+                                    SongOptionsBottomSheet.show(
+                                      context: context,
+                                      song: song,
+                                      options: [SongOption.removeFromPlaylist],
+                                      onRemove: () => _removeSong(song),
+                                    );
+                                  },
+                                ),
                               ),
                             );
                           },
                           childCount: filteredSongs.length,
                           addRepaintBoundaries:
-                              true, // Re-enable auto boundaries
-                          addAutomaticKeepAlives: true,
+                              false, // We're adding them manually
+                          addAutomaticKeepAlives:
+                              false, // Disable for better performance
                         ),
                       ),
                     );
