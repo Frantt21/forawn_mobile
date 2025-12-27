@@ -16,6 +16,8 @@ class MiniPlayer extends StatelessWidget {
 
     return StreamBuilder<Song?>(
       stream: player.currentSongStream,
+      initialData: player
+          .currentSong, // Use current song as initial data to prevent flash
       builder: (context, snapshot) {
         final song = snapshot.data;
 

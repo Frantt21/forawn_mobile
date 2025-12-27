@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../services/groq_assistant_service.dart';
+import '../services/language_service.dart';
 
 class AssistantChatDialog extends StatefulWidget {
   const AssistantChatDialog({super.key});
@@ -18,20 +21,52 @@ class _AssistantChatDialogState extends State<AssistantChatDialog> {
   @override
   void initState() {
     super.initState();
+    _loadHistory();
+  }
 
-    // Mensaje de bienvenida
-    _messages.add(
-      ChatMessage(
-        text:
-            '¡Hola! 👋 Soy tu asistente musical.\n\n'
-            'Puedo ayudarte a:\n'
-            '• Crear playlists personalizadas\n'
-            '• Buscar canciones en tu biblioteca\n'
-            '• Recomendar música\n\n'
-            '¿Qué te gustaría hacer?',
-        isUser: false,
-      ),
-    );
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final historyJson = prefs.getStringList('assistant_chat_history');
+
+    if (historyJson != null && historyJson.isNotEmpty) {
+      // Cargar historial existente
+      setState(() {
+        _messages.addAll(
+          historyJson
+              .map((json) => ChatMessage.fromJson(jsonDecode(json)))
+              .toList(),
+        );
+      });
+    } else {
+      // Mensaje de bienvenida basado en idioma
+      final currentLanguage = LanguageService().currentLanguage;
+      final welcomeMessage = currentLanguage == 'es'
+          ? '¡Hola! 👋 Soy tu asistente musical.\n\n'
+                'Puedo ayudarte a:\n'
+                '• Crear playlists personalizadas\n'
+                '• Buscar canciones en tu biblioteca\n'
+                '• Recomendar música\n\n'
+                '¿Qué te gustaría hacer?'
+          : 'Hello! 👋 I\'m your music assistant.\n\n'
+                'I can help you:\n'
+                '• Create personalized playlists\n'
+                '• Search songs in your library\n'
+                '• Recommend music\n\n'
+                'What would you like to do?';
+
+      setState(() {
+        _messages.add(ChatMessage(text: welcomeMessage, isUser: false));
+      });
+      await _saveHistory();
+    }
+  }
+
+  Future<void> _saveHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final historyJson = _messages
+        .map((msg) => jsonEncode(msg.toJson()))
+        .toList();
+    await prefs.setStringList('assistant_chat_history', historyJson);
   }
 
   Future<void> _sendMessage() async {
@@ -45,6 +80,7 @@ class _AssistantChatDialogState extends State<AssistantChatDialog> {
     });
 
     _scrollToBottom();
+    await _saveHistory(); // Guardar después de agregar mensaje del usuario
 
     try {
       final response = await _assistant.sendMessage(text);
@@ -55,16 +91,18 @@ class _AssistantChatDialogState extends State<AssistantChatDialog> {
       });
 
       _scrollToBottom();
+      await _saveHistory(); // Guardar después de agregar respuesta
     } catch (e) {
+      final currentLanguage = LanguageService().currentLanguage;
+      final errorMessage = currentLanguage == 'es'
+          ? 'Error: No pude procesar tu mensaje. Intenta de nuevo.'
+          : 'Error: I couldn\'t process your message. Please try again.';
+
       setState(() {
-        _messages.add(
-          ChatMessage(
-            text: 'Error: No pude procesar tu mensaje. Intenta de nuevo.',
-            isUser: false,
-          ),
-        );
+        _messages.add(ChatMessage(text: errorMessage, isUser: false));
         _isLoading = false;
       });
+      await _saveHistory();
     }
   }
 
@@ -83,6 +121,7 @@ class _AssistantChatDialogState extends State<AssistantChatDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final currentLanguage = LanguageService().currentLanguage;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -134,21 +173,23 @@ class _AssistantChatDialogState extends State<AssistantChatDialog> {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Asistente Musical',
-                          style: TextStyle(
+                          currentLanguage == 'es'
+                              ? 'Asistente Musical'
+                              : 'Music Assistant',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 19,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.3,
                           ),
                         ),
-                        SizedBox(height: 2),
-                        Text(
+                        const SizedBox(height: 2),
+                        const Text(
                           'Powered by Groq AI',
                           style: TextStyle(
                             color: Colors.white70,
@@ -222,9 +263,11 @@ class _AssistantChatDialogState extends State<AssistantChatDialog> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          const Text(
-                            'Pensando...',
-                            style: TextStyle(
+                          Text(
+                            currentLanguage == 'es'
+                                ? 'Pensando...'
+                                : 'Thinking...',
+                            style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 14,
                             ),
@@ -265,7 +308,9 @@ class _AssistantChatDialogState extends State<AssistantChatDialog> {
                           fontSize: 15,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Escribe tu mensaje...',
+                          hintText: currentLanguage == 'es'
+                              ? 'Escribe tu mensaje...'
+                              : 'Type your message...',
                           hintStyle: TextStyle(
                             color: Colors.white.withOpacity(0.4),
                             fontSize: 15,
@@ -453,4 +498,11 @@ class ChatMessage {
   final bool isUser;
 
   ChatMessage({required this.text, required this.isUser});
+
+  // Serialización para guardar en SharedPreferences
+  Map<String, dynamic> toJson() => {'text': text, 'isUser': isUser};
+
+  // Deserialización para cargar desde SharedPreferences
+  factory ChatMessage.fromJson(Map<String, dynamic> json) =>
+      ChatMessage(text: json['text'] as String, isUser: json['isUser'] as bool);
 }

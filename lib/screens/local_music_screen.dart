@@ -24,6 +24,7 @@ import '../models/song.dart';
 import '../utils/text_utils.dart';
 import 'playlist_detail_screen.dart';
 import 'music_player_screen.dart';
+import '../widgets/local_music_home.dart';
 
 class LocalMusicScreen extends StatefulWidget {
   final String searchQuery;
@@ -74,15 +75,27 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
       if (mounted) setState(() {});
     });
 
-    // Escuchar progreso de metadatos
-    _progressSubscription = MetadataService().progressStream.listen((data) {
+    // Escuchar progreso de metadatos - DESACTIVADO (no necesario)
+    /* _progressSubscription = MetadataService().progressStream.listen((data) {
       if (mounted) {
         setState(() {
           _loadingMessage = data['message'];
           _loadingProgress = data['progress'];
         });
+
+        // Si el progreso está completo (1.0), ocultar el mensaje después de 1 segundo
+        if (data['progress'] == 1.0) {
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) {
+              setState(() {
+                _loadingMessage = null;
+                _loadingProgress = null;
+              });
+            }
+          });
+        }
       }
-    });
+    }); */
 
     // Escuchar servicio de historial directamente
     // Escuchar servicio de historial directamente
@@ -110,6 +123,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     MusicLibraryService.onMetadataUpdated.removeListener(_onMetadataUpdated);
     _progressSubscription?.cancel();
     _songSubscription?.cancel();
+    // Clear loading message on dispose
+    _loadingMessage = null;
+    _loadingProgress = null;
     super.dispose();
   }
 
@@ -361,11 +377,43 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                     child: IndexedStack(
                       index: _tabIndex,
                       children: [
+                        // Index 0: Home (Recientes + Playlists)
+                        LocalMusicHome(
+                          onSongTap: (song) {
+                            final history = MusicHistoryService().history
+                                .take(10)
+                                .toList();
+                            final index = history.indexWhere(
+                              (s) => s.id == song.id,
+                            );
+                            if (index != -1) {
+                              _audioPlayer.loadPlaylist(
+                                history,
+                                initialIndex: index,
+                              );
+                            } else {
+                              _audioPlayer.loadPlaylist([song]);
+                            }
+                          },
+                          onCreatePlaylist: () =>
+                              _showCreatePlaylistDialog(context),
+                          onPlaylistTap: (playlist) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    PlaylistDetailScreen(playlist: playlist),
+                              ),
+                            );
+                          },
+                        ),
+                        // Index 1: Library (Todas las canciones)
                         _buildSongList(
                           songs,
-                          showHistory: true,
-                          showLibraryHeader: true,
+                          showHistory: false,
+                          showLibraryHeader: false,
                         ),
+                        // Index 2: Playlists
                         _buildPlaylistsView(),
                       ],
                     ),
@@ -441,18 +489,20 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
   Widget _buildCustomTabBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       height: 56, // Altura fija para evitar desplazamientos
       color: Colors.transparent,
       child: Row(
         crossAxisAlignment:
             CrossAxisAlignment.center, // Alineación vertical fija
         children: [
-          _buildTabItem(LanguageService().getText('library'), 0),
-          const SizedBox(width: 12), // Reducido de 20 a 12
-          _buildTabItem(LanguageService().getText('playlists'), 1),
+          _buildTabItem(LanguageService().getText('home'), 0), // Home tab
+          const SizedBox(width: 8),
+          _buildTabItem(LanguageService().getText('library'), 1),
+          const SizedBox(width: 8),
+          _buildTabItem(LanguageService().getText('playlists'), 2),
           const Spacer(),
-          if (_tabIndex == 1) ...[
+          if (_tabIndex == 2) ...[
             // Grid view button - estilo pastilla
             GestureDetector(
               onTap: () => setState(() => _isGridView = true),

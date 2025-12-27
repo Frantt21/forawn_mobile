@@ -252,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.library_music,
-                  title: 'Local Music',
+                  title: LanguageService().getText('local_music'),
                   color: Colors.purpleAccent,
                   onTap: () => Navigator.pushNamed(context, '/local-music'),
                 ),

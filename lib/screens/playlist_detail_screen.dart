@@ -35,6 +35,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
   // Estado local para manejar favoritos (que no están en PlaylistService._playlists)
   late List<Song> _virtualSongs;
+  String? _lastImagePath; // Track last image path to detect real changes
 
   // Búsqueda
   final TextEditingController _searchController = TextEditingController();
@@ -47,6 +48,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
   void initState() {
     super.initState();
     _virtualSongs = widget.playlist.songs;
+    _lastImagePath = widget.playlist.imagePath; // Initialize with current image
     PlaylistService().addListener(_onPlaylistChanged);
     _loadCachedColorOrExtract();
     _scrollController.addListener(_onScroll);
@@ -110,7 +112,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     if (mounted) {
       // Detectar si cambió la imagen de la playlist
       final updatedPlaylist = _currentPlaylist;
-      if (updatedPlaylist.imagePath != widget.playlist.imagePath) {
+      // Only reload color if image path actually changed
+      if (updatedPlaylist.imagePath != _lastImagePath) {
+        _lastImagePath = updatedPlaylist.imagePath;
         // La imagen cambió, recalcular color dominante
         _loadCachedColorOrExtract();
       }
