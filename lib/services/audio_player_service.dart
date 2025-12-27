@@ -308,6 +308,9 @@ class AudioPlayerService {
         // Fin de playlist
         await stop();
       }
+
+      // Pequeño delay para evitar skips muy rápidos
+      await Future.delayed(const Duration(milliseconds: 300));
     } finally {
       _isSkipping = false;
     }
@@ -336,6 +339,9 @@ class AudioPlayerService {
         // Al principio de playlist, parar o reiniciar
         await seek(Duration.zero);
       }
+
+      // Pequeño delay para evitar skips muy rápidos
+      await Future.delayed(const Duration(milliseconds: 300));
     } finally {
       _isSkipping = false;
     }

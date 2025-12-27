@@ -12,6 +12,7 @@ class SongMetadata {
   final String? album;
   final int? durationMs;
   final Uint8List? artwork;
+  final String? artworkUri; // URI content:// de Android
 
   SongMetadata({
     required this.title,
@@ -19,6 +20,7 @@ class SongMetadata {
     this.album,
     this.durationMs,
     this.artwork,
+    this.artworkUri,
   });
 }
 
@@ -76,6 +78,7 @@ class MusicMetadataCache {
           album: data['album'],
           durationMs: data['duration'],
           artworkBytes: artworkBytes,
+          artworkUri: data['artworkUri'], // Cargar URI
           timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
         );
 
@@ -106,6 +109,7 @@ class MusicMetadataCache {
       album: cached.album,
       durationMs: cached.durationMs,
       artwork: cached.artworkBytes,
+      artworkUri: cached.artworkUri,
     );
   }
 
@@ -143,22 +147,24 @@ class MusicMetadataCache {
     String? album,
     int? durationMs,
     Uint8List? artworkData,
+    String? artworkUri,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
 
-      // 1. Guardar Texto en SharedPrefs
+      // 1. Guardar Texto + URI en SharedPrefs
       final data = {
         'title': title,
         'artist': artist,
         'album': album,
         'duration': durationMs,
+        'artworkUri': artworkUri, // Guardar URI
         'timestamp': timestamp,
       };
       await prefs.setString('meta_txt_$key', json.encode(data));
 
-      // 2. Guardar Imagen en Disco (FileSystem)
+      // 2. Guardar Imagen en Disco (FileSystem) (Solo si tenemos bytes binarios, si tenemos URI, ¿necesitamos bytes? Quizás como fallback)
       Uint8List? finalArtBytes;
       if (artworkData != null) {
         final compressed = _compressArtwork(artworkData);
@@ -176,6 +182,7 @@ class MusicMetadataCache {
         album: album,
         durationMs: durationMs,
         artworkBytes: finalArtBytes,
+        artworkUri: artworkUri,
         timestamp: timestamp,
       );
     } catch (e) {
@@ -214,6 +221,7 @@ class _CachedMetadata {
   final String? album;
   final int? durationMs;
   final Uint8List? artworkBytes; // RAW bytes, no base64 string
+  final String? artworkUri; // URI content://
   final int timestamp; // Timestamp de cuando se guardó
 
   _CachedMetadata({
@@ -222,6 +230,7 @@ class _CachedMetadata {
     this.album,
     this.durationMs,
     this.artworkBytes,
+    this.artworkUri,
     required this.timestamp,
   });
 

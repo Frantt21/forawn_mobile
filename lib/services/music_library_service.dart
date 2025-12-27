@@ -2,10 +2,11 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // Necesario para ValueNotifier
 import 'package:permission_handler/permission_handler.dart';
-import 'dart:typed_data'; // Para Uint8List
+
 import '../models/song.dart';
 import '../services/saf_helper.dart';
 import '../services/music_metadata_cache.dart';
+import '../services/metadata_service.dart';
 
 class MusicLibraryService {
   /// Notificador para actualizar UI cuando se cargan metadatos en background
@@ -160,49 +161,28 @@ class MusicLibraryService {
       final end = (i + batchSize < songs.length) ? i + batchSize : songs.length;
       final batch = songs.sublist(i, end);
 
-      // Cargar lote en paralelo
+      // Cargar lote en paralelo usando MetadataService
       await Future.wait(
         batch.map((song) async {
           try {
             final uri = song.filePath;
             final cacheKey = uri.hashCode.toString();
+            final isSaf = uri.startsWith('content://');
 
-            // Verificar caché primero
-            final cached = await MusicMetadataCache.get(cacheKey);
+            // Usar MetadataService que maneja MediaStore + caché automáticamente
+            final metadata = await MetadataService().loadMetadata(
+              id: cacheKey,
+              safUri: isSaf ? uri : null,
+              filePath: isSaf ? null : uri,
+              priority: MetadataPriority.low, // Baja prioridad en background
+            );
 
-            if (cached != null) {
-              return; // Ya está en caché
-            }
-
-            // Cargar desde Android y guardar en caché
-            final metadata = await SafHelper.getMetadataFromUri(uri);
             if (metadata != null) {
-              // Usar metadatos REALES del archivo, con fallback al nombre de archivo
-              final realTitle = (metadata['title'] as String?)?.trim();
-              final realArtist = (metadata['artist'] as String?)?.trim();
-
-              // Usar metadatos reales si existen y no están vacíos
-              final finalTitle = (realTitle != null && realTitle.isNotEmpty)
-                  ? realTitle
-                  : song.title;
-              final finalArtist = (realArtist != null && realArtist.isNotEmpty)
-                  ? realArtist
-                  : song.artist;
-
-              await MusicMetadataCache.saveFromMetadata(
-                key: cacheKey,
-                title: finalTitle,
-                artist: finalArtist,
-                album: metadata['album'] as String?,
-                durationMs: metadata['duration'] as int?,
-                artworkData: metadata['artworkData'] as Uint8List?,
-              );
-
               // 🔔 Notificar a la UI que esta canción tiene datos nuevos
               onMetadataUpdated.value = uri;
 
               print(
-                '[MusicLibrary] ✓ Cached metadata for: $finalTitle - $finalArtist',
+                '[MusicLibrary] ✓ Cached metadata for: ${metadata.title} - ${metadata.artist}',
               );
             }
           } catch (e) {

@@ -70,4 +70,39 @@ class SafHelper {
       return null;
     }
   }
+
+  // Nuevo: Obtener metadatos desde MediaStore (más rápido)
+  static Future<Map<String, dynamic>?> getMetadataFromMediaStore(
+    String filePath,
+  ) async {
+    try {
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getMetadataFromMediaStore',
+        {'filePath': filePath},
+      );
+      if (result == null) return null;
+      return Map<String, dynamic>.from(result);
+    } catch (e) {
+      // Ignorar errores, simplemente retornará null y usará fallback
+      print('getMetadataFromMediaStore error: $e');
+      return null;
+    }
+  }
+
+  // Nuevo: leer bytes de un archivo SAF/Content URI
+  static Future<Uint8List?> readBytesFromUri(
+    String uri, {
+    int maxBytes = 512 * 1024,
+  }) async {
+    try {
+      final Uint8List? bytes = await _channel.invokeMethod<Uint8List>(
+        'readBytesFromUri',
+        {'uri': uri, 'maxBytes': maxBytes},
+      );
+      return bytes;
+    } catch (e) {
+      print('readBytesFromUri error: $e');
+      return null;
+    }
+  }
 }

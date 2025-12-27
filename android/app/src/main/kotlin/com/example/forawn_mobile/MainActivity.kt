@@ -146,6 +146,21 @@ class MainActivity : AudioServiceActivity() {
           }
         }
 
+  // Nuevo: Obtener metadatos desde MediaStore (más rápido y robusto para artworks)
+  "getMetadataFromMediaStore" -> {
+    val filePath = call.argument<String>("filePath")
+    if (filePath == null) {
+      result.error("INVALID_ARGS", "filePath is null", null)
+      return@setMethodCallHandler
+    }
+    try {
+      val metadata = getMetadataFromMediaStore(filePath)
+      result.success(metadata)
+    } catch (e: Exception) {
+      result.error("MEDIASTORE_ERROR", e.message, null)
+    }
+  }
+
         else -> {
           result.notImplemented()
         }
@@ -153,11 +168,11 @@ class MainActivity : AudioServiceActivity() {
     }
   }
 
-  // --- SAF and helper implementations ---
-
   private fun openDirectoryPicker() {
     val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
     startActivityForResult(intent, PICK_DIR_REQUEST)
   }
 
@@ -165,112 +180,160 @@ class MainActivity : AudioServiceActivity() {
     super.onActivityResult(requestCode, resultCode, data)
     if (requestCode == PICK_DIR_REQUEST) {
       if (resultCode == Activity.RESULT_OK && data != null) {
-        val treeUri = data.data
-        if (treeUri != null) {
+        val uri = data.data
+        if (uri != null) {
           contentResolver.takePersistableUriPermission(
-            treeUri,
+            uri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
           )
-          pendingResult?.success(treeUri.toString())
+          pendingResult?.success(uri.toString())
         } else {
-          pendingResult?.success(null)
+          pendingResult?.error("URI_NULL", "Uri is null", null)
         }
       } else {
-        pendingResult?.success(null)
+        pendingResult?.error("CANCELED", "User canceled", null)
       }
       pendingResult = null
     }
   }
 
-  private fun listFilesFromTree(treeUri: Uri): List<Map<String, String>> {
-    val doc = DocumentFile.fromTreeUri(this, treeUri) ?: throw Exception("Invalid treeUri")
-    val children = doc.listFiles()
-    val out = ArrayList<Map<String, String>>()
-    for (child in children) {
-      val name = child.name ?: continue
-      val uri = child.uri.toString()
-      out.add(mapOf("name" to name, "uri" to uri))
+  private fun listFilesFromTree(treeUri: Uri): List<Map<String, Any>> {
+    val resultList = mutableListOf<Map<String, Any>>()
+    val dir = DocumentFile.fromTreeUri(this, treeUri)
+    if (dir != null && dir.canRead()) {
+      val files = dir.listFiles()
+      for (file in files) {
+        if (!file.isDirectory && file.name?.endsWith(".mp3", ignoreCase = true) == true) {
+            val fileMap = mapOf(
+                "uri" to file.uri.toString(),
+                "name" to (file.name ?: "unknown"),
+                "size" to file.length()
+            )
+            resultList.add(fileMap)
+        }
+      }
     }
-    return out
+    return resultList
   }
 
-  private fun saveFileToTree(treeUri: Uri, tempPath: String, fileName: String): Uri? {
-    val treeDoc = DocumentFile.fromTreeUri(this, treeUri) ?: throw Exception("Invalid treeUri")
-    treeDoc.findFile(fileName)?.delete()
-    val newFile = treeDoc.createFile("application/octet-stream", fileName) ?: throw Exception("Cannot create file")
-    val outUri = newFile.uri
-    val input = FileInputStream(File(tempPath))
-    val output: OutputStream? = contentResolver.openOutputStream(outUri)
-    output?.use { outStream ->
-      val buffer = ByteArray(8192)
-      var read: Int
-      while (input.read(buffer).also { read = it } != -1) {
-        outStream.write(buffer, 0, read)
+  private fun saveFileToTree(treeUri: Uri, tempFilePath: String, fileName: String): Uri? {
+      val dir = DocumentFile.fromTreeUri(this, treeUri) ?: return null
+      val newFile = dir.createFile("audio/mpeg", fileName) ?: return null
+      
+      try {
+          val inputStream = FileInputStream(File(tempFilePath))
+          val outputStream = contentResolver.openOutputStream(newFile.uri)
+          if (outputStream != null) {
+              inputStream.use { input ->
+                  outputStream.use { output ->
+                      input.copyTo(output)
+                  }
+              }
+              return newFile.uri
+          }
+      } catch (e: Exception) {
+          e.printStackTrace()
+          newFile.delete()
+          throw e
       }
-      outStream.flush()
-    }
-    input.close()
-    return outUri
+      return null
   }
 
   private fun openSafFile(uri: Uri): Boolean {
-    return try {
-      val intent = Intent(Intent.ACTION_VIEW)
-      intent.setDataAndType(uri, contentResolver.getType(uri))
-      intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-      startActivity(intent)
-      true
-    } catch (e: ActivityNotFoundException) {
-      false
-    }
+      return try {
+          val intent = Intent(Intent.ACTION_VIEW)
+          intent.setDataAndType(uri, "audio/*")
+          intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          startActivity(intent)
+          true
+      } catch (e: Exception) {
+          false
+      }
   }
 
   private fun deleteSafFile(uri: Uri): Boolean {
-    return try {
-      DocumentFile.fromSingleUri(this, uri)?.delete() ?: false
-    } catch (e: Exception) {
-      false
-    }
+      return try {
+          val file = DocumentFile.fromSingleUri(this, uri)
+          file?.delete() ?: false
+      } catch (e: Exception) {
+          false
+      }
   }
 
   private fun readBytesFromUri(uri: Uri, maxBytes: Int): ByteArray? {
-    return try {
-      contentResolver.openInputStream(uri)?.use { inputStream ->
-        val buffer = ByteArray(maxBytes)
-        val bytesRead = inputStream.read(buffer)
-        if (bytesRead == -1) {
+      return try {
+          contentResolver.openInputStream(uri)?.use { inputStream ->
+              val buffer = ByteArray(maxBytes)
+              val bytesRead = inputStream.read(buffer)
+              if (bytesRead > 0) {
+                  buffer.copyOf(bytesRead)
+              } else {
+                  null
+              }
+          }
+      } catch (e: Exception) {
+          e.printStackTrace()
           null
-        } else {
-          buffer.copyOf(bytesRead)
-        }
       }
-    } catch (e: Exception) {
-      e.printStackTrace()
-      null
-    }
   }
 
   private fun getFreeSpace(): Long {
-    val path = Environment.getDataDirectory()
-    val stat = StatFs(path.path)
-    val blockSize = stat.blockSizeLong
-    val availableBlocks = stat.availableBlocksLong
-    return availableBlocks * blockSize
+      val stat = StatFs(Environment.getDataDirectory().path)
+      return stat.availableBlocksLong * stat.blockSizeLong
   }
 
   private fun shareSafFile(uri: Uri, mimeType: String, subject: String): Boolean {
-    return try {
-      val shareIntent = Intent(Intent.ACTION_SEND)
-      shareIntent.type = mimeType
-      shareIntent.putExtra(Intent.EXTRA_STREAM, uri)
-      if (subject.isNotEmpty()) shareIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
-      shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-      val chooser = Intent.createChooser(shareIntent, null)
-      startActivity(chooser)
-      true
-    } catch (e: Exception) {
-      false
-    }
+      return try {
+          val shareIntent = Intent(Intent.ACTION_SEND)
+          shareIntent.type = mimeType
+          shareIntent.putExtra(Intent.EXTRA_STREAM, uri)
+          shareIntent.putExtra(Intent.EXTRA_SUBJECT, subject)
+          shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          startActivity(Intent.createChooser(shareIntent, "Share Song"))
+          true
+      } catch (e: Exception) {
+          false
+      }
+  }
+  
+  private fun getMetadataFromMediaStore(filePath: String): Map<String, Any?>? {
+      val projection = arrayOf(
+          android.provider.MediaStore.Audio.Media._ID,
+          android.provider.MediaStore.Audio.Media.TITLE,
+          android.provider.MediaStore.Audio.Media.ARTIST,
+          android.provider.MediaStore.Audio.Media.ALBUM,
+          android.provider.MediaStore.Audio.Media.DURATION,
+          android.provider.MediaStore.Audio.Media.ALBUM_ID
+      )
+      val selection = "${android.provider.MediaStore.Audio.Media.DATA} = ?"
+      val selectionArgs = arrayOf(filePath)
+
+      contentResolver.query(
+          android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+          projection,
+          selection,
+          selectionArgs,
+          null
+      )?.use { cursor ->
+          if (cursor.moveToFirst()) {
+              val title = cursor.getString(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.TITLE))
+              val artist = cursor.getString(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.ARTIST))
+              val album = cursor.getString(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.ALBUM))
+              val duration = cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.DURATION))
+              val albumId = cursor.getLong(cursor.getColumnIndexOrThrow(android.provider.MediaStore.Audio.Media.ALBUM_ID))
+
+              val artworkUri = "content://media/external/audio/albumart/$albumId"
+
+              return mapOf(
+                  "title" to title,
+                  "artist" to artist,
+                  "album" to album,
+                  "duration" to duration,
+                  "artworkUri" to artworkUri
+              )
+          }
+      }
+      return null
   }
 
   private fun getMetadataFromUri(uri: Uri): Map<String, Any?> {

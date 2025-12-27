@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/version_check_service.dart';
 import '../services/language_service.dart';
-import '../services/music_metadata_cache.dart';
+
 import '../services/metadata_service.dart';
 import '../services/lyrics_service.dart';
 

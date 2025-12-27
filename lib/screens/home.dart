@@ -5,13 +5,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'foraai_screen.dart';
+
 import 'settings_screen.dart';
 import 'notifications_screen.dart';
 import 'local_music_screen.dart';
 import '../services/language_service.dart';
 import '../services/saf_helper.dart';
 import '../widgets/animated_search_appbar.dart';
+import '../widgets/assistant_chat_dialog.dart';
 
 /// Servicio persistente para pantallas recientes
 class RecentScreensService {
@@ -175,8 +176,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final RecentScreensService _recentScreensService = RecentScreensService();
-  final GlobalKey<ForaaiScreenState> _foraaiKey =
-      GlobalKey<ForaaiScreenState>();
   final GlobalKey<NotificationsScreenState> _notificationsKey =
       GlobalKey<NotificationsScreenState>();
   int _selectedIndex = 0;
@@ -547,12 +546,10 @@ class _HomeScreenState extends State<HomeScreen> {
         title: _selectedIndex == 1
             ? 'Local Music'
             : (_selectedIndex == 2
-                  ? LanguageService().getText('foraai')
+                  ? LanguageService().getText('notifications')
                   : (_selectedIndex == 3
-                        ? LanguageService().getText('notifications')
-                        : (_selectedIndex == 4
-                              ? LanguageService().getText('settings')
-                              : LanguageService().getText('app_name')))),
+                        ? LanguageService().getText('settings')
+                        : LanguageService().getText('app_name'))),
         isScrolled: _isScrolled,
         showSearch: _selectedIndex == 1, // Solo en Local Music
         onSearch: (query) {
@@ -560,14 +557,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _searchQuery = query.toLowerCase();
           });
         },
-        leading: _selectedIndex == 2
-            ? IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () {
-                  _foraaiKey.currentState?.toggleSidebar();
-                },
-              )
-            : null,
+        leading: null,
         actions: [
           if (_selectedIndex == 1)
             IconButton(
@@ -582,7 +572,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               tooltip: 'Seleccionar Carpeta',
             ),
-          if (_selectedIndex == 3 &&
+          if (_selectedIndex == 2 &&
               _notificationsKey.currentState?.hasNotifications == true)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
@@ -591,6 +581,36 @@ class _HomeScreenState extends State<HomeScreen> {
                 _notificationsKey.currentState?.clearAllFromAppBar();
               },
             ),
+          // AI Assistant button (available on all screens)
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).primaryColor,
+                    Theme.of(context).primaryColor.withOpacity(0.7),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.smart_toy_outlined,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            tooltip: 'Asistente Musical',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => const AssistantChatDialog(
+                  availableSongs:
+                      [], // TODO: Pasar canciones de LocalMusicScreen
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: Container(
@@ -627,9 +647,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       RepaintBoundary(
                         child: LocalMusicScreen(searchQuery: _searchQuery),
                       ),
-                      RepaintBoundary(
-                        child: ForaaiScreen(key: _foraaiKey),
-                      ), // ForaAI
+
                       RepaintBoundary(
                         child: NotificationsScreen(key: _notificationsKey),
                       ),
@@ -705,16 +723,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                   accentColor,
                                 ), // Local Music
                                 _buildNavItem(
-                                  Icons.smart_toy,
+                                  Icons.notifications_outlined,
                                   2,
                                   accentColor,
-                                ), // ForaAI
+                                ), // Notifications
                                 _buildNavItem(
-                                  Icons.notifications_outlined,
+                                  Icons.settings,
                                   3,
                                   accentColor,
-                                ),
-                                _buildNavItem(Icons.settings, 4, accentColor),
+                                ), // Settings
                               ],
                             ),
                           ),

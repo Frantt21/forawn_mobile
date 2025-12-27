@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'music_metadata_cache.dart';
 import 'saf_helper.dart';
+
+// ... (resto del archivo)
 
 /// Prioridad de carga de metadatos
 enum MetadataPriority {
@@ -102,6 +103,7 @@ class MetadataService {
   }
 
   /// Carga con retry logic
+
   Future<SongMetadata?> _loadWithRetry({
     required String id,
     String? filePath,
@@ -125,6 +127,7 @@ class MetadataService {
             album: metadata.album,
             durationMs: metadata.durationMs,
             artworkData: metadata.artwork,
+            artworkUri: metadata.artworkUri, // Guardar URI
           );
 
           // Guardar en caché de memoria
@@ -154,60 +157,107 @@ class MetadataService {
     String? filePath,
     String? safUri,
   }) async {
+    print('[MetadataService] Loading from: filePath=$filePath, safUri=$safUri');
+
     if (safUri != null) {
       // Cargar desde SAF
+      print('[MetadataService] Using SAF path: $safUri');
       final metadata = await SafHelper.getMetadataFromUri(safUri);
       if (metadata != null) {
-        return _convertMapToMetadata(metadata);
+        final result = _convertMapToMetadata(metadata);
+        print(
+          '[MetadataService] SAF metadata loaded, has artwork: ${result.artwork != null}',
+        );
+        return result;
       }
     } else if (filePath != null) {
-      // Cargar desde archivo local
+      // Intentar primero con MediaStore (Mucho más rápido)
+      print('[MetadataService] Trying MediaStore for: $filePath');
+      final mediaStoreData = await SafHelper.getMetadataFromMediaStore(
+        filePath,
+      );
+      if (mediaStoreData != null) {
+        // Encontrado en MediaStore!
+        print('[MetadataService] MediaStore found data');
+        var metadata = _convertMapToMetadata(mediaStoreData);
+        print(
+          '[MetadataService] Has artworkUri: ${metadata.artworkUri}, has artwork bytes: ${metadata.artwork != null}',
+        );
+
+        // Si tenemos URI pero no bytes, cargar los bytes del thumbnail
+        if (metadata.artwork == null && metadata.artworkUri != null) {
+          print(
+            '[MetadataService] Loading artwork bytes from URI: ${metadata.artworkUri}',
+          );
+          try {
+            final bytes = await SafHelper.readBytesFromUri(
+              metadata.artworkUri!,
+              maxBytes: 200 * 1024, // Thumbnail
+            );
+            print(
+              '[MetadataService] Loaded ${bytes?.length ?? 0} bytes of artwork',
+            );
+            if (bytes != null && bytes.isNotEmpty) {
+              metadata = SongMetadata(
+                title: metadata.title,
+                artist: metadata.artist,
+                album: metadata.album,
+                durationMs: metadata.durationMs,
+                artwork: bytes,
+                artworkUri: metadata.artworkUri,
+              );
+              print('[MetadataService] ✓ Artwork loaded successfully');
+            } else {
+              print('[MetadataService] ✗ No artwork bytes received');
+            }
+          } catch (e) {
+            print('[MetadataService] ✗ Error loading art bytes: $e');
+          }
+        }
+        return metadata;
+      } else {
+        print('[MetadataService] MediaStore returned null, trying fallback');
+      }
+
+      // Fallback: Leer archivo usando el método nativo (SafHelper puede leer file:// URIs)
       try {
-        final metadata = await MetadataRetriever.fromFile(File(filePath));
-        if (metadata != null) {
-          return _convertMediaMetadataToSongMetadata(metadata, filePath);
+        if (File(filePath).existsSync()) {
+          print('[MetadataService] Using fallback file:// method');
+          // Convertir ruta de archivo a URI file://
+          final fileUri = Uri.file(filePath).toString();
+          final metadataMap = await SafHelper.getMetadataFromUri(fileUri);
+
+          if (metadataMap != null) {
+            final result = _convertMapToMetadata(metadataMap);
+            print(
+              '[MetadataService] Fallback loaded, has artwork: ${result.artwork != null}',
+            );
+            return result;
+          }
         }
       } catch (e) {
-        print('[MetadataService] Error reading local file metadata: $e');
+        print(
+          '[MetadataService] Error reading local file metadata fallback: $e',
+        );
       }
     }
+    print('[MetadataService] ✗ No metadata loaded');
     return null;
   }
 
-  /// Convierte Map de SAF a SongMetadata
+  /// Convierte Map de SAF/MediaStore a SongMetadata
   SongMetadata _convertMapToMetadata(Map<String, dynamic> map) {
     return SongMetadata(
       title: map['title'] as String? ?? 'Unknown',
       artist: map['artist'] as String? ?? 'Unknown Artist',
       album: map['album'] as String?,
-      durationMs: map['duration'] as int?,
-      artwork: map['artwork'] as Uint8List?,
+      durationMs: map['duration'] is int
+          ? map['duration'] as int
+          : (map['duration'] is String ? int.tryParse(map['duration']) : null),
+      artwork:
+          map['artworkData'] as Uint8List?, // Nativo devuelve 'artworkData'
+      artworkUri: map['artworkUri'] as String?, // MediaStore devuelve URI
     );
-  }
-
-  /// Convierte flutter_media_metadata Metadata a SongMetadata
-  SongMetadata _convertMediaMetadataToSongMetadata(
-    Metadata meta,
-    String filePath,
-  ) {
-    return SongMetadata(
-      title: meta.trackName?.isNotEmpty == true
-          ? meta.trackName!
-          : _getFileNameWithoutExtension(filePath),
-      artist: meta.trackArtistNames?.isNotEmpty == true
-          ? meta.trackArtistNames!.first
-          : 'Unknown Artist',
-      album: meta.albumName,
-      durationMs: meta.trackDuration,
-      artwork: meta.albumArt,
-    );
-  }
-
-  /// Obtiene nombre de archivo sin extensión
-  String _getFileNameWithoutExtension(String path) {
-    final fileName = path.split('/').last;
-    final lastDot = fileName.lastIndexOf('.');
-    return lastDot > 0 ? fileName.substring(0, lastDot) : fileName;
   }
 
   /// Carga en lote con priorización
