@@ -16,6 +16,7 @@ class MusicLibraryService {
   /// Soporta rutas normales y URIs de SAF (content://)
   static Future<List<Song>> scanFolder(String pathOrUri) async {
     final List<Song> songs = [];
+    final List<Song> songsMissingMetadata = [];
 
     // Verificar permisos básicos si es ruta local
     if (!pathOrUri.startsWith('content://')) {
@@ -39,6 +40,7 @@ class MusicLibraryService {
 
             if (_isAudioFile(name) && uri.isNotEmpty) {
               var song = _createSongFromSaf(name, uri);
+              bool isCached = false;
 
               // Intentar cargar desde caché (rápido)
               try {
@@ -46,7 +48,7 @@ class MusicLibraryService {
                 final cached = await MusicMetadataCache.get(cacheKey);
 
                 if (cached != null) {
-                  // Usar datos del caché (incluyendo title/artist que ahora son metadatos reales)
+                  // Usar datos del caché
                   song = song.copyWith(
                     title: cached.title ?? song.title,
                     artist: cached.artist ?? song.artist,
@@ -55,30 +57,35 @@ class MusicLibraryService {
                         ? Duration(milliseconds: cached.durationMs!)
                         : null,
                     artworkData: cached.artwork,
+                    dominantColor: cached.dominantColor,
                   );
+                  isCached = true;
                 }
               } catch (e) {
                 print('[MusicLibrary] Cache read error: $e');
               }
 
               songs.add(song);
+              if (!isCached) {
+                songsMissingMetadata.add(song);
+              }
             }
           }
 
           print(
-            '[MusicLibrary] Found ${songs.length} songs (loading uncached metadata in background...)',
+            '[MusicLibrary] Found ${songs.length} songs. Metadata missing for: ${songsMissingMetadata.length}',
           );
 
           // FASE 2: Cargar metadatos faltantes en BACKGROUND
-          _loadMetadataInBackground(songs);
+          if (songsMissingMetadata.isNotEmpty) {
+            _loadMetadataInBackground(songsMissingMetadata);
+          }
         }
       } else {
         // Modo Sistema de Archivos Normal
         print('[MusicLibrary] Scanning local directory: $pathOrUri');
         final dir = Directory(pathOrUri);
         if (await dir.exists()) {
-          // Listado recursivo? Por ahora no, solo nivel actual como piden "carpeta"
-          // Cambiar a recursive: true si el usuario quiere subcarpetas
           final entities = dir.listSync(recursive: false);
 
           for (final entity in entities) {
@@ -88,16 +95,9 @@ class MusicLibraryService {
                 var song = await Song.fromFile(entity);
                 if (song != null) {
                   // Cargar metadatos (artwork, tags reales)
+                  // Nota: Song.loadMetadata está deprecated, idealmente usar MetadataService aquí también
+                  // Pero por ahora mantenemos compatibilidad
                   song = await song.loadMetadata();
-
-                  if (song.artworkData != null) {
-                    print(
-                      '[MusicLibrary] ✓ Artwork loaded for ${song.title} (${song.artworkData!.length} bytes)',
-                    );
-                  } else {
-                    print('[MusicLibrary] ⚠ No artwork for ${song.title}');
-                  }
-
                   songs.add(song);
                 }
               }
