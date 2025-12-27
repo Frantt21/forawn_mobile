@@ -2,6 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/home.dart';
+import 'screens/local_music_screen.dart';
+import 'screens/notifications_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/music_downloader_screen.dart';
 import 'screens/images_ia_screen.dart';
 import 'screens/translate_screen.dart';
@@ -231,6 +234,9 @@ class _ForawnAppState extends State<ForawnApp> {
       initialRoute: '/',
       routes: {
         '/': (context) => const HomeScreen(),
+        '/local-music': (context) => const LocalMusicScreen(),
+        '/notifications': (context) => const NotificationsScreen(),
+        '/settings': (context) => const SettingsScreen(),
         '/music-downloader': (context) => const MusicDownloaderScreen(),
         '/images-ia': (context) => const ImagesIAScreen(),
         '/translate': (context) => const TranslateScreen(),

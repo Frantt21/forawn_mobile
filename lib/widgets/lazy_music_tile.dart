@@ -111,33 +111,31 @@ class _LazyMusicTileState extends State<LazyMusicTile>
     final displayTitle = _title ?? widget.song.title;
     final displayArtist = _artist ?? widget.song.artist;
 
-    return RepaintBoundary(
-      child: ListTile(
-        leading: ArtworkContainer.song(
-          artworkData: _artwork,
-          size: 48,
-          borderRadius: 4,
-        ),
-        title: Text(
-          displayTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: widget.isPlaying ? Colors.purpleAccent : Colors.white,
-            fontWeight: widget.isPlaying ? FontWeight.bold : null,
-          ),
-        ),
-        subtitle: Text(
-          displayArtist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: widget.isPlaying
-            ? const Icon(Icons.graphic_eq, color: Colors.purpleAccent)
-            : null,
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
+    return ListTile(
+      leading: ArtworkContainer.song(
+        artworkData: _artwork,
+        size: 48,
+        borderRadius: 4,
       ),
+      title: Text(
+        displayTitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: widget.isPlaying ? Colors.purpleAccent : Colors.white,
+          fontWeight: widget.isPlaying ? FontWeight.bold : null,
+        ),
+      ),
+      subtitle: Text(
+        displayArtist,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: widget.isPlaying
+          ? const Icon(Icons.graphic_eq, color: Colors.purpleAccent)
+          : null,
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
     );
   }
 }

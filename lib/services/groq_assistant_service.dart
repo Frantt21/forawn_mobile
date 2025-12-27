@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../services/playlist_service.dart';
+import '../services/music_library_service.dart';
 import '../models/song.dart';
 
 class GroqAssistantService {
@@ -12,16 +14,64 @@ class GroqAssistantService {
 
   final List<Map<String, String>> _conversationHistory = [];
   List<Song> _availableSongs = [];
+  bool _songsLoaded = false;
 
-  /// Configurar canciones disponibles (llamar desde la UI que ya tiene las canciones)
-  void setAvailableSongs(List<Song> songs) {
-    _availableSongs = songs;
-    print('[GroqAssistant] Set ${_availableSongs.length} available songs');
+  /// Cargar canciones desde la carpeta seleccionada
+  Future<void> _loadSongsIfNeeded() async {
+    print('[GroqAssistant] === LOADING SONGS ===');
+    print('[GroqAssistant] _songsLoaded: $_songsLoaded');
+    print('[GroqAssistant] Current songs count: ${_availableSongs.length}');
+
+    if (_songsLoaded) {
+      print('[GroqAssistant] Songs already loaded, skipping');
+      return;
+    }
+
+    try {
+      print('[GroqAssistant] Getting SharedPreferences...');
+      final prefs = await SharedPreferences.getInstance();
+      final selectedFolder = prefs.getString(
+        'last_music_folder',
+      ); // Usar la misma key que LocalMusicScreen
+
+      print('[GroqAssistant] Selected folder: $selectedFolder');
+
+      if (selectedFolder != null && selectedFolder.isNotEmpty) {
+        print('[GroqAssistant] Loading songs from: $selectedFolder');
+        _availableSongs = await MusicLibraryService.scanFolder(selectedFolder);
+        _songsLoaded = true;
+        print(
+          '[GroqAssistant] ✓ Successfully loaded ${_availableSongs.length} songs',
+        );
+
+        // Log first 3 songs as sample
+        if (_availableSongs.isNotEmpty) {
+          print('[GroqAssistant] Sample songs:');
+          for (var i = 0; i < _availableSongs.length && i < 3; i++) {
+            print(
+              '[GroqAssistant]   - ${_availableSongs[i].title} by ${_availableSongs[i].artist}',
+            );
+          }
+        }
+      } else {
+        print(
+          '[GroqAssistant] ✗ No music folder selected in SharedPreferences',
+        );
+      }
+    } catch (e, stackTrace) {
+      print('[GroqAssistant] ✗ Error loading songs: $e');
+      print('[GroqAssistant] Stack trace: $stackTrace');
+    }
+
+    print('[GroqAssistant] === END LOADING SONGS ===');
   }
 
   /// Enviar mensaje al asistente
   Future<String> sendMessage(String userMessage) async {
     try {
+      // Cargar canciones si no están cargadas
+      await _loadSongsIfNeeded();
+
       // Agregar mensaje del usuario al historial
       _conversationHistory.add({'role': 'user', 'content': userMessage});
 
@@ -43,21 +93,30 @@ CAPACIDADES:
 2. Recomendar música basada en mood/género
 3. Buscar canciones específicas
 
-FORMATO PARA CREAR PLAYLIST:
-Cuando el usuario pida crear una playlist, responde EXACTAMENTE en este formato JSON:
+REGLAS IMPORTANTES:
+- Para CREAR PLAYLIST: Responde SOLO el JSON, sin texto adicional
+- Para CONVERSACIÓN: Responde SOLO texto, sin JSON
+- NO mezcles JSON con texto explicativo
+
+FORMATO JSON PARA CREAR PLAYLIST:
 {
   "action": "create_playlist",
   "name": "Nombre de la Playlist",
   "description": "Descripción breve",
-  "songs": ["Título Canción 1", "Título Canción 2", "Título Canción 3"]
+  "songs": ["Canción 1", "Canción 2", "Canción 3"]
 }
 
 IMPORTANTE:
-- Usa SOLO canciones que existen en la biblioteca
-- Los títulos deben coincidir con los de la biblioteca
-- Si no hay suficientes canciones, usa las que haya disponibles
+- Usa SOLO canciones que existen en la biblioteca (títulos exactos)
+- Si no hay suficientes canciones del género pedido, usa las disponibles
+- Para conversación normal, responde en español de forma amigable
 
-Para conversación normal, responde texto amigable en español.''',
+Ejemplos:
+Usuario: "Crea una playlist de reggaeton"
+Tú: {"action": "create_playlist", "name": "Reggaeton Mix", "description": "Lo mejor del reggaeton", "songs": ["Tarot", "Monaco"]}
+
+Usuario: "¿Qué canciones de Bad Bunny tengo?"
+Tú: Tienes varias canciones de Bad Bunny en tu biblioteca, como "Tarot", "Monaco", etc.''',
         },
         ..._conversationHistory,
       ];
@@ -108,8 +167,14 @@ Para conversación normal, responde texto amigable en español.''',
 
   /// Obtener contexto de música para el prompt
   String _getMusicContext() {
+    print('[GroqAssistant] === GETTING MUSIC CONTEXT ===');
+    print('[GroqAssistant] Available songs count: ${_availableSongs.length}');
+
     if (_availableSongs.isEmpty) {
-      return 'No hay canciones disponibles. Pídele al usuario que vaya a "Local Music" primero.';
+      final message =
+          'No hay canciones disponibles. Pídele al usuario que vaya a "Local Music" primero.';
+      print('[GroqAssistant] ✗ $message');
+      return message;
     }
 
     // Limitar a 30 canciones para no saturar el prompt
@@ -118,32 +183,52 @@ Para conversación normal, responde texto amigable en español.''',
         .map((s) => '- "${s.title}" por ${s.artist}')
         .join('\n');
 
-    return '''
+    final context =
+        '''
 Total de canciones: ${_availableSongs.length}
 Canciones (mostrando ${limitedSongs.length}):
 $songList
 ''';
+
+    print(
+      '[GroqAssistant] ✓ Generated context with ${limitedSongs.length} songs',
+    );
+    return context;
   }
 
   /// Procesar acciones del asistente
   Future<void> _processAction(String message) async {
     try {
+      print('[GroqAssistant] === PROCESSING ACTION ===');
+
       // Buscar JSON en el mensaje
-      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(message);
+      final jsonMatch = RegExp(r'\{[\s\S]*?\}').firstMatch(message);
       if (jsonMatch != null) {
         final jsonStr = jsonMatch.group(0)!;
-        final action = jsonDecode(jsonStr);
+        print(
+          '[GroqAssistant] Found potential JSON: ${jsonStr.substring(0, jsonStr.length > 100 ? 100 : jsonStr.length)}...',
+        );
 
-        if (action['action'] == 'create_playlist') {
-          await _createPlaylist(
-            action['name'] as String,
-            action['description'] as String?,
-            (action['songs'] as List<dynamic>?)?.cast<String>(),
-          );
+        try {
+          final action = jsonDecode(jsonStr);
+          print('[GroqAssistant] ✓ Parsed action: ${action['action']}');
+
+          if (action['action'] == 'create_playlist') {
+            print('[GroqAssistant] Creating playlist: ${action['name']}');
+            await _createPlaylist(
+              action['name'] as String,
+              action['description'] as String?,
+              (action['songs'] as List<dynamic>?)?.cast<String>(),
+            );
+          }
+        } catch (parseError) {
+          print('[GroqAssistant] ✗ JSON parse error: $parseError');
         }
+      } else {
+        print('[GroqAssistant] No JSON action found');
       }
     } catch (e) {
-      print('[GroqAssistant] Not an action or error processing: $e');
+      print('[GroqAssistant] ✗ Error processing action: $e');
     }
   }
 

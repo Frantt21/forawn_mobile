@@ -151,253 +151,267 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Usamos el mismo padding interno para asegurar que el contenido no quede oculto por el Nav Bar
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(
-        left: 16.0,
-        right: 16.0,
-        top: 16.0,
-        bottom: 100.0,
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 34, 34, 34),
+      appBar: AppBar(
+        title: Text(LanguageService().getText('settings')),
+        backgroundColor: const Color.fromARGB(255, 34, 34, 34),
+        elevation: 0,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionTitle(LanguageService().getText('general')),
-          const SizedBox(height: 12),
-          _buildSettingCard(
-            child: Column(
-              children: [
-                // Language Selector
-                ListTile(
-                  leading: const Icon(Icons.language, color: Colors.blueAccent),
-                  title: Text(
-                    LanguageService().getText('language'),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.only(
+          left: 16.0,
+          right: 16.0,
+          top: 16.0,
+          bottom: 100.0,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionTitle(LanguageService().getText('general')),
+            const SizedBox(height: 12),
+            _buildSettingCard(
+              child: Column(
+                children: [
+                  // Language Selector
+                  ListTile(
+                    leading: const Icon(
+                      Icons.language,
+                      color: Colors.blueAccent,
                     ),
+                    title: Text(
+                      LanguageService().getText('language'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('select_language'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    trailing: DropdownButton<String>(
+                      value: LanguageService().currentLanguage,
+                      dropdownColor: const Color.fromARGB(255, 45, 45, 45),
+                      underline: Container(),
+                      items: LanguageService.availableLanguages.map((lang) {
+                        return DropdownMenuItem(
+                          value: lang['code'],
+                          child: Text(lang['name']!),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) async {
+                        if (newValue != null) {
+                          await LanguageService().changeLanguage(newValue);
+                          setState(() {}); // Rebuild to show new language
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  LanguageService().getText('language_changed'),
+                                ),
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                    contentPadding: EdgeInsets.zero,
                   ),
-                  subtitle: Text(
-                    LanguageService().getText('select_language'),
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  const Divider(),
+                  // Notifications Switch
+                  SwitchListTile(
+                    value: _notificationsEnabled,
+                    onChanged: (value) async {
+                      setState(() {
+                        _notificationsEnabled = value;
+                      });
+                      await _saveNotificationPreference(value);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              value
+                                  ? LanguageService().getText(
+                                      'notifications_enabled',
+                                    )
+                                  : LanguageService().getText(
+                                      'notifications_disabled',
+                                    ),
+                            ),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      }
+                    },
+                    title: Text(
+                      LanguageService().getText('notifications'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('receive_alerts'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    activeThumbColor: Theme.of(context).colorScheme.primary,
+                    secondary: Icon(
+                      _notificationsEnabled
+                          ? Icons.notifications_active
+                          : Icons.notifications_off_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    contentPadding: EdgeInsets.zero,
                   ),
-                  trailing: DropdownButton<String>(
-                    value: LanguageService().currentLanguage,
-                    dropdownColor: const Color.fromARGB(255, 45, 45, 45),
-                    underline: Container(),
-                    items: LanguageService.availableLanguages.map((lang) {
-                      return DropdownMenuItem(
-                        value: lang['code'],
-                        child: Text(lang['name']!),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) async {
-                      if (newValue != null) {
-                        await LanguageService().changeLanguage(newValue);
-                        setState(() {}); // Rebuild to show new language
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildSectionTitle(LanguageService().getText('storage')),
+            const SizedBox(height: 12),
+            _buildSettingCard(
+              child: Column(
+                children: [
+                  const StorageBar(),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.music_note,
+                      color: Colors.purpleAccent,
+                    ),
+                    title: Text(
+                      LanguageService().getText('clear_music_cache'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('clear_music_cache_desc'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_sweep),
+                      color: Colors.purpleAccent,
+                      onPressed: () async {
+                        await MetadataService().clearAllCaches();
+                        // Force UI update if needed or notify listeners
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                LanguageService().getText('language_changed'),
+                                LanguageService().getText(
+                                  'music_cache_cleared',
+                                ),
                               ),
-                              duration: const Duration(seconds: 1),
+                              duration: const Duration(seconds: 2),
                             ),
                           );
                         }
-                      }
-                    },
+                      },
+                    ),
+                    contentPadding: EdgeInsets.zero,
                   ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const Divider(),
-                // Notifications Switch
-                SwitchListTile(
-                  value: _notificationsEnabled,
-                  onChanged: (value) async {
-                    setState(() {
-                      _notificationsEnabled = value;
-                    });
-                    await _saveNotificationPreference(value);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            value
-                                ? LanguageService().getText(
-                                    'notifications_enabled',
-                                  )
-                                : LanguageService().getText(
-                                    'notifications_disabled',
-                                  ),
-                          ),
-                          duration: const Duration(seconds: 1),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.lyrics, color: Colors.pinkAccent),
+                    title: Text(
+                      LanguageService().getText('clear_lyrics_cache'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('clear_lyrics_cache_desc'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_sweep),
+                      color: Colors.pinkAccent,
+                      onPressed: () async {
+                        await LyricsService().clearCache();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                LanguageService().getText(
+                                  'lyrics_cache_cleared',
+                                ),
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildSectionTitle(LanguageService().getText('information')),
+            const SizedBox(height: 12),
+            _buildSettingCard(
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(
+                      Icons.info_outline,
+                      color: Colors.blueAccent,
+                    ),
+                    title: Text(LanguageService().getText('app_version')),
+                    subtitle: Text(_version),
+                    trailing: ElevatedButton(
+                      onPressed: _checkForUpdates,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.1),
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      );
-                    }
-                  },
-                  title: Text(
-                    LanguageService().getText('notifications'),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  subtitle: Text(
-                    LanguageService().getText('receive_alerts'),
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                  activeThumbColor: Theme.of(context).colorScheme.primary,
-                  secondary: Icon(
-                    _notificationsEnabled
-                        ? Icons.notifications_active
-                        : Icons.notifications_off_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildSectionTitle(LanguageService().getText('storage')),
-          const SizedBox(height: 12),
-          _buildSettingCard(
-            child: Column(
-              children: [
-                const StorageBar(),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(
-                    Icons.music_note,
-                    color: Colors.purpleAccent,
-                  ),
-                  title: Text(
-                    LanguageService().getText('clear_music_cache'),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  subtitle: Text(
-                    LanguageService().getText('clear_music_cache_desc'),
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_sweep),
-                    color: Colors.purpleAccent,
-                    onPressed: () async {
-                      await MetadataService().clearAllCaches();
-                      // Force UI update if needed or notify listeners
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              LanguageService().getText('music_cache_cleared'),
-                            ),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.lyrics, color: Colors.pinkAccent),
-                  title: Text(
-                    LanguageService().getText('clear_lyrics_cache'),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  subtitle: Text(
-                    LanguageService().getText('clear_lyrics_cache_desc'),
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_sweep),
-                    color: Colors.pinkAccent,
-                    onPressed: () async {
-                      await LyricsService().clearCache();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              LanguageService().getText('lyrics_cache_cleared'),
-                            ),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildSectionTitle(LanguageService().getText('information')),
-          const SizedBox(height: 12),
-          _buildSettingCard(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(
-                    Icons.info_outline,
-                    color: Colors.blueAccent,
-                  ),
-                  title: Text(LanguageService().getText('app_version')),
-                  subtitle: Text(_version),
-                  trailing: ElevatedButton(
-                    onPressed: _checkForUpdates,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primary.withOpacity(0.1),
-                      foregroundColor: Theme.of(context).colorScheme.primary,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
+                      child: Text(LanguageService().getText('check_updates')),
                     ),
-                    child: Text(LanguageService().getText('check_updates')),
+                    contentPadding: EdgeInsets.zero,
                   ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildSectionTitle(LanguageService().getText('danger_zone')),
-          const SizedBox(height: 12),
-          _buildSettingCard(
-            borderColor: Colors.redAccent.withOpacity(0.3),
-            child: ListTile(
-              leading: const Icon(Icons.restore, color: Colors.redAccent),
-              title: Text(
-                LanguageService().getText('reset_settings'),
-                style: const TextStyle(
-                  color: Colors.redAccent,
-                  fontWeight: FontWeight.w600,
-                ),
+                ],
               ),
-              subtitle: Text(
-                LanguageService().getText('reset_settings_desc'),
-                style: const TextStyle(fontSize: 12),
-              ),
-              onTap: _showResetConfirmation,
-              contentPadding: EdgeInsets.zero,
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            _buildSectionTitle(LanguageService().getText('danger_zone')),
+            const SizedBox(height: 12),
+            _buildSettingCard(
+              borderColor: Colors.redAccent.withOpacity(0.3),
+              child: ListTile(
+                leading: const Icon(Icons.restore, color: Colors.redAccent),
+                title: Text(
+                  LanguageService().getText('reset_settings'),
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  LanguageService().getText('reset_settings_desc'),
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onTap: _showResetConfirmation,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

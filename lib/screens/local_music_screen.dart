@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -9,6 +8,7 @@ import '../services/music_history_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/saf_helper.dart';
 import '../services/language_service.dart';
+import '../services/local_music_state_service.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/lazy_music_tile.dart';
 import '../widgets/artwork_container.dart';
@@ -34,8 +34,7 @@ class LocalMusicScreen extends StatefulWidget {
 class _LocalMusicScreenState extends State<LocalMusicScreen>
     with AutomaticKeepAliveClientMixin {
   final AudioPlayerService _audioPlayer = AudioPlayerService();
-  List<Song> _librarySongs = [];
-  bool _isLoading = false;
+  final LocalMusicStateService _musicState = LocalMusicStateService();
   int _tabIndex = 0; // 0: Library, 1: Playlists
   bool _isGridView = true; // Playlist view mode
 
@@ -45,7 +44,10 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   @override
   void initState() {
     super.initState();
-    _loadLastFolder();
+    // Inicializar servicio de música local (solo carga si no se ha hecho antes)
+    _musicState.init();
+    _musicState.addListener(_onMusicStateChanged);
+
     PlaylistService().init();
     PlaylistService().addListener(_onPlaylistServiceChanged);
     MusicLibraryService.onMetadataUpdated.addListener(
@@ -59,84 +61,69 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
   @override
   void dispose() {
+    _musicState.removeListener(_onMusicStateChanged);
     PlaylistService().removeListener(_onPlaylistServiceChanged);
     MusicLibraryService.onMetadataUpdated.removeListener(_onMetadataUpdated);
     super.dispose();
+  }
+
+  void _onMusicStateChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onPlaylistServiceChanged() {
     if (mounted) setState(() {});
   }
 
-  // Cuando llega metadata nueva en background (ej. artwork), actualizar la canción en la lista
+  // Cuando llega metadata nueva en background (ej. artwork), actualizar la canción en el servicio
   void _onMetadataUpdated() async {
     final uri = MusicLibraryService.onMetadataUpdated.value;
     if (uri != null && mounted) {
-      final index = _librarySongs.indexWhere((s) => s.filePath == uri);
+      final songs = _musicState.librarySongs;
+      final index = songs.indexWhere((s) => s.filePath == uri);
       if (index != -1) {
         // Encontrada! Recargar sus datos del caché
         final cacheKey = uri.hashCode.toString();
         final cached = await MusicMetadataCache.get(cacheKey);
 
         if (cached != null) {
-          setState(() {
-            _librarySongs[index] = _librarySongs[index].copyWith(
-              title: cached.title ?? _librarySongs[index].title,
-              artist: cached.artist ?? _librarySongs[index].artist,
-              album: cached.album,
-              duration: cached.durationMs != null
-                  ? Duration(milliseconds: cached.durationMs!)
-                  : null,
-              artworkData: cached.artwork, // Aquí llega el artwork
-            );
-          });
+          final updatedSong = songs[index].copyWith(
+            title: cached.title ?? songs[index].title,
+            artist: cached.artist ?? songs[index].artist,
+            album: cached.album,
+            duration: cached.durationMs != null
+                ? Duration(milliseconds: cached.durationMs!)
+                : null,
+            artworkData: cached.artwork, // Aquí llega el artwork
+          );
+          _musicState.updateSong(uri, updatedSong);
         }
       }
-    }
-  }
-
-  Future<void> _loadLastFolder() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastPath = prefs.getString('last_music_folder');
-    if (lastPath != null) {
-      _scanFolder(lastPath);
     }
   }
 
   Future<void> _pickFolder() async {
     final uri = await SafHelper.pickDirectory();
     if (uri != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('last_music_folder', uri);
-      _scanFolder(uri);
-    }
-  }
+      try {
+        await _musicState.loadFolder(uri, forceReload: true);
 
-  Future<void> _scanFolder(String path) async {
-    setState(() => _isLoading = true);
-    try {
-      final songs = await MusicLibraryService.scanFolder(path);
-      if (songs.isNotEmpty) {
-        setState(() => _librarySongs = songs);
-
-        if (_audioPlayer.currentSong == null) {
+        // Cargar playlist en el reproductor si está vacío
+        final songs = _musicState.librarySongs;
+        if (songs.isNotEmpty && _audioPlayer.currentSong == null) {
           await _audioPlayer.loadPlaylist(
             songs,
             initialIndex: -1,
             autoPlay: false,
           );
         }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(LanguageService().getText('no_songs_found'))),
-        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
       }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -144,7 +131,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   Playlist _getFavoritesPlaylist() {
     final likedIds = PlaylistService().likedSongIds;
     // Filtrar canciones de la librería que están en favoritos
-    final songs = _librarySongs.where((s) => likedIds.contains(s.id)).toList();
+    final songs = _musicState.librarySongs
+        .where((s) => likedIds.contains(s.id))
+        .toList();
 
     return Playlist(
       id: 'favorites_virtual',
@@ -159,85 +148,106 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Actualizar estado de KeepAlive
-    return Stack(
-      children: [
-        StreamBuilder(
-          stream: _audioPlayer.playlistStream,
-          builder: (context, snapshot) {
-            if (_isLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
 
-            final visibleSongs = _librarySongs;
-            final songs = visibleSongs;
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 34, 34, 34),
+      appBar: AppBar(
+        title: const Text('Local Music'),
+        backgroundColor: const Color.fromARGB(255, 34, 34, 34),
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_open),
+            onPressed: _pickFolder,
+            tooltip: 'Seleccionar Carpeta',
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          StreamBuilder(
+            stream: _audioPlayer.playlistStream,
+            builder: (context, snapshot) {
+              if (_musicState.isLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-            if (songs.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.music_note, size: 64, color: Colors.grey),
-                    const SizedBox(height: 16),
-                    Text(LanguageService().getText('no_songs_loaded')),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: _pickFolder,
-                      icon: const Icon(Icons.folder),
-                      label: Text(LanguageService().getText('select_folder')),
-                    ),
-                  ],
-                ),
-              );
-            }
+              final visibleSongs = _musicState.librarySongs;
+              final songs = visibleSongs;
 
-            final filteredSongs = widget.searchQuery.isEmpty
-                ? songs
-                : songs.where((song) {
-                    final nTitle = TextUtils.normalize(song.title);
-                    final nArtist = TextUtils.normalize(song.artist);
-                    final nQuery = TextUtils.normalize(widget.searchQuery);
-                    return nTitle.contains(nQuery) || nArtist.contains(nQuery);
-                  }).toList();
-
-            // Si hay búsqueda activa, mostrar lista simple filtrada
-            if (widget.searchQuery.isNotEmpty) {
-              return _buildSongList(
-                filteredSongs,
-                showHistory: false,
-                showLibraryHeader: false,
-              );
-            }
-
-            // Si no, mostrar Tabs
-            return Column(
-              children: [
-                _buildCustomTabBar(),
-                Expanded(
-                  child: IndexedStack(
-                    index: _tabIndex,
+              if (songs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildSongList(
-                        songs,
-                        showHistory: true,
-                        showLibraryHeader: true,
+                      const Icon(
+                        Icons.music_note,
+                        size: 64,
+                        color: Colors.grey,
                       ),
-                      _buildPlaylistsView(),
+                      const SizedBox(height: 16),
+                      Text(LanguageService().getText('no_songs_loaded')),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: _pickFolder,
+                        icon: const Icon(Icons.folder),
+                        label: Text(LanguageService().getText('select_folder')),
+                      ),
                     ],
                   ),
-                ),
-              ],
-            );
-          },
-        ),
+                );
+              }
 
-        // Mini Player Positioned
-        const Positioned(
-          bottom: 16,
-          left: 16,
-          right: 16,
-          child: SafeArea(child: MiniPlayer()),
-        ),
-      ],
+              final filteredSongs = widget.searchQuery.isEmpty
+                  ? songs
+                  : songs.where((song) {
+                      final nTitle = TextUtils.normalize(song.title);
+                      final nArtist = TextUtils.normalize(song.artist);
+                      final nQuery = TextUtils.normalize(widget.searchQuery);
+                      return nTitle.contains(nQuery) ||
+                          nArtist.contains(nQuery);
+                    }).toList();
+
+              // Si hay búsqueda activa, mostrar lista simple filtrada
+              if (widget.searchQuery.isNotEmpty) {
+                return _buildSongList(
+                  filteredSongs,
+                  showHistory: false,
+                  showLibraryHeader: false,
+                );
+              }
+
+              // Si no, mostrar Tabs
+              return Column(
+                children: [
+                  _buildCustomTabBar(),
+                  Expanded(
+                    child: IndexedStack(
+                      index: _tabIndex,
+                      children: [
+                        _buildSongList(
+                          songs,
+                          showHistory: true,
+                          showLibraryHeader: true,
+                        ),
+                        _buildPlaylistsView(),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          // Mini Player Positioned
+          const Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: SafeArea(child: MiniPlayer()),
+          ),
+        ],
+      ),
     );
   }
 
@@ -315,10 +325,17 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
     return RefreshIndicator(
       onRefresh: () async {
-        final prefs = await SharedPreferences.getInstance();
-        final lastPath = prefs.getString('last_music_folder');
-        if (lastPath != null) {
-          await _scanFolder(lastPath);
+        // Usar el método refresh del servicio para recargar
+        await _musicState.refresh();
+
+        // Actualizar playlist del reproductor si es necesario
+        final songs = _musicState.librarySongs;
+        if (songs.isNotEmpty && _audioPlayer.currentSong == null) {
+          await _audioPlayer.loadPlaylist(
+            songs,
+            initialIndex: -1,
+            autoPlay: false,
+          );
         }
       },
       child: CustomScrollView(

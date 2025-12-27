@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/groq_assistant_service.dart';
-import '../models/song.dart';
 
 class AssistantChatDialog extends StatefulWidget {
-  final List<Song> availableSongs;
-
-  const AssistantChatDialog({super.key, this.availableSongs = const []});
+  const AssistantChatDialog({super.key});
 
   @override
   State<AssistantChatDialog> createState() => _AssistantChatDialogState();
@@ -22,23 +19,16 @@ class _AssistantChatDialogState extends State<AssistantChatDialog> {
   void initState() {
     super.initState();
 
-    // Configurar canciones disponibles en el asistente
-    _assistant.setAvailableSongs(widget.availableSongs);
-
     // Mensaje de bienvenida
     _messages.add(
       ChatMessage(
-        text: widget.availableSongs.isEmpty
-            ? '¡Hola! 👋 Soy tu asistente musical.\n\n'
-                  'Para que pueda ayudarte a crear playlists, primero ve a "Local Music" y carga tu biblioteca de música.\n\n'
-                  'Mientras tanto, puedo responder preguntas sobre música en general.'
-            : '¡Hola! 👋 Soy tu asistente musical.\n\n'
-                  'Tengo acceso a ${widget.availableSongs.length} canciones de tu biblioteca.\n\n'
-                  'Puedo ayudarte a:\n'
-                  '• Crear playlists personalizadas\n'
-                  '• Buscar canciones específicas\n'
-                  '• Recomendar música\n\n'
-                  '¿Qué te gustaría hacer?',
+        text:
+            '¡Hola! 👋 Soy tu asistente musical.\n\n'
+            'Puedo ayudarte a:\n'
+            '• Crear playlists personalizadas\n'
+            '• Buscar canciones en tu biblioteca\n'
+            '• Recomendar música\n\n'
+            '¿Qué te gustaría hacer?',
         isUser: false,
       ),
     );

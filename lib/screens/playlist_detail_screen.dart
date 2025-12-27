@@ -15,6 +15,7 @@ import '../widgets/song_options_bottom_sheet.dart';
 import '../services/music_metadata_cache.dart';
 import 'music_player_screen.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/metadata_service.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -58,6 +59,27 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
+
+    // Preload metadata for smoother scrolling
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _preloadMetadata();
+    });
+  }
+
+  Future<void> _preloadMetadata() async {
+    // Preload first 50 items or all if small playlist
+    final count = _virtualSongs.length > 50 ? 50 : _virtualSongs.length;
+    final requests = _virtualSongs.take(count).map((song) {
+      return MetadataLoadRequest(
+        id: song.filePath.hashCode.toString(),
+        filePath: song.filePath.startsWith('content://') ? null : song.filePath,
+        safUri: song.filePath.startsWith('content://') ? song.filePath : null,
+        priority: MetadataPriority
+            .low, // Low so it doesn't block High priority load from visible tiles
+      );
+    }).toList();
+
+    await MetadataService().preloadMetadata(requests);
   }
 
   @override
@@ -822,6 +844,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
           // Content
           CustomScrollView(
             controller: _scrollController,
+            cacheExtent: 3000, // Keep optimization enabled for release
             slivers: [
               // Header con portada, título, descripción y botones
               SliverToBoxAdapter(
@@ -1068,87 +1091,99 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                   ),
                 )
               else
-                StreamBuilder<Song?>(
-                  stream: _audioPlayer.currentSongStream,
-                  builder: (context, snapshot) {
-                    final currentSong = snapshot.data;
+                // Optimized: No StreamBuilder - same pattern as LocalMusicScreen
+                Builder(
+                  builder: (context) {
                     final filteredSongs = _getFilteredSongs(songs);
-
                     return SliverPadding(
                       padding: const EdgeInsets.only(bottom: 100),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final song = filteredSongs[index];
-                          final isPlaying = currentSong?.id == song.id;
+                      sliver: SliverFixedExtentList(
+                        itemExtent:
+                            72.0, // Fixed height for massive performance boost
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (index < 0 || index >= filteredSongs.length) {
+                              return const SizedBox.shrink();
+                            }
 
-                          return Dismissible(
-                            key: Key("${song.id}_${playlist.id}"),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              color: Colors.red,
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
+                            final song = filteredSongs[index];
+                            final isPlaying =
+                                _audioPlayer.currentSong?.id == song.id;
+
+                            // No need for RepaintBoundary here if using FixedExtentList and RepaintBoundary inside
+                            return Dismissible(
+                              key: Key("${song.id}_${playlist.id}"),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                color: Colors.red,
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                child: const Icon(
+                                  Icons.delete,
+                                  color: Colors.white,
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.delete,
-                                color: Colors.white,
+                              onDismissed: (direction) => _removeSong(song),
+                              child: LazyMusicTile(
+                                key: ValueKey(song.id),
+                                song: song,
+                                isPlaying: isPlaying,
+                                onTap: () {
+                                  _audioPlayer.loadPlaylist(
+                                    songs,
+                                    initialIndex: songs.indexOf(song),
+                                    autoPlay: true,
+                                  );
+                                  Navigator.of(context).push(
+                                    PageRouteBuilder(
+                                      pageBuilder:
+                                          (
+                                            context,
+                                            animation,
+                                            secondaryAnimation,
+                                          ) => const MusicPlayerScreen(),
+                                      transitionsBuilder:
+                                          (
+                                            context,
+                                            animation,
+                                            secondaryAnimation,
+                                            child,
+                                          ) {
+                                            var tween =
+                                                Tween(
+                                                  begin: const Offset(0.0, 1.0),
+                                                  end: Offset.zero,
+                                                ).chain(
+                                                  CurveTween(
+                                                    curve: Curves.easeOutCubic,
+                                                  ),
+                                                );
+                                            return SlideTransition(
+                                              position: animation.drive(tween),
+                                              child: child,
+                                            );
+                                          },
+                                    ),
+                                  );
+                                },
+                                onLongPress: () {
+                                  SongOptionsBottomSheet.show(
+                                    context: context,
+                                    song: song,
+                                    options: [SongOption.removeFromPlaylist],
+                                    onRemove: () => _removeSong(song),
+                                  );
+                                },
                               ),
-                            ),
-                            onDismissed: (direction) => _removeSong(song),
-                            child: LazyMusicTile(
-                              key: ValueKey(song.id),
-                              song: song,
-                              isPlaying: isPlaying,
-                              onTap: () {
-                                _audioPlayer.loadPlaylist(
-                                  songs,
-                                  initialIndex: index,
-                                  autoPlay: true,
-                                );
-                                Navigator.of(context).push(
-                                  PageRouteBuilder(
-                                    pageBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                        ) => const MusicPlayerScreen(),
-                                    transitionsBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                          child,
-                                        ) {
-                                          var tween =
-                                              Tween(
-                                                begin: const Offset(0.0, 1.0),
-                                                end: Offset.zero,
-                                              ).chain(
-                                                CurveTween(
-                                                  curve: Curves.easeOutCubic,
-                                                ),
-                                              );
-                                          return SlideTransition(
-                                            position: animation.drive(tween),
-                                            child: child,
-                                          );
-                                        },
-                                  ),
-                                );
-                              },
-                              onLongPress: () {
-                                SongOptionsBottomSheet.show(
-                                  context: context,
-                                  song: song,
-                                  options: [SongOption.removeFromPlaylist],
-                                  onRemove: () => _removeSong(song),
-                                );
-                              },
-                            ),
-                          );
-                        }, childCount: filteredSongs.length),
+                            );
+                          },
+                          childCount: filteredSongs.length,
+                          addRepaintBoundaries:
+                              true, // Re-enable auto boundaries
+                          addAutomaticKeepAlives: true,
+                        ),
                       ),
                     );
                   },
