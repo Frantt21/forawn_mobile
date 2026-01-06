@@ -242,15 +242,14 @@
   "sort_by_title": "Ordenar por título",
   "sort_by_artist": "Ordenar por artista",
   "sort_by_date": "Ordenar por fecha",
-  "edit_playlist": "Editar playlist",
   "add_songs": "Agregar canciones",
   "added": "Agregada",
-  "songs": "canciones",
   "show_lyrics": "Ver letra",
   "hide_lyrics": "Ocultar letra",
   "add_to_favorites": "Agregar a favoritos",
   "removed_from_favorites": "Eliminado de favoritos",
   "feature_coming_soon": "Próximamente",
   "remove_from_favorites": "Quitar de favoritos",
-  "create_first_playlist": "Crear tu primera playlist"
+  "create_first_playlist": "Crear tu primera playlist",
+  "favorite_songs": "Últimos favoritos"
 }
