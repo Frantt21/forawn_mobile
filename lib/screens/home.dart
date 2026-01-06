@@ -257,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => Navigator.pushNamed(context, '/local-music'),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.music_note,
@@ -301,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.translate,
@@ -333,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.notifications_outlined,
@@ -358,8 +358,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                TextButton(
-                  onPressed: () async {
+                GestureDetector(
+                  onTap: () async {
                     await _recentScreensService.clearHistory();
                     setState(() {});
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -370,9 +370,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     );
                   },
-                  child: Text(
-                    LanguageService().getText('clear'),
-                    style: TextStyle(color: accentColor),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6, // Slightly smaller vertical padding for text
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      LanguageService().getText('clear'),
+                      style: TextStyle(
+                        color: accentColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ),
               ],

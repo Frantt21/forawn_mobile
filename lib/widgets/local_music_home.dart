@@ -260,14 +260,22 @@ class LocalMusicHome extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.add,
-                              color: Colors.purpleAccent,
-                            ),
-                            onPressed: onCreatePlaylist,
-                            tooltip: LanguageService().getText(
-                              'create_playlist',
+                          GestureDetector(
+                            onTap: onCreatePlaylist,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                color: Colors.purpleAccent,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ],
