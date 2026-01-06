@@ -8,15 +8,31 @@ import '../services/saf_helper.dart';
 import '../services/music_metadata_cache.dart';
 import '../services/metadata_service.dart';
 
+class LibraryLoadingStatus {
+  final String message;
+  final double progress;
+  const LibraryLoadingStatus(this.message, this.progress);
+}
+
 class MusicLibraryService {
   /// Notificador para actualizar UI cuando se cargan metadatos en background
   static final ValueNotifier<String?> onMetadataUpdated = ValueNotifier(null);
+
+  /// Notificador de estado de carga global
+  static final ValueNotifier<LibraryLoadingStatus> loadingStatus =
+      ValueNotifier(const LibraryLoadingStatus('', 0.0));
 
   /// Escanea una carpeta en busca de canciones
   /// Soporta rutas normales y URIs de SAF (content://)
   static Future<List<Song>> scanFolder(String pathOrUri) async {
     final List<Song> songs = [];
     final List<Song> songsMissingMetadata = [];
+
+    // Reset status
+    loadingStatus.value = const LibraryLoadingStatus(
+      'Iniciando escaneo...',
+      0.0,
+    );
 
     // Verificar permisos básicos si es ruta local
     if (!pathOrUri.startsWith('content://')) {
@@ -30,9 +46,17 @@ class MusicLibraryService {
       if (pathOrUri.startsWith('content://')) {
         // Modo SAF
         print('[MusicLibrary] Scanning SAF tree: $pathOrUri');
+        loadingStatus.value = const LibraryLoadingStatus(
+          'Leyendo archivos...',
+          0.1,
+        );
+
         final files = await SafHelper.listFilesFromTree(pathOrUri);
 
         if (files != null) {
+          int processed = 0;
+          final total = files.length;
+
           // FASE 1: Crear canciones CON caché si existe (RÁPIDO)
           for (final file in files) {
             final name = file['name'] ?? '';
@@ -70,38 +94,60 @@ class MusicLibraryService {
                 songsMissingMetadata.add(song);
               }
             }
+
+            processed++;
+            if (processed % 10 == 0) {
+              loadingStatus.value = LibraryLoadingStatus(
+                'Analizando archivos ($processed/$total)...',
+                0.1 + (0.2 * (processed / total)), // 10% a 30%
+              );
+            }
           }
 
           print(
             '[MusicLibrary] Found ${songs.length} songs. Metadata missing for: ${songsMissingMetadata.length}',
           );
 
-          // FASE 2: Cargar metadatos faltantes en BACKGROUND
+          // FASE 2: Cargar metadatos faltantes (Ahora esperamos para mostrar progreso)
           if (songsMissingMetadata.isNotEmpty) {
-            _loadMetadataInBackground(songsMissingMetadata);
+            await _loadMetadataInBackground(
+              songsMissingMetadata,
+              startProgress: 0.3,
+            );
           }
         }
       } else {
         // Modo Sistema de Archivos Normal
+        loadingStatus.value = const LibraryLoadingStatus(
+          'Explorando directorio...',
+          0.1,
+        );
         print('[MusicLibrary] Scanning local directory: $pathOrUri');
+
         final dir = Directory(pathOrUri);
         if (await dir.exists()) {
           final entities = dir.listSync(recursive: false);
+          int processed = 0;
+          final total = entities.length;
 
           for (final entity in entities) {
+            loadingStatus.value = LibraryLoadingStatus(
+              'Leyendo archivo ${processed + 1}/$total...',
+              0.1 + (0.8 * (processed / total)),
+            );
+
             if (entity is File) {
               final name = entity.path.split(Platform.pathSeparator).last;
               if (_isAudioFile(name)) {
                 var song = await Song.fromFile(entity);
                 if (song != null) {
                   // Cargar metadatos (artwork, tags reales)
-                  // Nota: Song.loadMetadata está deprecated, idealmente usar MetadataService aquí también
-                  // Pero por ahora mantenemos compatibilidad
                   song = await song.loadMetadata();
                   songs.add(song);
                 }
               }
             }
+            processed++;
           }
         } else {
           print('[MusicLibrary] Directory does not exist: $pathOrUri');
@@ -110,6 +156,7 @@ class MusicLibraryService {
 
       print('[MusicLibrary] Found ${songs.length} songs');
       // Ordenar alfabéticamente por título por defecto
+      loadingStatus.value = const LibraryLoadingStatus('Finalizando...', 1.0);
       songs.sort((a, b) => a.title.compareTo(b.title));
 
       return songs;
@@ -152,10 +199,15 @@ class MusicLibraryService {
     );
   }
 
-  /// Carga metadatos en background (no bloquea la UI)
-  static void _loadMetadataInBackground(List<Song> songs) async {
+  /// Carga metadatos y espera a que termine (para mostrar diálogo de progreso)
+  static Future<void> _loadMetadataInBackground(
+    List<Song> songs, {
+    double startProgress = 0.3,
+  }) async {
     // Cargar en lotes de 5 para no saturar
     const batchSize = 5;
+    final total = songs.length;
+    int processed = 0;
 
     for (var i = 0; i < songs.length; i += batchSize) {
       final end = (i + batchSize < songs.length) ? i + batchSize : songs.length;
@@ -174,16 +226,17 @@ class MusicLibraryService {
               id: cacheKey,
               safUri: isSaf ? uri : null,
               filePath: isSaf ? null : uri,
-              priority: MetadataPriority.low, // Baja prioridad en background
+              priority: MetadataPriority
+                  .high, // Alta prioridad ya que el usuario espera en el diálogo
             );
 
             if (metadata != null) {
-              // 🔔 Notificar a la UI que esta canción tiene datos nuevos
+              // 🔔 Notificar a la UI que esta canción tiene datos nuevos (artwork)
               onMetadataUpdated.value = uri;
 
-              print(
+              /* print(
                 '[MusicLibrary] ✓ Cached metadata for: ${metadata.title} - ${metadata.artist}',
-              );
+              ); */
             }
           } catch (e) {
             print('[MusicLibrary] Background metadata error: $e');
@@ -191,11 +244,24 @@ class MusicLibraryService {
         }),
       );
 
-      // Pequeña pausa entre lotes para no saturar
-      await Future.delayed(const Duration(milliseconds: 100));
+      processed += batch.length;
+
+      // Actualizar progreso (de startProgress a 1.0)
+      final currentBatchProgress = processed / total; // 0.0 a 1.0
+      // Escalar al rango restante (1.0 - startProgress)
+      final globalProgress =
+          startProgress + (currentBatchProgress * (1.0 - startProgress));
+
+      loadingStatus.value = LibraryLoadingStatus(
+        'Procesando metadatos ($processed/$total)...',
+        globalProgress,
+      );
+
+      // Pequeña pausa entre lotes para dar respiro a la UI
+      await Future.delayed(const Duration(milliseconds: 10));
     }
 
-    print('[MusicLibrary] ✓ All metadata loaded in background');
+    print('[MusicLibrary] ✓ All metadata loaded');
   }
 
   static Future<bool> _requestPermissions() async {

@@ -13,6 +13,7 @@ import '../models/playback_state.dart'
 import 'music_history_service.dart';
 import 'music_metadata_cache.dart';
 import 'saf_helper.dart';
+import 'lyrics_service.dart';
 
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
@@ -453,6 +454,11 @@ class AudioPlayerService {
 
     try {
       _currentSongSubject.add(song);
+
+      // Pre-fetch lyrics for current song
+      // No await, we want this in background
+      LyricsService().setCurrentSong(song.title, song.artist);
+
       _history.add(song.id); // Historial de sesión (playback)
 
       if (addToHistory) {

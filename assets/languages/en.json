@@ -11,6 +11,7 @@
   "image_generator": "Image Generator",
   "translator": "Translator",
   "qr_generator": "QR Generator",
+  "main_sections": "Main Sections",
   
   "new_chat": "New Chat",
   "write_message": "Write a message...",
@@ -250,5 +251,6 @@
   "add_to_favorites": "Add to favorites",
   "removed_from_favorites": "Removed from favorites",
   "feature_coming_soon": "Coming soon",
-  "remove_from_favorites": "Remove from favorites"
+  "remove_from_favorites": "Remove from favorites",
+  "create_first_playlist": "Create your first playlist"
 }

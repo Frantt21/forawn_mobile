@@ -15,7 +15,6 @@ import '../widgets/lazy_music_tile.dart';
 import '../widgets/artwork_container.dart';
 import '../widgets/song_options_bottom_sheet.dart';
 import '../services/music_metadata_cache.dart';
-import '../services/metadata_service.dart';
 import '../widgets/assistant_chat_dialog.dart';
 
 import '../services/playlist_service.dart';
@@ -171,7 +170,23 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   Future<void> _pickFolder() async {
     final uri = await SafHelper.pickDirectory();
     if (uri != null) {
+      // Mostrar diálogo de progreso
+      if (!mounted) return;
+
+      // Variable para controlar si el diálogo está abierto
+      bool dialogOpen = true;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black.withOpacity(0.5),
+        builder: (context) => _buildLoadingDialog(),
+      ).then((_) => dialogOpen = false); // Detectar cierre
+
       try {
+        // Pequeña pausa para que el diálogo se renderice
+        await Future.delayed(const Duration(milliseconds: 100));
+
         await _musicState.loadFolder(uri, forceReload: true);
 
         // Cargar playlist en el reproductor si está vacío
@@ -189,8 +204,90 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
             context,
           ).showSnackBar(SnackBar(content: Text('Error: $e')));
         }
+      } finally {
+        // Cerrar diálogo si sigue abierto
+        if (dialogOpen && mounted) {
+          Navigator.of(context).pop();
+        }
       }
     }
+  }
+
+  Widget _buildLoadingDialog() {
+    return ValueListenableBuilder<LibraryLoadingStatus>(
+      valueListenable: MusicLibraryService.loadingStatus,
+      builder: (context, status, child) {
+        return BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 400),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[900]!.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Cargando librería',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Circular Progress con porcentaje
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: CircularProgressIndicator(
+                          value: status.progress > 0 ? status.progress : null,
+                          strokeWidth: 6,
+                          backgroundColor: Colors.white10,
+                          color: Colors.purpleAccent,
+                        ),
+                      ),
+                      Text(
+                        '${(status.progress * 100).toInt()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  Text(
+                    status.message.isEmpty ? 'Preparando...' : status.message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // Helper para construir playlist de favoritos
@@ -796,20 +893,15 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
   Widget _buildPlaylistsView() {
     final playlists = PlaylistService().playlists;
-    // Combinamos favoritos + playlists
-    final itemCount = playlists.length + 1;
+    // Combinamos favoritos + playlists + botón crear
+    final itemCount = playlists.length + 2;
 
     if (_isGridView) {
       return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          0,
-          16,
-          100,
-        ), // Cambiado de 16 a 0
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.75,
+          childAspectRatio: 1.0,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
         ),
@@ -821,12 +913,16 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
               isFavorite: true,
             );
           }
+          // Last item: Create Playlist Button
+          if (index == itemCount - 1) {
+            return _buildCreatePlaylistCard();
+          }
           return _buildPlaylistCard(playlists[index - 1]);
         },
       );
     } else {
       return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 100), // Cambiado de 10 a 0
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
         itemCount: itemCount,
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -835,14 +931,83 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
               isFavorite: true,
             );
           }
+          // Last item: Create Playlist Tile
+          if (index == itemCount - 1) {
+            return _buildCreatePlaylistTile();
+          }
           return _buildPlaylistTile(playlists[index - 1]);
         },
       );
     }
   }
 
+  Widget _buildCreatePlaylistCard() {
+    return GestureDetector(
+      onTap: () => _showCreatePlaylistDialog(context),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.grey[900], // Fondo oscuro sutil
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.1),
+            width: 1,
+            style: BorderStyle.solid,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.purpleAccent.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.add,
+                color: Colors.purpleAccent,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              LanguageService().getText('create_playlist'),
+              style: const TextStyle(
+                color: Colors.purpleAccent,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreatePlaylistTile() {
+    return ListTile(
+      leading: Container(
+        width: 50,
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.purpleAccent.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Icon(Icons.add, color: Colors.purpleAccent),
+      ),
+      title: Text(
+        LanguageService().getText('create_playlist'),
+        style: const TextStyle(
+          color: Colors.purpleAccent,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      onTap: () => _showCreatePlaylistDialog(context),
+    );
+  }
+
   Widget _buildPlaylistCard(Playlist playlist, {bool isFavorite = false}) {
-    // Si es Favoritos, mostrar un diseño especial
     final isPinned = playlist.isPinned;
 
     return GestureDetector(
@@ -853,62 +1018,123 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
         ),
       ),
       onLongPress: isFavorite ? null : () => _showPlaylistOptions(playlist),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.circular(12),
-                    image: playlist.getImageProvider() != null
-                        ? DecorationImage(
-                            image: playlist.getImageProvider()!,
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                    gradient: isFavorite
-                        ? const LinearGradient(
-                            colors: [Colors.purple, Colors.deepPurple],
-                          )
-                        : null,
-                  ),
-                  child: playlist.imagePath == null
-                      ? Center(
-                          child: Icon(
-                            isFavorite ? Icons.favorite : Icons.music_note,
-                            color: Colors.white24,
-                            size: 48,
-                          ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 1. Background (Image or Gradient)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  image: playlist.getImageProvider() != null
+                      ? DecorationImage(
+                          image: playlist.getImageProvider()!,
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                  gradient: isFavorite
+                      ? const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Colors.purple, Colors.deepPurple],
                         )
                       : null,
                 ),
-                if (isPinned && !isFavorite)
-                  const Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Icon(Icons.push_pin, color: Colors.white, size: 20),
+                child: playlist.imagePath == null
+                    ? Center(
+                        child: Icon(
+                          isFavorite ? Icons.favorite : Icons.music_note,
+                          color: Colors.white24,
+                          size: 48,
+                        ),
+                      )
+                    : null,
+              ),
+
+              // 2. Gradient Overlay for Text Readability
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.2),
+                      Colors.black.withOpacity(0.8),
+                    ],
+                    stops: const [0.5, 0.7, 1.0],
                   ),
-              ],
-            ),
+                ),
+              ),
+
+              // 3. Pinned Icon (Top Right)
+              if (isPinned && !isFavorite)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.push_pin,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ),
+
+              // 4. Text Content (Bottom Left)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      playlist.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${playlist.songs.length} ${LanguageService().getText('songs')}",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 12,
+                        shadows: const [
+                          Shadow(color: Colors.black, blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            playlist.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            "${playlist.songs.length} canciones",
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
-          ),
-        ],
+        ),
       ),
     );
   }

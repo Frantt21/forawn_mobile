@@ -7,8 +7,6 @@ import '../services/language_service.dart';
 import '../services/playlist_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart';
-import '../services/lyrics_service.dart';
-import '../widgets/lyrics_view.dart';
 import '../widgets/lyrics_sheet.dart';
 
 class MusicPlayerScreen extends StatefulWidget {
