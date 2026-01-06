@@ -8,6 +8,7 @@ class Playlist {
   final String? description;
   final String? imagePath;
   final DateTime createdAt;
+  final DateTime? lastOpened;
   final bool isPinned;
   final List<Song> songs;
 
@@ -17,6 +18,7 @@ class Playlist {
     this.description,
     this.imagePath,
     required this.createdAt,
+    this.lastOpened,
     this.isPinned = false,
     required this.songs,
   });
@@ -26,6 +28,7 @@ class Playlist {
     String? description,
     String? imagePath,
     bool? isPinned,
+    DateTime? lastOpened,
     List<Song>? songs,
   }) {
     return Playlist(
@@ -34,6 +37,7 @@ class Playlist {
       description: description ?? this.description,
       imagePath: imagePath ?? this.imagePath,
       createdAt: createdAt,
+      lastOpened: lastOpened ?? this.lastOpened,
       isPinned: isPinned ?? this.isPinned,
       songs: songs ?? this.songs,
     );
@@ -45,6 +49,7 @@ class Playlist {
     'description': description,
     'imagePath': imagePath,
     'createdAt': createdAt.toIso8601String(),
+    'lastOpened': lastOpened?.toIso8601String(),
     'isPinned': isPinned,
     'songs': songs.map((s) => s.toJson()).toList(),
   };
@@ -55,6 +60,9 @@ class Playlist {
     description: json['description'] as String?,
     imagePath: json['imagePath'] as String?,
     createdAt: DateTime.parse(json['createdAt'] as String),
+    lastOpened: json['lastOpened'] != null
+        ? DateTime.parse(json['lastOpened'] as String)
+        : null,
     isPinned: json['isPinned'] as bool? ?? false,
     songs:
         (json['songs'] as List<dynamic>?)

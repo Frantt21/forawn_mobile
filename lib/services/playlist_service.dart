@@ -55,7 +55,11 @@ class PlaylistService extends ChangeNotifier {
     _playlists.sort((a, b) {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
-      return b.createdAt.compareTo(a.createdAt);
+
+      // Sort by lastOpened if available
+      final aTime = a.lastOpened ?? a.createdAt;
+      final bTime = b.lastOpened ?? b.createdAt;
+      return bTime.compareTo(aTime);
     });
   }
 
@@ -80,6 +84,18 @@ class PlaylistService extends ChangeNotifier {
 
   // --- Playlists ---
 
+  Future<void> logPlaylistOpen(String playlistId) async {
+    final index = _playlists.indexWhere((p) => p.id == playlistId);
+    if (index != -1) {
+      _playlists[index] = _playlists[index].copyWith(
+        lastOpened: DateTime.now(),
+      );
+      _sortPlaylists();
+      notifyListeners();
+      await _savePlaylists();
+    }
+  }
+
   Future<Playlist> createPlaylist(
     String name, {
     String? description,
@@ -91,6 +107,7 @@ class PlaylistService extends ChangeNotifier {
       description: description,
       imagePath: imagePath,
       createdAt: DateTime.now(),
+      lastOpened: DateTime.now(),
       songs: [],
     );
 
@@ -120,7 +137,7 @@ class PlaylistService extends ChangeNotifier {
         description: description,
         imagePath: imagePath,
       );
-      notifyListeners(); // No need to resort unless pinned changed (not here)
+      notifyListeners();
       await _savePlaylists();
     }
   }
@@ -129,6 +146,7 @@ class PlaylistService extends ChangeNotifier {
     final index = _playlists.indexWhere((p) => p.id == playlistId);
     if (index != -1) {
       final p = _playlists[index];
+      // Toggling pin always brings to top or re-sorts
       _playlists[index] = p.copyWith(isPinned: !p.isPinned);
       _sortPlaylists();
       notifyListeners();
@@ -142,7 +160,14 @@ class PlaylistService extends ChangeNotifier {
       final playlist = _playlists[index];
       if (!playlist.songs.any((s) => s.id == song.id)) {
         final updatedSongs = List<Song>.from(playlist.songs)..add(song);
-        _playlists[index] = playlist.copyWith(songs: updatedSongs);
+        // Also update lastOpened when adding song? Maybe not needed, but useful.
+        // Let's keep it strictly 'open' event for now, or modifiedAt.
+        // User asked for 'last opened or played'.
+        _playlists[index] = playlist.copyWith(
+          songs: updatedSongs,
+          lastOpened: DateTime.now(),
+        );
+        _sortPlaylists();
         notifyListeners();
         await _savePlaylists();
       }
