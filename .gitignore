@@ -57,3 +57,6 @@ LANGUAGE_SYSTEM_100_COMPLETE.md
 *.png
 lib/config/api_config.dart
 pair_device.ps1
+/lib/backend
+generate_drive_token.js
+lib/backend/.env.example
