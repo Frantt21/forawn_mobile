@@ -239,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Main App Sections
           Text(
-            'Secciones Principales',
+            LanguageService().getText('main_sections'),
             style: TextStyle(
               color: textColor,
               fontSize: 18,
@@ -417,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           onTap: () {
                             // Navegar usando la ruta guardada
-                            Navigator.pushNamed(context, screen.route!);
+                            Navigator.pushNamed(context, screen.route);
                           },
                           subtitle: Text(
                             screen.timeAgo,
