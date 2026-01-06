@@ -1,4 +1,4 @@
-// lib/widgets/lyrics_view.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../services/lyrics_service.dart';
@@ -29,9 +29,75 @@ class _LyricsViewState extends State<LyricsView> {
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
 
-  int _currentIndex = -1;
-  int? _initialIndex; // Para controlar el scroll inicial sin animación
-  final bool _isUserScrolling = false;
+  // Usamos ValueNotifier para solo reconstruir cuando cambia la LÍNEA activa,
+  // no cada milisegundo que cambia el progreso de la canción.
+  final ValueNotifier<int> _currentIndexNotifier = ValueNotifier<int>(-1);
+  StreamSubscription? _progressSubscription;
+
+  // Cache para evitar iterar la lista completa en cada frame de audio
+  bool _firstEvent = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeToProgress();
+  }
+
+  @override
+  void didUpdateWidget(LyricsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.progressStream != oldWidget.progressStream) {
+      _subscribeToProgress();
+    }
+    // Si cambian las lyrics, resetear
+    if (widget.lyrics != oldWidget.lyrics) {
+      _currentIndexNotifier.value = -1;
+      _firstEvent = true;
+      // Forzar chequeo inmediato
+    }
+  }
+
+  void _subscribeToProgress() {
+    _progressSubscription?.cancel();
+    _progressSubscription = widget.progressStream.listen((progress) {
+      if (widget.lyrics == null || widget.lyrics!.syncedLyrics.isEmpty) return;
+
+      final newIndex = _getLyricIndex(progress.position);
+
+      if (_firstEvent) {
+        _currentIndexNotifier.value = newIndex;
+        _firstEvent = false;
+        // No animar en la primera carga, el builder usará initialScrollIndex
+        return;
+      }
+
+      if (newIndex != _currentIndexNotifier.value) {
+        _currentIndexNotifier.value = newIndex;
+        _scrollToIndex(newIndex);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _progressSubscription?.cancel();
+    _currentIndexNotifier.dispose();
+    super.dispose();
+  }
+
+  void _scrollToIndex(int index) {
+    if (index >= 0 && !_itemScrollController.isAttached) return;
+
+    // Calcular alineación dinámica
+    final alignment = _getAlignment(index);
+
+    _itemScrollController.scrollTo(
+      index: index,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOutCubic,
+      alignment: alignment,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +115,6 @@ class _LyricsViewState extends State<LyricsView> {
     }
 
     if (widget.lyrics!.syncedLyrics.isEmpty) {
-      // Mostrar letras planas si no hay sincronizadas
       return SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Text(
@@ -60,25 +125,13 @@ class _LyricsViewState extends State<LyricsView> {
       );
     }
 
-    return StreamBuilder<PlaybackProgress>(
-      stream: widget.progressStream,
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          final newIndex = _getLyricIndex(snapshot.data!.position);
-
-          // Primera carga: Establecer initialIndex y currentIndex sin animación
-          if (_initialIndex == null) {
-            _initialIndex = newIndex < 0
-                ? 0
-                : newIndex; // Asegurar índice válido para scroll
-            _currentIndex = newIndex;
-          } else {
-            // Actualizaciones subsiguientes: Animar si cambia
-            _updateCurrentLine(newIndex);
-          }
-        } else if (_initialIndex == null) {
-          // Aún no hay datos de posición, esperar
-          return const SizedBox();
+    // Solo reconstruimos la lista cuando cambia el índice activo
+    return ValueListenableBuilder<int>(
+      valueListenable: _currentIndexNotifier,
+      builder: (context, currentIndex, _) {
+        // Esperar a tener la primera posición válida para evitar saltos visuales
+        if (currentIndex == -1) {
+          return const SizedBox.shrink();
         }
 
         return ShaderMask(
@@ -97,10 +150,12 @@ class _LyricsViewState extends State<LyricsView> {
           },
           blendMode: BlendMode.dstIn,
           child: ScrollablePositionedList.builder(
-            initialScrollIndex: _initialIndex ?? 0,
+            // Initial scroll
+            initialScrollIndex: currentIndex > 0 ? currentIndex : 0,
             initialAlignment: _getAlignment(
-              _initialIndex ?? 0,
-            ), // Alinear correctamente al inicio
+              currentIndex > 0 ? currentIndex : 0,
+            ),
+
             itemCount: widget.lyrics!.syncedLyrics.length,
             itemScrollController: _itemScrollController,
             itemPositionsListener: _itemPositionsListener,
@@ -110,46 +165,30 @@ class _LyricsViewState extends State<LyricsView> {
             ),
             itemBuilder: (context, index) {
               final line = widget.lyrics!.syncedLyrics[index];
-              final isCurrent = index == _currentIndex;
+              final isCurrent = index == currentIndex;
 
               return GestureDetector(
-                onTap: () {
-                  // Seek to line timestamp (adjusted by offset logic inverse?)
-                  // Seek debería ir al timestamp original
-                  widget.onSeek(line.timestamp);
-                },
+                onTap: () => widget.onSeek(line.timestamp),
+                behavior: HitTestBehavior.opaque, // Mejora touch
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 24, // Padding lateral ajustado
+                    vertical: 12, // Más espacio para touch
+                    horizontal: 24,
                   ),
-                  child: isCurrent
-                      ? Text(
-                          line.text,
-                          style: TextStyle(
-                            color: widget.textColor,
-                            fontSize: 24, // Mismo tamaño que inactivo
-                            fontWeight: FontWeight.bold,
-                            height: 1.5,
-                          ),
-                          textAlign: TextAlign.start, // Alineado izquierda
-                        )
-                      : Text(
-                          line.text,
-                          style: TextStyle(
-                            fontSize: 24,
-                            height: 1.5,
-                            fontWeight: FontWeight.w500,
-                            // Efecto Blur simulado
-                            foreground: Paint()
-                              ..color = widget.textColor.withOpacity(0.4)
-                              ..maskFilter = const MaskFilter.blur(
-                                BlurStyle.normal,
-                                1.0,
-                              ),
-                          ),
-                          textAlign: TextAlign.start,
-                        ),
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    style: TextStyle(
+                      fontSize: isCurrent ? 26 : 24, // Sutil zoom
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                      height: 1.5,
+                      color: isCurrent
+                          ? widget.textColor
+                          : widget.textColor.withOpacity(
+                              0.3,
+                            ), // Opacidad simple MUCHO más rápido que Blur
+                    ),
+                    child: Text(line.text, textAlign: TextAlign.start),
+                  ),
                 ),
               );
             },
@@ -161,43 +200,27 @@ class _LyricsViewState extends State<LyricsView> {
 
   int _getLyricIndex(Duration position) {
     final lyrics = widget.lyrics!.syncedLyrics;
-    int index = -1;
+    final targetTime = position - widget.offset; // Ajustar por offset
+
+    // Optimización: Empezar a buscar desde el último índice conocido (o un poco antes por si hizo seek atrás)
+    // Pero para seguridad simple en listas cortas (<100 líneas), búsqueda lineal está bien.
+    // Si queremos optimizar CPU, podriamos usar búsqueda binaria o incremental.
+    // Vamos a hacer búsqueda simple pero robusta.
+
     for (int i = 0; i < lyrics.length; i++) {
-      if ((lyrics[i].timestamp + widget.offset) <= position) {
-        index = i;
-      } else {
-        break;
+      // Si esta línea es futura, la anterior era la actual
+      if (lyrics[i].timestamp > targetTime) {
+        return i > 0 ? i - 1 : 0;
       }
     }
-    return index;
-  }
-
-  void _updateCurrentLine(int newIndex) {
-    if (newIndex != _currentIndex) {
-      _currentIndex = newIndex;
-      // Auto-scroll si no está scrolleando el usuario
-      if (newIndex >= 0 && !_isUserScrolling) {
-        // Calcular alineación dinámica
-        final alignment = _getAlignment(newIndex);
-
-        // Verificar si el controlador está adjunto antes de llamar
-        if (_itemScrollController.isAttached) {
-          _itemScrollController.scrollTo(
-            index: newIndex,
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeInOutCubic,
-            alignment: alignment,
-          );
-        }
-      }
-    }
+    // Si llegamos al final, es la última línea
+    return lyrics.length - 1;
   }
 
   double _getAlignment(int index) {
     if (index < 5) {
-      // De 0.1 (Top) a 0.5 (Middle)
       return 0.1 + (index / 5.0) * 0.4;
     }
-    return 0.5; // Centrado
+    return 0.5;
   }
 }

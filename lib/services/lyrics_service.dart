@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:rxdart/rxdart.dart';
 
 import 'lyrics_adjuster.dart';
 import '../config/api_config.dart';
@@ -100,6 +101,43 @@ class LyricsService {
   LyricsService._internal();
 
   static const String _cachePrefix = 'lyrics_cache_';
+
+  // State Management
+  final BehaviorSubject<Lyrics?> _currentLyricsSubject =
+      BehaviorSubject<Lyrics?>();
+  Stream<Lyrics?> get currentLyricsStream => _currentLyricsSubject.stream;
+  Lyrics? get currentLyrics => _currentLyricsSubject.valueOrNull;
+
+  String? _currentTrackingId;
+
+  /// Sets the current song and triggers fetching in background
+  Future<void> setCurrentSong(String title, String artist) async {
+    final trackingId = '$title-$artist';
+    if (_currentTrackingId == trackingId) return; // Already tracking
+
+    _currentTrackingId = trackingId;
+    // Don't emit null immediately if we want to show previous lyics or just keep UI stable?
+    // User wants "loaded logic", so maybe we clear it or maybe we keep it?
+    // To match user expectation of "loading logic initially", we should probably reset
+    _currentLyricsSubject.add(null);
+
+    // Fetch in background
+    fetchLyrics(title, artist).then((lyrics) {
+      if (_currentTrackingId == trackingId) {
+        _currentLyricsSubject.add(lyrics);
+      }
+    });
+  }
+
+  /// Manually updates the current lyrics (e.g. from manual search selection)
+  void updateLyrics(Lyrics lyrics) {
+    _currentLyricsSubject.add(lyrics);
+  }
+
+  void clearCurrentLyrics() {
+    _currentLyricsSubject.add(null);
+    _currentTrackingId = null;
+  }
 
   /// Obtiene lyrics desde la API o caché
   Future<Lyrics?> fetchLyrics(

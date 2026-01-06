@@ -22,13 +22,14 @@ class _LyricsSheetState extends State<LyricsSheet> {
   Duration _offset = Duration.zero;
   bool _isLoading = true;
   late Song _currentSong;
+  StreamSubscription? _lyricsSubscription;
   StreamSubscription? _playerSubscription;
 
   @override
   void initState() {
     super.initState();
     _currentSong = widget.song;
-    _loadLyrics();
+    _setupLyricsListener();
 
     // Escuchar cambios de canción para actualizar el sheet
     _playerSubscription = widget.player.currentSongStream.listen((song) {
@@ -36,45 +37,67 @@ class _LyricsSheetState extends State<LyricsSheet> {
         if (mounted) {
           setState(() {
             _currentSong = song;
-            _offset = Duration.zero; // Reset visual temporal
+            _offset = Duration.zero;
             _lyrics = null;
             _isLoading = true;
           });
-          _loadLyrics();
+          // El stream de lyrics se actualizará automáticamente
+          // porque AudioPlayerService llama a LyricsService
         }
+      }
+    });
+
+    _loadSavedOffset();
+  }
+
+  void _setupLyricsListener() {
+    // Si ya tenemos lyrics cargados en memoria, usarlos inmediatamente para EVITAR loader
+    final currentInMemory = LyricsService().currentLyrics;
+    if (currentInMemory != null) {
+      _lyrics = currentInMemory;
+      _isLoading = false;
+    } else {
+      // Fallback si no se disparó (ej. primera carga app), forzarlo
+      LyricsService().setCurrentSong(_currentSong.title, _currentSong.artist);
+    }
+
+    // Suscribirse al stream global de lyrics para actualizaciones
+    _lyricsSubscription = LyricsService().currentLyricsStream.listen((lyrics) {
+      if (mounted) {
+        setState(() {
+          // Si llega null, es que está cargando NUEVA canción
+          if (lyrics == null) {
+            _lyrics = null;
+            _isLoading = true;
+          } else {
+            _lyrics = lyrics;
+            _isLoading = false;
+          }
+        });
       }
     });
   }
 
-  @override
-  void dispose() {
-    _playerSubscription?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _loadLyrics() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadSavedOffset() async {
     try {
-      // Cargar offset guardado
       final prefs = await SharedPreferences.getInstance();
       final savedOffsetMs =
           prefs.getInt('lyrics_offset_${_currentSong.id}') ?? 0;
-
-      final lyrics = await LyricsService().fetchLyrics(
-        _currentSong.title,
-        _currentSong.artist,
-      );
-
       if (mounted) {
         setState(() {
-          _lyrics = lyrics;
           _offset = Duration(milliseconds: savedOffsetMs);
-          _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      // ignore
     }
+  }
+
+  @override
+  void dispose() {
+    _lyricsSubscription?.cancel();
+    _playerSubscription?.cancel();
+    super.dispose();
   }
 
   void _adjustOffset(int milliseconds) async {
@@ -198,11 +221,11 @@ class _LyricsSheetState extends State<LyricsSheet> {
                         // Limpiar cache local
                         final prefs = await SharedPreferences.getInstance();
                         final cacheKey =
-                            'lyrics_cache_' +
-                            '${_currentSong.title.toLowerCase()}_${_currentSong.artist.toLowerCase()}'
-                                .replaceAll(RegExp(r'[^a-z0-9_]'), '_');
+                            'lyrics_cache_${'${_currentSong.title.toLowerCase()}_${_currentSong.artist.toLowerCase()}'
+                                .replaceAll(RegExp(r'[^a-z0-9_]'), '_')}';
                         await prefs.remove(cacheKey);
-                        setState(() => _lyrics = null);
+                        // Limpiar servicio también
+                        LyricsService().clearCurrentLyrics();
                       }
                     },
                     itemBuilder: (context) => [
@@ -485,7 +508,8 @@ class _LyricsSheetState extends State<LyricsSheet> {
                                     lyrics: l,
                                   );
                                   Navigator.pop(context);
-                                  _loadLyrics();
+                                  // Forzar actualización inmediata con los lyrics seleccionados
+                                  LyricsService().updateLyrics(l);
                                 },
                                 borderRadius: BorderRadius.circular(12),
                                 child: Container(
