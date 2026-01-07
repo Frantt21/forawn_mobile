@@ -197,6 +197,28 @@ class MusicMetadataCache {
     }
   }
 
+  /// Eliminar una entrada específica del caché
+  static Future<void> delete(String key) async {
+    // 1. Eliminar de memoria
+    _memoryCache.remove(key);
+
+    try {
+      // 2. Eliminar archivo de artwork
+      final file = await _getCacheFile(key);
+      if (await file.exists()) {
+        await file.delete();
+      }
+
+      // 3. Eliminar metadata de SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('meta_txt_$key');
+
+      print('[MetadataCache] Deleted cache for key: $key');
+    } catch (e) {
+      print('[MetadataCache] Error deleting cache: $e');
+    }
+  }
+
   /// Limpiar caché (útil para debug o liberar espacio)
   static Future<void> clearCache() async {
     _memoryCache.clear();

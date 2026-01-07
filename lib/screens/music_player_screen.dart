@@ -14,8 +14,9 @@ import 'package:http/http.dart' as http;
 import '../services/foranly_service.dart';
 import '../services/metadata_service.dart';
 import '../services/saf_helper.dart';
+import '../services/music_library_service.dart'; // Added
+import '../services/music_metadata_cache.dart'; // Added
 import 'dart:typed_data';
-import 'dart:ui';
 
 class MusicPlayerScreen extends StatefulWidget {
   const MusicPlayerScreen({super.key});
@@ -1217,11 +1218,30 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       }
 
       // 4. Update Cache & UI
-      // Invalidate cache for this ID and reload
-      await MetadataService().loadMetadata(id: song.id, forceReload: true);
+      // CRITICAL: Delete ALL cache layers for this song FIRST
+      final cacheKey = song.filePath.hashCode.toString();
+
+      // Delete from persistent cache
+      await MusicMetadataCache.delete(cacheKey);
+
+      // Delete from MetadataService memory cache
+      MetadataService().clearCacheEntry(cacheKey);
+
+      // Now reload fresh metadata from the file we just modified
+      await MetadataService().loadMetadata(
+        id: cacheKey,
+        filePath: song.filePath.startsWith('content://') ? null : song.filePath,
+        safUri: song.filePath.startsWith('content://') ? song.filePath : null,
+        forceReload: true,
+      );
 
       // Update Player UI
       await AudioPlayerService().refreshCurrentSongMetadata();
+
+      // Notify Library to update song in list
+      MusicLibraryService.onMetadataUpdated.value = song.filePath;
+      // Force trigger even if same path (hacky but safer for re-edits)
+      // MusicLibraryService.onMetadataUpdated.notifyListeners(); // Not accessible on ValueNotifier easily without extending
 
       if (mounted) {
         // Close Loading

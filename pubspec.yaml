@@ -33,7 +33,7 @@ dependencies:
   shared_preferences: ^2.2.1
   cupertino_icons: ^1.0.8
   http: ^1.1.0
-  dio: ^5.4.0
+  dio: ^5.9.0
   # Directory picker removed due to build issues
   # file_picker: ^5.3.3
   # Permissions
@@ -67,6 +67,7 @@ dependencies:
   rxdart: ^0.27.7
   scrollable_positioned_list: ^0.3.8
   flutter_displaymode: ^0.7.0
+  audiotags: ^1.4.5
 
 dev_dependencies:
   integration_test:

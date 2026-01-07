@@ -218,9 +218,15 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   double _getAlignment(int index) {
-    if (index < 5) {
-      return 0.1 + (index / 5.0) * 0.4;
+    // Transición suave de top a center en las primeras 10 líneas
+    // Esto evita el efecto de "estiramiento" visual
+    if (index < 10) {
+      // Interpolación suave de 0.2 (cerca del top) a 0.5 (centro)
+      // Usando una curva easeOut para suavizar la transición
+      final progress = index / 10.0;
+      final easedProgress = 1 - (1 - progress) * (1 - progress); // easeOut
+      return 0.2 + (easedProgress * 0.3); // 0.2 → 0.5
     }
-    return 0.5;
+    return 0.5; // Centro para el resto
   }
 }
