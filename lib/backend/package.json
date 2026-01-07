@@ -8,15 +8,15 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
-    "express": "^5.2.1",
+    "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "spotify-web-api-node": "^5.0.2",
+    "express": "^5.2.1",
     "googleapis": "^128.0.0",
-    "better-sqlite3": "^11.7.0",
+    "node-id3": "^0.2.9",
+    "spotify-web-api-node": "^5.0.2",
     "youtube-sr": "^4.3.11",
-    "ytdl-core": "^4.11.5",
-    "node-id3": "^0.2.9"
+    "ytdl-core": "^4.11.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
