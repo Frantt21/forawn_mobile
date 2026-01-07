@@ -406,10 +406,10 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: Colors.white.withOpacity(0.1),
-                            width: 1,
-                          ),
+                          // side: BorderSide(
+                          //   color: Colors.white.withOpacity(0.1),
+                          //   width: 1,
+                          // ),
                         ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(

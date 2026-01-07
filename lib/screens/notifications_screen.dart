@@ -222,10 +222,10 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                     color: const Color.fromARGB(255, 45, 45, 45),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: Colors.white.withOpacity(0.1),
-                        width: 1,
-                      ),
+                      // side: BorderSide(
+                      //   color: Colors.white.withOpacity(0.1),
+                      //   width: 1,
+                      // ),
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(

@@ -391,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 0),
+            const SizedBox(height: 12),
             Builder(
               builder: (context) {
                 final screens = _recentScreensService.recentScreens;
@@ -404,10 +404,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color.fromARGB(255, 45, 45, 45),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: Colors.white.withOpacity(0.1),
-                            width: 1,
-                          ),
+                          // side: BorderSide(
+                          //   color: Colors.white.withOpacity(0.1),
+                          //   width: 1,
+                          // ),
                         ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
@@ -587,7 +587,7 @@ class _NavigationCard extends StatelessWidget {
       color: const Color.fromARGB(255, 45, 45, 45),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
+        // side: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
       ),
       child: InkWell(
         onTap: onTap,
@@ -682,7 +682,7 @@ class _TimeHeaderState extends State<TimeHeader> {
       decoration: BoxDecoration(
         color: const Color.fromARGB(255, 45, 45, 45),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+        // border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

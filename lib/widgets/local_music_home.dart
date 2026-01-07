@@ -264,17 +264,20 @@ class LocalMusicHome extends StatelessWidget {
                             onTap: onCreatePlaylist,
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
+                                horizontal: 20,
+                                vertical: 5,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.05),
+                                color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(
-                                Icons.add,
-                                color: Colors.purpleAccent,
-                                size: 20,
+                              child: Text(
+                                LanguageService().getText('new'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
@@ -715,7 +718,6 @@ class _AnimatedPlayingIndicatorState extends State<_AnimatedPlayingIndicator>
         }
 
         return Container(
-          color: widget.color.withOpacity(0.7),
           child: Center(
             child: SizedBox(
               width: 24,
