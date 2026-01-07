@@ -275,12 +275,15 @@ class GlobalDownloadManager {
             _notifyListeners();
 
             // Actualizar notificación con progreso
-            _showDownloadNotification(
-              downloadId,
-              track.title,
-              'Descargando...',
-              (progress * 100).toInt(),
-            );
+            // Evitar actualizar al 100% aquí para no dejar la notificación "pegada" como ongoing
+            if (progress < 0.99) {
+              _showDownloadNotification(
+                downloadId,
+                track.title,
+                'Descargando...',
+                (progress * 100).toInt(),
+              );
+            }
           }
         },
         cancelToken: cancelToken,
@@ -326,6 +329,9 @@ class GlobalDownloadManager {
           durationMs: null,
         );
         await DownloadHistoryService.addToHistory(historyItem);
+
+        // Cancelar notificación de progreso existente para evitar conflictos
+        await _notificationsPlugin.cancel(downloadId.hashCode);
 
         // Mostrar notificación de completado
         await _showCompletedNotification(downloadId, track.title);

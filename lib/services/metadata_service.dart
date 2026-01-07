@@ -1,3 +1,5 @@
+// This tool call is just to verify SafHelper first.
+// I will cancel this replacement and view SafHelper instead.
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -109,6 +111,7 @@ class MetadataService {
       filePath: filePath,
       safUri: safUri,
       priority: priority,
+      skipMediaStore: forceReload,
     );
   }
 
@@ -120,12 +123,14 @@ class MetadataService {
     String? safUri,
     MetadataPriority priority = MetadataPriority.normal,
     int maxRetries = 3,
+    bool skipMediaStore = false,
   }) async {
     for (int attempt = 0; attempt < maxRetries; attempt++) {
       try {
         final metadata = await _loadFromSource(
           filePath: filePath,
           safUri: safUri,
+          skipMediaStore: skipMediaStore,
         );
 
         if (metadata != null) {
@@ -182,8 +187,11 @@ class MetadataService {
   Future<SongMetadata?> _loadFromSource({
     String? filePath,
     String? safUri,
+    bool skipMediaStore = false,
   }) async {
-    print('[MetadataService] Loading from: filePath=$filePath, safUri=$safUri');
+    print(
+      '[MetadataService] Loading from: filePath=$filePath, safUri=$safUri, skipMediaStore=$skipMediaStore',
+    );
 
     if (safUri != null) {
       // Cargar desde SAF
@@ -197,53 +205,55 @@ class MetadataService {
         return result;
       }
     } else if (filePath != null) {
-      // Intentar primero con MediaStore (Mucho más rápido)
-      print('[MetadataService] Trying MediaStore for: $filePath');
-      final mediaStoreData = await SafHelper.getMetadataFromMediaStore(
-        filePath,
-      );
-      if (mediaStoreData != null) {
-        // Encontrado en MediaStore!
-        print('[MetadataService] MediaStore found data');
-        var metadata = _convertMapToMetadata(mediaStoreData);
-        print(
-          '[MetadataService] Has artworkUri: ${metadata.artworkUri}, has artwork bytes: ${metadata.artwork != null}',
+      // Intentar primero con MediaStore (Mucho más rápido) - SOLO SI NO se solicita skip
+      if (!skipMediaStore) {
+        print('[MetadataService] Trying MediaStore for: $filePath');
+        final mediaStoreData = await SafHelper.getMetadataFromMediaStore(
+          filePath,
         );
-
-        // Si tenemos URI pero no bytes, cargar los bytes del thumbnail
-        if (metadata.artwork == null && metadata.artworkUri != null) {
+        if (mediaStoreData != null) {
+          // Encontrado en MediaStore!
+          print('[MetadataService] MediaStore found data');
+          var metadata = _convertMapToMetadata(mediaStoreData);
           print(
-            '[MetadataService] Loading artwork bytes from URI: ${metadata.artworkUri}',
+            '[MetadataService] Has artworkUri: ${metadata.artworkUri}, has artwork bytes: ${metadata.artwork != null}',
           );
-          try {
-            final bytes = await SafHelper.readBytesFromUri(
-              metadata.artworkUri!,
-              maxBytes: 200 * 1024, // Thumbnail
-            );
+
+          // Si tenemos URI pero no bytes, cargar los bytes del thumbnail
+          if (metadata.artwork == null && metadata.artworkUri != null) {
             print(
-              '[MetadataService] Loaded ${bytes?.length ?? 0} bytes of artwork',
+              '[MetadataService] Loading artwork bytes from URI: ${metadata.artworkUri}',
             );
-            if (bytes != null && bytes.isNotEmpty) {
-              metadata = SongMetadata(
-                title: metadata.title,
-                artist: metadata.artist,
-                album: metadata.album,
-                durationMs: metadata.durationMs,
-                artwork: bytes,
-                artworkUri: metadata.artworkUri,
+            try {
+              final bytes = await SafHelper.readBytesFromUri(
+                metadata.artworkUri!,
+                maxBytes: 200 * 1024, // Thumbnail
               );
-              print('[MetadataService] ✓ Artwork loaded successfully');
-            } else {
-              print('[MetadataService] ✗ No artwork bytes received');
+              print(
+                '[MetadataService] Loaded ${bytes?.length ?? 0} bytes of artwork',
+              );
+              if (bytes != null && bytes.isNotEmpty) {
+                metadata = SongMetadata(
+                  title: metadata.title,
+                  artist: metadata.artist,
+                  album: metadata.album,
+                  durationMs: metadata.durationMs,
+                  artwork: bytes,
+                  artworkUri: metadata.artworkUri,
+                );
+                print('[MetadataService] ✓ Artwork loaded successfully');
+              } else {
+                print('[MetadataService] ✗ No artwork bytes received');
+              }
+            } catch (e) {
+              print('[MetadataService] ✗ Error loading art bytes: $e');
             }
-          } catch (e) {
-            print('[MetadataService] ✗ Error loading art bytes: $e');
           }
+          return metadata;
+        } else {
+          print('[MetadataService] MediaStore returned null, trying fallback');
         }
-        return metadata;
-      } else {
-        print('[MetadataService] MediaStore returned null, trying fallback');
-      }
+      } // Ends if (!skipMediaStore)
 
       // Fallback: Leer archivo usando el método nativo (SafHelper puede leer file:// URIs)
       try {
