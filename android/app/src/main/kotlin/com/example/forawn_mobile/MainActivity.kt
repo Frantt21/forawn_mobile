@@ -146,6 +146,36 @@ class MainActivity : AudioServiceActivity() {
           }
         }
 
+        "overwriteFileFromPath" -> {
+          val uriStr = call.argument<String>("uri")
+          val tempPath = call.argument<String>("tempPath")
+          if (uriStr == null || tempPath == null) {
+            result.error("INVALID_ARGS", "missing args", null)
+            return@setMethodCallHandler
+          }
+          try {
+            val ok = overwriteFileFromPath(Uri.parse(uriStr), tempPath)
+            result.success(ok)
+          } catch (e: Exception) {
+            result.error("WRITE_ERROR", e.message, null)
+          }
+        }
+
+        "copyUriToFile" -> {
+          val uriStr = call.argument<String>("uri")
+          val destPath = call.argument<String>("destPath")
+          if (uriStr == null || destPath == null) {
+              result.error("INVALID_ARGS", "missing args", null)
+              return@setMethodCallHandler
+          }
+          try {
+              val ok = copyUriToFile(Uri.parse(uriStr), destPath)
+              result.success(ok)
+          } catch(e: Exception) {
+              result.error("COPY_ERROR", e.message, null)
+          }
+        }
+
   // Nuevo: Obtener metadatos desde MediaStore (más rápido y robusto para artworks)
   "getMetadataFromMediaStore" -> {
     val filePath = call.argument<String>("filePath")
@@ -359,5 +389,44 @@ class MainActivity : AudioServiceActivity() {
     } finally {
       retriever.release()
     }
+  }
+
+  private fun overwriteFileFromPath(uri: Uri, tempPath: String): Boolean {
+      try {
+          val inputStream = FileInputStream(File(tempPath))
+          // "wt" mode truncates the file content before writing
+          val outputStream = contentResolver.openOutputStream(uri, "wt") 
+          if (outputStream != null) {
+              inputStream.use { input ->
+                  outputStream.use { output ->
+                      input.copyTo(output)
+                  }
+              }
+              return true
+          }
+      } catch (e: Exception) {
+          e.printStackTrace()
+          throw e
+      }
+      return false
+  }
+
+  private fun copyUriToFile(uri: Uri, destPath: String): Boolean {
+      try {
+          val inputStream = contentResolver.openInputStream(uri)
+          val outputStream = File(destPath).outputStream()
+          if (inputStream != null) {
+              inputStream.use { input ->
+                  outputStream.use { output ->
+                      input.copyTo(output)
+                  }
+              }
+              return true
+          } 
+      } catch (e: Exception) {
+          e.printStackTrace()
+          throw e
+      }
+      return false
   }
 }

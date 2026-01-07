@@ -105,4 +105,32 @@ class SafHelper {
       return null;
     }
   }
+
+  // Nuevo: Overwrite file at URI with content from tempPath
+  static Future<bool> overwriteFileFromPath(String uri, String tempPath) async {
+    try {
+      final result = await _channel.invokeMethod<bool>(
+        'overwriteFileFromPath',
+        {'uri': uri, 'tempPath': tempPath},
+      );
+      return result == true;
+    } catch (e) {
+      print('overwriteFileFromPath error: $e');
+      return false;
+    }
+  }
+
+  // Copy SAF URI content to local file
+  static Future<bool> copyUriToFile(String uri, String destPath) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('copyUriToFile', {
+        'uri': uri,
+        'destPath': destPath,
+      });
+      return result == true;
+    } catch (e) {
+      print('copyUriToFile error: $e');
+      return false;
+    }
+  }
 }

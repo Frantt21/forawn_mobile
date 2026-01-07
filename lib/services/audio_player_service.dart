@@ -389,8 +389,8 @@ class AudioPlayerService {
         final cached = await MusicMetadataCache.get(rawSong.id);
         if (cached != null) {
           rawSong = rawSong.copyWith(
-            title: cached.title ?? rawSong.title,
-            artist: cached.artist ?? rawSong.artist,
+            title: cached.title,
+            artist: cached.artist,
             album: cached.album ?? rawSong.album,
             artworkData: cached.artwork ?? rawSong.artworkData,
             dominantColor: cached.dominantColor ?? rawSong.dominantColor,
@@ -487,6 +487,28 @@ class AudioPlayerService {
     } catch (e) {
       print('[AudioPlayer] Error playing song: $e');
       return false;
+    }
+  }
+
+  /// Refrescar metadatos de la canción actual sin detener reproducción
+  Future<void> refreshCurrentSongMetadata() async {
+    final current = _playlist.currentSong;
+    if (current == null) return;
+
+    // Forzar carga desde caché (que ya debería estar actualizado al llamar esto)
+    final cached = await MusicMetadataCache.get(current.id);
+    if (cached != null) {
+      final newSong = current.copyWith(
+        title: cached.title ?? current.title,
+        artist: cached.artist ?? current.artist,
+        album: cached.album ?? current.album,
+        artworkData: cached.artwork ?? current.artworkData,
+        dominantColor: cached.dominantColor ?? current.dominantColor,
+      );
+
+      _playlist.updateCurrentSong(newSong);
+      _currentSongSubject.add(newSong);
+      _playlistSubject.add(_playlist);
     }
   }
 

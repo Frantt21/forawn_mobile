@@ -8,6 +8,14 @@ import '../services/playlist_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart';
 import '../widgets/lyrics_sheet.dart';
+import 'package:audiotags/audiotags.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import '../services/foranly_service.dart';
+import '../services/metadata_service.dart';
+import '../services/saf_helper.dart';
+import 'dart:typed_data';
+import 'dart:ui';
 
 class MusicPlayerScreen extends StatefulWidget {
   const MusicPlayerScreen({super.key});
@@ -177,6 +185,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       _showAddToPlaylistDialog(context, currentSong);
                     }
                     break;
+                  case 'update_metadata':
+                    if (mounted) {
+                      _showMetadataSearchDialog(context, currentSong);
+                    }
+                    break;
                 }
               },
               itemBuilder: (context) {
@@ -215,6 +228,19 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                         const SizedBox(width: 12),
                         Text(
                           LanguageService().getText('add_to_playlist'),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'update_metadata',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.edit_note, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Text(
+                          LanguageService().getText('update_metadata'),
                           style: const TextStyle(color: Colors.white),
                         ),
                       ],
@@ -857,5 +883,373 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         );
       },
     );
+  }
+  // --- Metadata Update Feature ---
+
+  void _showMetadataSearchDialog(BuildContext context, Song song) {
+    final titleController = TextEditingController(text: song.title);
+    final artistController = TextEditingController(text: song.artist);
+    bool isLoading = false;
+    Map<String, dynamic>? searchResult;
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.all(24),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900]!.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                LanguageService().getText('update_metadata'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white54,
+                                ),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: titleController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              labelText: LanguageService().getText('song'),
+                              labelStyle: const TextStyle(
+                                color: Colors.white70,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
+                              ),
+                              focusedBorder: const OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.purpleAccent,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: artistController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              labelText: LanguageService()
+                                  .getText('playlist_desc')
+                                  .replaceAll(
+                                    'Descripción',
+                                    'Artista',
+                                  ), // Fallback
+                              hintText: 'Artista',
+                              labelStyle: const TextStyle(
+                                color: Colors.white70,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
+                              ),
+                              focusedBorder: const OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.purpleAccent,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            icon: isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.search),
+                            label: Text(LanguageService().getText('search')),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.purpleAccent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onPressed: isLoading
+                                ? null
+                                : () async {
+                                    setState(() {
+                                      isLoading = true;
+                                      errorMessage = null;
+                                      searchResult = null;
+                                    });
+                                    final result = await ForanlyService()
+                                        .searchMetadata(
+                                          titleController.text,
+                                          artistController.text,
+                                        );
+                                    setState(() {
+                                      isLoading = false;
+                                      searchResult = result;
+                                      if (result == null) {
+                                        errorMessage = LanguageService()
+                                            .getText('no_results');
+                                      }
+                                    });
+                                  },
+                          ),
+                          if (errorMessage != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Text(
+                                errorMessage!,
+                                style: const TextStyle(color: Colors.redAccent),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          if (searchResult != null) ...[
+                            const SizedBox(height: 20),
+                            const Divider(color: Colors.white24),
+                            const SizedBox(height: 10),
+                            Text(
+                              LanguageService().getText('results'),
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 10),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child:
+                                    searchResult!['albumArt'] != null &&
+                                        searchResult!['albumArt']['data'] !=
+                                            null
+                                    ? Image.memory(
+                                        Uint8List.fromList(
+                                          List<int>.from(
+                                            searchResult!['albumArt']['data'],
+                                          ),
+                                        ),
+                                        width: 50,
+                                        height: 50,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            const Icon(
+                                              Icons.music_note,
+                                              color: Colors.white,
+                                            ),
+                                      )
+                                    : (searchResult!['albumArtUrl'] != null
+                                          ? Image.network(
+                                              searchResult!['albumArtUrl'],
+                                              width: 50,
+                                              height: 50,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  const Icon(
+                                                    Icons.music_note,
+                                                    color: Colors.white,
+                                                  ),
+                                            )
+                                          : const Icon(
+                                              Icons.music_note,
+                                              color: Colors.white,
+                                              size: 50,
+                                            )),
+                              ),
+                              title: Text(
+                                searchResult!['title'] ?? 'Unknown',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                searchResult!['artist'] ?? 'Unknown',
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.greenAccent,
+                                  size: 32,
+                                ),
+                                onPressed: () {
+                                  _applyMetadata(context, song, searchResult!);
+                                },
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _applyMetadata(
+    BuildContext context,
+    Song song,
+    Map<String, dynamic> metadata,
+  ) async {
+    // 1. Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Colors.purpleAccent),
+      ),
+    );
+
+    try {
+      // 2. Download artwork if URL provided (and not already bytes)
+      List<int>? artworkBytes;
+
+      if (metadata['albumArt'] != null &&
+          metadata['albumArt']['data'] != null) {
+        artworkBytes = List<int>.from(metadata['albumArt']['data']);
+      } else if (metadata['albumArtUrl'] != null) {
+        try {
+          final resp = await http
+              .get(Uri.parse(metadata['albumArtUrl']))
+              .timeout(const Duration(seconds: 10));
+          if (resp.statusCode == 200) {
+            artworkBytes = resp.bodyBytes;
+          }
+        } catch (e) {
+          print('Error downloading artwork: $e');
+        }
+      }
+
+      // 3. Write tags using AudioTags
+      String path = song.filePath;
+      bool isSaf = path.startsWith('content://');
+
+      File? tempFile;
+      String targetPath = path;
+
+      if (isSaf) {
+        // Create temp file
+        final tempDir = await getTemporaryDirectory();
+        final tempName = 'temp_${DateTime.now().millisecondsSinceEpoch}.mp3';
+        tempFile = File('${tempDir.path}/$tempName');
+
+        // Copy content from SAF to temp
+        final success = await SafHelper.copyUriToFile(path, tempFile.path);
+        if (!success) throw Exception("Failed to copy SAF file to temp");
+
+        targetPath = tempFile.path;
+      } else {
+        if (path.startsWith('file://')) {
+          targetPath = path.replaceFirst('file://', '');
+        }
+        if (!File(targetPath).existsSync()) {
+          throw Exception("File not found at $targetPath");
+        }
+      }
+
+      // Update Tags
+      final tag = Tag(
+        title: metadata['title'],
+        trackArtist: metadata['artist'],
+        album: metadata['album'],
+        year: int.tryParse(metadata['year']?.toString() ?? ''),
+        trackNumber: int.tryParse(metadata['trackNumber']?.toString() ?? ''),
+        pictures: artworkBytes != null
+            ? [
+                Picture(
+                  bytes: Uint8List.fromList(artworkBytes),
+                  mimeType: MimeType.jpeg,
+                  pictureType: PictureType.coverFront,
+                ),
+              ]
+            : [],
+      );
+
+      await AudioTags.write(targetPath, tag);
+
+      if (isSaf && tempFile != null) {
+        // Write back to SAF
+        final success = await SafHelper.overwriteFileFromPath(path, targetPath);
+        if (!success) throw Exception("Failed to write back to SAF file");
+
+        // Cleanup
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
+
+      // 4. Update Cache & UI
+      // Invalidate cache for this ID and reload
+      await MetadataService().loadMetadata(id: song.id, forceReload: true);
+
+      // Update Player UI
+      await AudioPlayerService().refreshCurrentSongMetadata();
+
+      if (mounted) {
+        // Close Loading
+        Navigator.of(context).pop();
+        // Close Search Dialog
+        Navigator.of(context).pop();
+        // Close Menu (optional, usually implied)
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(LanguageService().getText('metadata_updated')),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Close Loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${LanguageService().getText('metadata_update_error')}: $e',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      print('Metadata update error: $e');
+    }
   }
 }

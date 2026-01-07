@@ -65,6 +65,31 @@ class ForanlyService {
     return null;
   }
 
+  /// Buscar metadatos en el backend
+  Future<Map<String, dynamic>?> searchMetadata(
+    String title,
+    String artist,
+  ) async {
+    final baseUrl = ApiConfig.foranlyBackendPrimary;
+    final encodedTitle = Uri.encodeComponent(title);
+    final encodedArtist = Uri.encodeComponent(artist);
+    final url =
+        '$baseUrl/metadata/search?title=$encodedTitle&artist=$encodedArtist';
+
+    try {
+      print('[ForanlyService] Searching metadata: $url');
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      print('[ForanlyService] Error searching metadata: $e');
+    }
+    return null;
+  }
+
   /// Método para procesar URL directa de YouTube (SIN BÚSQUEDA)
   Future<String?> _tryGetUrlDirect(
     String baseUrl,
