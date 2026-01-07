@@ -7,6 +7,7 @@ import '../services/language_service.dart';
 
 import '../services/metadata_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/groq_assistant_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -349,6 +350,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     contentPadding: EdgeInsets.zero,
                   ),
+
+                  ListTile(
+                    leading: const Icon(Icons.chat, color: Colors.orangeAccent),
+                    title: Text(
+                      LanguageService().getText('clear_assistant_history'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('clear_assistant_history_desc'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_sweep),
+                      color: Colors.orangeAccent,
+                      onPressed: () async {
+                        // Limpiar historial del servicio
+                        GroqAssistantService().clearHistory();
+
+                        // Limpiar historial de SharedPreferences
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.remove('assistant_chat_history');
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                LanguageService().getText(
+                                  'assistant_history_cleared',
+                                ),
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ],
               ),
             ),
@@ -437,10 +479,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         color: const Color.fromARGB(255, 45, 45, 45),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: borderColor ?? Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
+        // border: Border.all(
+        //   color: borderColor ?? Colors.white.withOpacity(0.1),
+        //   width: 1,
+        // ),
       ),
       child: child,
     );
@@ -453,7 +495,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: const Color.fromARGB(255, 34, 34, 34),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.white.withOpacity(0.1)),
+          // side: BorderSide(color: Colors.white.withOpacity(0.1)),
         ),
         title: Text(LanguageService().getText('reset_confirmation')),
         content: Text(

@@ -85,6 +85,15 @@
   "update_check_error": "Error checking for updates",
   
   "storage_available": "available",
+  "clear_music_cache": "Clear music cache",
+  "clear_music_cache_desc": "Delete stored metadata and artwork",
+  "music_cache_cleared": "Music cache cleared",
+  "clear_lyrics_cache": "Clear lyrics cache",
+  "clear_lyrics_cache_desc": "Delete cached lyrics",
+  "lyrics_cache_cleared": "Lyrics cache cleared",
+  "clear_assistant_history": "Clear assistant history",
+  "clear_assistant_history_desc": "Delete music assistant conversation history",
+  "assistant_history_cleared": "Assistant history cleared",
   
   "muyai_fast": "Muyai (fast)",
   "agayosu_medium": "Agayosu (Medium)",

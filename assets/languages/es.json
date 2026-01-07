@@ -85,6 +85,15 @@
   "update_check_error": "Error al verificar actualizaciones",
   
   "storage_available": "disponible",
+  "clear_music_cache": "Limpiar caché de música",
+  "clear_music_cache_desc": "Elimina metadatos y carátulas almacenadas",
+  "music_cache_cleared": "Caché de música limpiado",
+  "clear_lyrics_cache": "Limpiar caché de letras",
+  "clear_lyrics_cache_desc": "Elimina las letras almacenadas en caché",
+  "lyrics_cache_cleared": "Caché de letras limpiado",
+  "clear_assistant_history": "Limpiar historial del asistente",
+  "clear_assistant_history_desc": "Elimina el historial de conversación del asistente musical",
+  "assistant_history_cleared": "Historial del asistente limpiado",
   
   "muyai_fast": "Muyai (rápido)",
   "agayosu_medium": "Agayosu (Medio)",
