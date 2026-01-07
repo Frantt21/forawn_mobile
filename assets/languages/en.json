@@ -94,6 +94,11 @@
   "clear_assistant_history": "Clear assistant history",
   "clear_assistant_history_desc": "Delete music assistant conversation history",
   "assistant_history_cleared": "Assistant history cleared",
+  "no_songs_to_add": "All songs are already in this playlist",
+  "selected": "selected",
+  "no_results": "No results found",
+  "songs_added": "songs added",
+  "add": "Add",
   
   "muyai_fast": "Muyai (fast)",
   "agayosu_medium": "Agayosu (Medium)",

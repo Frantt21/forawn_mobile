@@ -16,6 +16,8 @@ import '../services/music_metadata_cache.dart';
 import 'music_player_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/metadata_service.dart';
+import '../services/local_music_state_service.dart';
+import '../services/music_library_service.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -605,6 +607,269 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     );
   }
 
+  Future<void> _showAddSongsDialog(
+    BuildContext context,
+    Playlist playlist,
+  ) async {
+    final allSongs = LocalMusicStateService().librarySongs;
+    final playlistSongIds = playlist.songs.map((s) => s.id).toSet();
+    final availableSongs = allSongs
+        .where((s) => !playlistSongIds.contains(s.id))
+        .toList();
+
+    if (availableSongs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LanguageService().getText('no_songs_to_add'))),
+      );
+      return;
+    }
+
+    final selectedSongs = <Song>[];
+    String searchQuery = '';
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final filteredSongs = availableSongs.where((song) {
+              if (searchQuery.isEmpty) return true;
+              final query = searchQuery.toLowerCase();
+              return song.title.toLowerCase().contains(query) ||
+                  (song.artist ?? '').toLowerCase().contains(query);
+            }).toList();
+
+            return ValueListenableBuilder<String?>(
+              valueListenable: MusicLibraryService.onMetadataUpdated,
+              builder: (context, _, __) {
+                return Dialog(
+                  backgroundColor: const Color(0xFF1C1C1E),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.8,
+                      maxWidth: 500,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  LanguageService().getText('add_songs'),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () => Navigator.pop(ctx),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Search bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: TextField(
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: LanguageService().getText('search'),
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.3),
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.search,
+                                color: Colors.white54,
+                              ),
+                              filled: true,
+                              fillColor: Colors.white.withOpacity(0.1),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                searchQuery = value;
+                              });
+                            },
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Selected count
+                        if (selectedSongs.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Text(
+                              '${selectedSongs.length} ${LanguageService().getText('selected')}',
+                              style: const TextStyle(
+                                color: Colors.purpleAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 8),
+
+                        // Songs list
+                        Expanded(
+                          child: filteredSongs.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    LanguageService().getText('no_results'),
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  itemCount: filteredSongs.length,
+                                  itemBuilder: (context, index) {
+                                    final song = filteredSongs[index];
+                                    final isSelected = selectedSongs.contains(
+                                      song,
+                                    );
+
+                                    return CheckboxListTile(
+                                      value: isSelected,
+                                      onChanged: (bool? value) {
+                                        setState(() {
+                                          if (value == true) {
+                                            selectedSongs.add(song);
+                                          } else {
+                                            selectedSongs.remove(song);
+                                          }
+                                        });
+                                      },
+                                      title: Text(
+                                        song.title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        song.artist ?? '',
+                                        style: const TextStyle(
+                                          color: Colors.white54,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      secondary: ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: song.artworkData != null
+                                            ? Image.memory(
+                                                song.artworkData!,
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : Container(
+                                                width: 48,
+                                                height: 48,
+                                                color: Colors.grey[800],
+                                                child: const Icon(
+                                                  Icons.music_note,
+                                                  color: Colors.white24,
+                                                ),
+                                              ),
+                                      ),
+                                      activeColor: Colors.purpleAccent,
+                                      checkColor: Colors.white,
+                                    );
+                                  },
+                                ),
+                        ),
+
+                        // Buttons
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(
+                                  LanguageService().getText('cancel'),
+                                  style: const TextStyle(color: Colors.white70),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purpleAccent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                onPressed: selectedSongs.isEmpty
+                                    ? null
+                                    : () async {
+                                        for (final song in selectedSongs) {
+                                          await PlaylistService()
+                                              .addSongToPlaylist(
+                                                playlist.id,
+                                                song,
+                                              );
+                                        }
+                                        if (mounted) {
+                                          Navigator.pop(ctx);
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                '${selectedSongs.length} ${LanguageService().getText('songs_added')}',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                child: Text(
+                                  LanguageService().getText('add'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final playlist = _currentPlaylist;
@@ -732,12 +997,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                     _showEditPlaylistDialog(context, _currentPlaylist);
                     break;
                   case 'add_songs':
-                    // TODO: Implementar agregar canciones
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(LanguageService().getText('add_songs')),
-                      ),
-                    );
+                    _showAddSongsDialog(context, _currentPlaylist);
                     break;
                 }
               },

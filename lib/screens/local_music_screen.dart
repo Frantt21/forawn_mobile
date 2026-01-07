@@ -293,9 +293,13 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   // Helper para construir playlist de favoritos
   Playlist _getFavoritesPlaylist() {
     final likedIds = PlaylistService().likedSongIds;
-    // Filtrar canciones de la librería que están en favoritos
-    final songs = _musicState.librarySongs
-        .where((s) => likedIds.contains(s.id))
+    // Crear mapa para búsqueda rápida
+    final librarySongsMap = {for (var s in _musicState.librarySongs) s.id: s};
+
+    // Mapear manteniendo el orden de likedIds (que es cronológico de inserción)
+    final songs = likedIds
+        .map((id) => librarySongsMap[id])
+        .whereType<Song>()
         .toList();
 
     return Playlist(

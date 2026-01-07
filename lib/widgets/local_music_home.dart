@@ -8,6 +8,7 @@ import '../services/audio_player_service.dart';
 import '../models/playback_state.dart' as app_state;
 import 'dart:math' as math;
 import 'dart:io';
+import '../services/music_library_service.dart';
 
 class LocalMusicHome extends StatelessWidget {
   final Function(Song) onSongTap;
@@ -465,20 +466,30 @@ class LocalMusicHome extends StatelessWidget {
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    // Background Image
-                                    song.artworkData != null
-                                        ? Image.memory(
-                                            song.artworkData!,
-                                            fit: BoxFit.cover,
-                                          )
-                                        : Container(
-                                            color: Colors.grey[900],
-                                            child: const Icon(
-                                              Icons.music_note,
-                                              color: Colors.white24,
-                                              size: 32,
-                                            ),
+                                    // Background Image with Metadata Updates
+                                    ValueListenableBuilder<String?>(
+                                      valueListenable:
+                                          MusicLibraryService.onMetadataUpdated,
+                                      builder: (context, updatedPath, _) {
+                                        if (updatedPath == song.filePath ||
+                                            song.artworkData != null) {
+                                          if (song.artworkData != null) {
+                                            return Image.memory(
+                                              song.artworkData!,
+                                              fit: BoxFit.cover,
+                                            );
+                                          }
+                                        }
+                                        return Container(
+                                          color: Colors.grey[900],
+                                          child: const Icon(
+                                            Icons.music_note,
+                                            color: Colors.white24,
+                                            size: 32,
                                           ),
+                                        );
+                                      },
+                                    ),
                                     // Gradient Overlay
                                     Container(
                                       decoration: BoxDecoration(
