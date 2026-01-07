@@ -60,3 +60,5 @@ pair_device.ps1
 /lib/backend
 generate_drive_token.js
 lib/backend/.env.example
+lib/backend/index.js
+lib/backend/package.json
