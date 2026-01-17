@@ -366,289 +366,307 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
             ? Color(currentSong!.dominantColor!)
             : null;
 
-        return Scaffold(
-          backgroundColor: const Color.fromARGB(255, 34, 34, 34),
-          extendBodyBehindAppBar: true,
-          appBar: AppBar(
-            title: _isSearching
-                ? _buildSearchField()
-                : const Text('Local Music'),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            actions: [
-              // Search button
-              IconButton(
-                icon: Icon(_isSearching ? Icons.close : Icons.search),
-                onPressed: () {
-                  setState(() {
-                    _isSearching = !_isSearching;
-                    if (_isSearching) {
-                      _animationController.forward();
-                    } else {
-                      _animationController.reverse();
-                      _searchController.clear();
-                      _searchQuery = '';
-                    }
-                  });
-                },
-                tooltip: _isSearching ? 'Cerrar búsqueda' : 'Buscar',
-              ),
-              // AI Assistant button
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(6),
-                  // decoration: BoxDecoration(
-                  //   gradient: LinearGradient(
-                  //     colors: [
-                  //       Theme.of(context).primaryColor,
-                  //       Theme.of(context).primaryColor.withOpacity(0.7),
-                  //     ],
-                  //   ),
-                  //   borderRadius: BorderRadius.circular(8),
-                  // ),
-                  child: const Icon(
-                    Icons.smart_toy_outlined,
-                    color: Colors.white,
-                    size: 20,
+        return ListenableBuilder(
+          listenable: LanguageService(),
+          builder: (context, _) {
+            return Scaffold(
+              backgroundColor: const Color.fromARGB(255, 34, 34, 34),
+              extendBodyBehindAppBar: true,
+              appBar: AppBar(
+                title: _isSearching
+                    ? _buildSearchField()
+                    : const Text('Local Music'),
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                actions: [
+                  // Search button
+                  IconButton(
+                    icon: Icon(_isSearching ? Icons.close : Icons.search),
+                    onPressed: () {
+                      setState(() {
+                        _isSearching = !_isSearching;
+                        if (_isSearching) {
+                          _animationController.forward();
+                        } else {
+                          _animationController.reverse();
+                          _searchController.clear();
+                          _searchQuery = '';
+                        }
+                      });
+                    },
+                    tooltip: _isSearching ? 'Cerrar búsqueda' : 'Buscar',
                   ),
-                ),
-                tooltip: 'Asistente Musical',
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => const AssistantChatDialog(),
-                  );
-                },
-              ),
-              // Folder picker button
-              IconButton(
-                icon: const Icon(Icons.folder_open),
-                onPressed: _pickFolder,
-                tooltip: 'Seleccionar Carpeta',
-              ),
-            ],
-          ),
-          body: Stack(
-            children: [
-              // 1. Background Gradient Layer
-              if (dominantColor != null)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 400,
-                  child: IgnorePointer(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            dominantColor.withOpacity(0.6),
-                            const Color.fromARGB(
-                              255,
-                              34,
-                              34,
-                              34,
-                            ).withOpacity(0.0),
-                          ],
-                        ),
+                  // AI Assistant button
+                  IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(6),
+                      // decoration: BoxDecoration(
+                      //   gradient: LinearGradient(
+                      //     colors: [
+                      //       Theme.of(context).primaryColor,
+                      //       Theme.of(context).primaryColor.withOpacity(0.7),
+                      //     ],
+                      //   ),
+                      //   borderRadius: BorderRadius.circular(8),
+                      // ),
+                      child: const Icon(
+                        Icons.smart_toy_outlined,
+                        color: Colors.white,
+                        size: 20,
                       ),
                     ),
-                  ),
-                ),
-
-              // 2. Main Content Layer
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + kToolbarHeight,
-                  ),
-                  child: StreamBuilder(
-                    stream: _audioPlayer.playlistStream,
-                    builder: (context, snapshot) {
-                      if (_musicState.isLoading) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      final visibleSongs = _musicState.librarySongs;
-                      final songs = _getFilteredSongs(visibleSongs);
-
-                      if (songs.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.music_note,
-                                size: 64,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                LanguageService().getText('no_songs_loaded'),
-                              ),
-                              const SizedBox(height: 8),
-                              ElevatedButton.icon(
-                                onPressed: _pickFolder,
-                                icon: const Icon(Icons.folder),
-                                label: Text(
-                                  LanguageService().getText('select_folder'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final filteredSongs = widget.searchQuery.isEmpty
-                          ? songs
-                          : songs.where((song) {
-                              final nTitle = TextUtils.normalize(song.title);
-                              final nArtist = TextUtils.normalize(song.artist);
-                              final nQuery = TextUtils.normalize(
-                                widget.searchQuery,
-                              );
-                              return nTitle.contains(nQuery) ||
-                                  nArtist.contains(nQuery);
-                            }).toList();
-
-                      // Si hay búsqueda activa
-                      if (widget.searchQuery.isNotEmpty) {
-                        return _buildSongList(
-                          filteredSongs,
-                          showHistory: false,
-                          showLibraryHeader: false,
-                        );
-                      }
-
-                      // Si no, mostrar Tabs
-                      return Column(
-                        children: [
-                          _buildCustomTabBar(),
-                          Expanded(
-                            child: IndexedStack(
-                              index: _tabIndex,
-                              children: [
-                                // Index 0: Home
-                                LocalMusicHome(
-                                  favoriteSongs: _getFavoritesPlaylist().songs,
-                                  onSongTap: (song) {
-                                    final history =
-                                        MusicHistoryService().history;
-                                    final playlist = Playlist(
-                                      id: 'history_playback',
-                                      name: LanguageService().getText(
-                                        'recently_played',
-                                      ),
-                                      createdAt: DateTime.now(),
-                                      songs: history,
-                                    );
-                                    _audioPlayer.loadPlaylist(
-                                      playlist.songs,
-                                      initialIndex: history.indexWhere(
-                                        (s) => s.id == song.id,
-                                      ),
-                                    );
-                                  },
-                                  onCreatePlaylist: () =>
-                                      _showCreatePlaylistDialog(context),
-                                  onPlaylistTap: (playlist) {
-                                    PlaylistService().logPlaylistOpen(
-                                      playlist.id,
-                                    );
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => PlaylistDetailScreen(
-                                          playlist: playlist,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                // Index 1: Library
-                                _buildSongList(
-                                  songs,
-                                  showHistory: false,
-                                  showLibraryHeader: true,
-                                ),
-                                // Index 2: Playlists
-                                _buildPlaylistsView(),
-                              ],
-                            ),
-                          ),
-                        ],
+                    tooltip: 'Asistente Musical',
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => const AssistantChatDialog(),
                       );
                     },
                   ),
-                ),
+                  // Folder picker button
+                  IconButton(
+                    icon: const Icon(Icons.folder_open),
+                    onPressed: _pickFolder,
+                    tooltip: 'Seleccionar Carpeta',
+                  ),
+                ],
               ),
-
-              // 3. Loading Indicator
-              if (_loadingMessage != null && _loadingMessage!.isNotEmpty)
-                Positioned(
-                  bottom: 80,
-                  left: 16,
-                  right: 16,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
+              body: Stack(
+                children: [
+                  // 1. Background Gradient Layer
+                  if (dominantColor != null)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 400,
+                      child: IgnorePointer(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                dominantColor.withOpacity(0.6),
+                                const Color.fromARGB(
+                                  255,
+                                  34,
+                                  34,
+                                  34,
+                                ).withOpacity(0.0),
+                              ],
+                            ),
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                value: _loadingProgress,
-                                strokeWidth: 2,
-                                color: Theme.of(context).primaryColor,
-                                backgroundColor: Colors.white10,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _loadingMessage!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     ),
-                  ),
-                ),
 
-              // 4. Mini Player
-              const Positioned(
-                bottom: 16,
-                left: 16,
-                right: 16,
-                child: SafeArea(child: MiniPlayer()),
+                  // 2. Main Content Layer
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        top:
+                            MediaQuery.of(context).padding.top + kToolbarHeight,
+                      ),
+                      child: StreamBuilder(
+                        stream: _audioPlayer.playlistStream,
+                        builder: (context, snapshot) {
+                          if (_musicState.isLoading) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          final visibleSongs = _musicState.librarySongs;
+                          final songs = _getFilteredSongs(visibleSongs);
+
+                          if (songs.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.music_note,
+                                    size: 64,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    LanguageService().getText(
+                                      'no_songs_loaded',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: _pickFolder,
+                                    icon: const Icon(Icons.folder),
+                                    label: Text(
+                                      LanguageService().getText(
+                                        'select_folder',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          final filteredSongs = widget.searchQuery.isEmpty
+                              ? songs
+                              : songs.where((song) {
+                                  final nTitle = TextUtils.normalize(
+                                    song.title,
+                                  );
+                                  final nArtist = TextUtils.normalize(
+                                    song.artist,
+                                  );
+                                  final nQuery = TextUtils.normalize(
+                                    widget.searchQuery,
+                                  );
+                                  return nTitle.contains(nQuery) ||
+                                      nArtist.contains(nQuery);
+                                }).toList();
+
+                          // Si hay búsqueda activa
+                          if (widget.searchQuery.isNotEmpty) {
+                            return _buildSongList(
+                              filteredSongs,
+                              showHistory: false,
+                              showLibraryHeader: false,
+                            );
+                          }
+
+                          // Si no, mostrar Tabs
+                          return Column(
+                            children: [
+                              _buildCustomTabBar(),
+                              Expanded(
+                                child: IndexedStack(
+                                  index: _tabIndex,
+                                  children: [
+                                    // Index 0: Home
+                                    LocalMusicHome(
+                                      favoriteSongs:
+                                          _getFavoritesPlaylist().songs,
+                                      onSongTap: (song) {
+                                        final history =
+                                            MusicHistoryService().history;
+                                        final playlist = Playlist(
+                                          id: 'history_playback',
+                                          name: LanguageService().getText(
+                                            'recently_played',
+                                          ),
+                                          createdAt: DateTime.now(),
+                                          songs: history,
+                                        );
+                                        _audioPlayer.loadPlaylist(
+                                          playlist.songs,
+                                          initialIndex: history.indexWhere(
+                                            (s) => s.id == song.id,
+                                          ),
+                                        );
+                                      },
+                                      onCreatePlaylist: () =>
+                                          _showCreatePlaylistDialog(context),
+                                      onPlaylistTap: (playlist) {
+                                        PlaylistService().logPlaylistOpen(
+                                          playlist.id,
+                                        );
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                PlaylistDetailScreen(
+                                                  playlist: playlist,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    // Index 1: Library
+                                    _buildSongList(
+                                      songs,
+                                      showHistory: false,
+                                      showLibraryHeader: true,
+                                    ),
+                                    // Index 2: Playlists
+                                    _buildPlaylistsView(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // 3. Loading Indicator
+                  if (_loadingMessage != null && _loadingMessage!.isNotEmpty)
+                    Positioned(
+                      bottom: 80,
+                      left: 16,
+                      right: 16,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: BackdropFilter(
+                          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    value: _loadingProgress,
+                                    strokeWidth: 2,
+                                    color: Theme.of(context).primaryColor,
+                                    backgroundColor: Colors.white10,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _loadingMessage!,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // 4. Mini Player
+                  const Positioned(
+                    bottom: 16,
+                    left: 16,
+                    right: 16,
+                    child: SafeArea(child: MiniPlayer()),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -663,13 +681,26 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
         crossAxisAlignment:
             CrossAxisAlignment.center, // Alineación vertical fija
         children: [
-          _buildTabItem(LanguageService().getText('home'), 0), // Home tab
-          const SizedBox(width: 8),
-          _buildTabItem(LanguageService().getText('library'), 1),
-          const SizedBox(width: 8),
-          _buildTabItem(LanguageService().getText('playlists'), 2),
-          const Spacer(),
+          // Sección de Pestañas (Scrollable y Expandida)
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildTabItem(LanguageService().getText('home'), 0),
+                  const SizedBox(width: 8),
+                  _buildTabItem(LanguageService().getText('library'), 1),
+                  const SizedBox(width: 8),
+                  _buildTabItem(LanguageService().getText('playlists'), 2),
+                ],
+              ),
+            ),
+          ),
+
+          // Sección de Botones de Acción (Fija a la derecha)
           if (_tabIndex == 2) ...[
+            const SizedBox(width: 16),
             // Grid view button - estilo pastilla
             GestureDetector(
               onTap: () => setState(() => _isGridView = true),
@@ -787,7 +818,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                   LanguageService().getText('music_library'),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -859,7 +890,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
     if (_isGridView) {
       return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           childAspectRatio: 1.0,
@@ -883,7 +914,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
       );
     } else {
       return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 100),
         itemCount: itemCount,
         itemBuilder: (context, index) {
           if (index == 0) {

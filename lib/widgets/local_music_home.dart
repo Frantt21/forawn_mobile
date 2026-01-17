@@ -36,6 +36,7 @@ class LocalMusicHome extends StatelessWidget {
           listenable: Listenable.merge([
             MusicHistoryService(),
             PlaylistService(),
+            LanguageService(),
           ]),
           builder: (context, _) {
             final history = MusicHistoryService().history.take(10).toList();
@@ -94,7 +95,7 @@ class LocalMusicHome extends StatelessWidget {
                   // Historial Reciente
                   if (history.isNotEmpty) ...[
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                       child: Text(
                         LanguageService().getText('recently_played'),
                         style: const TextStyle(
