@@ -19,8 +19,8 @@
   "welcome_foraai": "Welcome to ForaAI",
   "select_conversation": "Select a conversation from the menu\nor create a new one to start",
   "image_ready": "Image ready to send",
-  "image_processed": "✓ Image processed successfully",
-  "cancelled": "⏸ Cancelled",
+  "image_processed": "Image processed successfully",
+  "cancelled": "Cancelled",
   "error": "Error",
   
   "search_music": "Search music...",
@@ -96,7 +96,6 @@
   "assistant_history_cleared": "Assistant history cleared",
   "no_songs_to_add": "All songs are already in this playlist",
   "selected": "selected",
-  "no_results": "No results found",
   "songs_added": "songs added",
   "add": "Add",
   
@@ -216,9 +215,6 @@
   "no_music": "No music",
   "now_playing": "Now playing",
   "lyrics": "Lyrics",
-  "clear_music_cache": "Clear music cache",
-  "clear_music_cache_desc": "Remove saved song metadata",
-  "music_cache_cleared": "Music cache cleared",
   "recent_history": "Recent History",
   "music_library": "Music Library",
   "library": "Library",
@@ -250,9 +246,6 @@
   "songs": "songs",
   "play": "Play",
   "shuffle": "Shuffle",
-  "clear_lyrics_cache": "Clear lyrics cache",
-  "clear_lyrics_cache_desc": "Remove saved lyrics",
-  "lyrics_cache_cleared": "Lyrics cache cleared",
   "search_songs": "Search songs...",
   "sort_by_title": "Sort by title",
   "sort_by_artist": "Sort by artist",
@@ -270,5 +263,6 @@
   "update_metadata": "Update metadata",
   "metadata_updated": "Metadata updated",
   "metadata_update_error": "Error updating metadata",
-  "search_metadata_placeholder": "Search metadata (Title, Artist...)"
+  "search_metadata_placeholder": "Search metadata (Title, Artist...)",
+  "no_recent_activity": "No recent activity"
 }

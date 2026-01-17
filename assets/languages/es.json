@@ -19,8 +19,8 @@
   "welcome_foraai": "Bienvenido a ForaAI",
   "select_conversation": "Selecciona una conversación del menú\no crea una nueva para comenzar",
   "image_ready": "Imagen lista para enviar",
-  "image_processed": "✓ Imagen procesada correctamente",
-  "cancelled": "⏸ Cancelado",
+  "image_processed": "Imagen procesada correctamente",
+  "cancelled": "Cancelado",
   "error": "Error",
   
   "search_music": "Buscar música...",
@@ -96,7 +96,6 @@
   "assistant_history_cleared": "Historial del asistente limpiado",
   "no_songs_to_add": "Todas las canciones ya están en esta playlist",
   "selected": "seleccionadas",
-  "no_results": "No se encontraron resultados",
   "songs_added": "canciones agregadas",
   "add": "Agregar",
   
@@ -216,9 +215,6 @@
   "no_music": "Sin música",
   "now_playing": "Reproduciendo ahora",
   "lyrics": "Letras",
-  "clear_music_cache": "Limpiar caché de música",
-  "clear_music_cache_desc": "Elimina metadatos guardados de canciones",
-  "music_cache_cleared": "Caché de música limpiado",
   "recent_history": "Recientes",
   "music_library": "Biblioteca",
   "library": "Biblioteca",
@@ -250,9 +246,6 @@
   "songs": "canciones",
   "play": "Reproducir",
   "shuffle": "Aleatorio",
-  "clear_lyrics_cache": "Limpiar caché de letras",
-  "clear_lyrics_cache_desc": "Elimina letras guardadas",
-  "lyrics_cache_cleared": "Caché de letras limpiado",
   "search_songs": "Buscar canciones...",
   "sort_by_title": "Ordenar por título",
   "sort_by_artist": "Ordenar por artista",
@@ -270,5 +263,6 @@
   "update_metadata": "Actualizar metadatos",
   "metadata_updated": "Metadatos actualizados",
   "metadata_update_error": "Error al actualizar metadatos",
-  "search_metadata_placeholder": "Buscar metadatos (Título, Artista...)"
+  "search_metadata_placeholder": "Buscar metadatos (Título, Artista...)",
+  "no_recent_activity": "No hay actividad reciente"
 }
