@@ -68,6 +68,7 @@ dependencies:
   scrollable_positioned_list: ^0.3.8
   flutter_displaymode: ^0.7.0
   audiotags: ^1.4.5
+  translator: ^1.0.4+1
 
 dev_dependencies:
   integration_test:

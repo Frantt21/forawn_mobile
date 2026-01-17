@@ -1,9 +1,7 @@
 // lib/screens/translate_screen.dart
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
+import 'package:translator/translator.dart';
 import '../services/language_service.dart';
 
 class TranslateScreen extends StatefulWidget {
@@ -15,6 +13,8 @@ class TranslateScreen extends StatefulWidget {
 
 class _TranslateScreenState extends State<TranslateScreen> {
   final TextEditingController _inputController = TextEditingController();
+  final _translator = GoogleTranslator();
+
   String _translation = '';
   bool _loading = false;
   String? _error;
@@ -28,7 +28,8 @@ class _TranslateScreenState extends State<TranslateScreen> {
     'lang_german': 'de',
     'lang_portuguese': 'pt',
     'lang_italian': 'it',
-    'lang_chinese': 'zh',
+    'lang_chinese':
+        'zh-cn', // Ajuste para chino simplificado estándar si es necesario, o 'zh'
     'lang_japanese': 'ja',
     'lang_korean': 'ko',
     'lang_russian': 'ru',
@@ -47,11 +48,13 @@ class _TranslateScreenState extends State<TranslateScreen> {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
 
     if (text.trim().isEmpty) {
-      setState(() {
-        _translation = '';
-        _error = null;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _translation = '';
+          _error = null;
+          _loading = false;
+        });
+      }
       return;
     }
 
@@ -63,59 +66,29 @@ class _TranslateScreenState extends State<TranslateScreen> {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
     try {
       final targetCode = _languageCodes[_targetLangKey] ?? 'en';
-      final url = Uri.parse(ApiConfig.getTranslationUrl(text, targetCode));
 
-      final resp = await http.get(url).timeout(const Duration(seconds: 15));
+      // Traducción usando el paquete translator
+      final translation = await _translator.translate(text, to: targetCode);
 
       if (!mounted) return;
 
-      if (resp.statusCode == 200) {
-        final body = resp.body;
-        try {
-          final decoded = json.decode(body);
-          String? translated;
-
-          if (decoded is Map) {
-            if (decoded.containsKey('translation')) {
-              translated = decoded['translation']?.toString();
-            } else if (decoded.containsKey('result')) {
-              translated = decoded['result']?.toString();
-            } else if (decoded.containsKey('data')) {
-              final data = decoded['data'];
-              if (data is Map && data.containsKey('translation')) {
-                translated = data['translation']?.toString();
-              } else {
-                translated = data.toString();
-              }
-            }
-          }
-
-          translated ??= (decoded is String ? decoded : body);
-
-          setState(() {
-            _translation = translated!;
-          });
-        } catch (_) {
-          setState(() {
-            _translation = body.isNotEmpty ? body : 'Sin traducción disponible';
-          });
-        }
-      } else {
-        setState(() {
-          _error = 'Error del servidor (${resp.statusCode})';
-        });
-      }
+      setState(() {
+        _translation = translation.text;
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Error de conexión';
+          // Mensaje de error genérico o localizado si es posible
+          _error = LanguageService().getText('error');
         });
       }
     } finally {
