@@ -5,7 +5,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as p;
+import 'package:http/http.dart' as http; // Added for verification if needed
 
+import '../config/api_config.dart';
 import '../services/image_service.dart';
 import '../services/saf_helper.dart';
 import '../services/permission_helper.dart';
@@ -16,12 +18,14 @@ class GeneratedImage {
   final String prompt;
   final String imageUrl;
   final String ratio;
+  final String model;
   final DateTime timestamp;
 
   GeneratedImage({
     required this.prompt,
     required this.imageUrl,
     required this.ratio,
+    this.model = 'flux',
     required this.timestamp,
   });
 
@@ -30,6 +34,7 @@ class GeneratedImage {
       'prompt': prompt,
       'imageUrl': imageUrl,
       'ratio': ratio,
+      'model': model,
       'timestamp': timestamp.toIso8601String(),
     };
   }
@@ -39,6 +44,7 @@ class GeneratedImage {
       prompt: json['prompt'] ?? '',
       imageUrl: json['imageUrl'] ?? '',
       ratio: json['ratio'] ?? '1:1',
+      model: json['model'] ?? 'flux',
       timestamp: json['timestamp'] != null
           ? DateTime.parse(json['timestamp'])
           : DateTime.now(),
@@ -66,8 +72,12 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
   double _downloadProgress = 0.0;
 
   // Ratios disponibles
-  final List<String> _ratios = ['1:1', '9:16', '16:9', '9:19', '3:4'];
+  final List<String> _ratios = ['1:1', '9:16', '16:9', '4:3', '3:4', '9:19'];
   String _selectedRatio = '1:1';
+
+  // Modelos disponibles
+  final List<String> _models = ['flux', 'zimage'];
+  String _selectedModel = 'flux';
 
   // SAF treeUri para esta screen
   String? _imagesTreeUri;
@@ -203,43 +213,85 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
       _isGenerating = true;
     });
 
-    // Scroll inmediatamente al final para ver el loader (aunque el loader se añade en chatHistory + 1)
+    // Scroll inmediatamente al final para ver el loader
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
-    final url = await _imageService.generateImage(
-      prompt: prompt,
-      ratio: _selectedRatio,
-    );
+    try {
+      // 1. Determinar dimensiones según ratio
+      int width = 1024;
+      int height = 1024;
+      switch (_selectedRatio) {
+        case '16:9':
+          width = 1920;
+          height = 1080;
+          break;
+        case '9:16':
+          width = 1080;
+          height = 1920;
+          break;
+        case '4:3':
+          width = 1536;
+          height = 2048;
+          break;
+        case '3:4':
+          width = 2048;
+          height = 1536;
+          break;
+        case '9:19':
+          width = 720;
+          height = 1520;
+          break;
+        case '1:1':
+        default:
+          width = 1024;
+          height = 1024;
+          break;
+      }
 
-    if (url == null) {
+      // 2. Construir URL usando el helper nuevo en ApiConfig
+      final url = ApiConfig.getPollinationsUrl(
+        prompt,
+        width,
+        height,
+        model: _selectedModel,
+      );
+
+      // 3. Verificación opcional: Verificar si el server responde (Head/Get simple) antes de añadir
+      // Pollinations suele devolver la imagen directamente. No necesitamos descargarla aquí,
+      // Image.network lo hará. Pero si queremos validación de error, podríamos hacer un head request.
+      // Por rapidez y simplicidad (como Image.network maneja errores), usaremos la URL directa.
+
+      // Agregar al historial
+      final newItem = GeneratedImage(
+        prompt: prompt,
+        imageUrl: url,
+        ratio: _selectedRatio,
+        model: _selectedModel,
+        timestamp: DateTime.now(),
+      );
+
+      safeSetState(() {
+        _chatHistory.add(newItem);
+        _isGenerating = false;
+        _promptController.clear();
+      });
+
+      _saveHistory(); // Guardar
+
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(LanguageService().getText('image_generation_error')),
+            content: Text(
+              '${LanguageService().getText('image_generation_error')}: $e',
+            ),
+            backgroundColor: Colors.red,
           ),
         );
       }
       safeSetState(() => _isGenerating = false);
-      return;
     }
-
-    // Agregar al historial
-    final newItem = GeneratedImage(
-      prompt: prompt,
-      imageUrl: url,
-      ratio: _selectedRatio,
-      timestamp: DateTime.now(),
-    );
-
-    safeSetState(() {
-      _chatHistory.add(newItem);
-      _isGenerating = false;
-      _promptController.clear();
-    });
-
-    _saveHistory(); // Guardar
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   Future<void> _downloadImage(String imageUrl) async {
@@ -563,6 +615,54 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                                     ),
                                   ),
                                 ),
+                                // Badges
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4.0),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white10,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          item.model,
+                                          style: const TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white10,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          item.ratio,
+                                          style: const TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -620,45 +720,93 @@ class _ImagesIAScreenState extends State<ImagesIAScreen> with SafeHttpMixin {
                       ),
                     ),
 
-                    // Fila inferior: Ratio selector (Izquierda) + Send Button (Derecha)
+                    // Fila inferior: Selectores + Send Button
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Selector de Ratio integrado
-                        Container(
-                          height: 32,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.black26,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedRatio,
-                              dropdownColor: const Color(0xFF2C2C2E),
-                              icon: const Icon(
-                                Icons.keyboard_arrow_down,
-                                size: 16,
-                                color: Colors.white60,
+                        // Selectores
+                        Row(
+                          children: [
+                            // Selector de Ratio
+                            Container(
+                              height: 32,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
                               ),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                              decoration: BoxDecoration(
+                                color: Colors.black26,
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() => _selectedRatio = val);
-                                }
-                              },
-                              items: _ratios.map((r) {
-                                return DropdownMenuItem(
-                                  value: r,
-                                  child: Text(r),
-                                );
-                              }).toList(),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _selectedRatio,
+                                  dropdownColor: const Color(0xFF2C2C2E),
+                                  icon: const Icon(
+                                    Icons.aspect_ratio,
+                                    size: 14,
+                                    color: Colors.white54,
+                                  ),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setState(() => _selectedRatio = val);
+                                    }
+                                  },
+                                  items: _ratios.map((r) {
+                                    return DropdownMenuItem(
+                                      value: r,
+                                      child: Text(r),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
                             ),
-                          ),
+
+                            const SizedBox(width: 8),
+
+                            // Selector de Modelo
+                            Container(
+                              height: 32,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black26,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _selectedModel,
+                                  dropdownColor: const Color(0xFF2C2C2E),
+                                  icon: const Icon(
+                                    Icons.auto_awesome,
+                                    size: 14,
+                                    color: Colors.white54,
+                                  ),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setState(() => _selectedModel = val);
+                                    }
+                                  },
+                                  items: _models.map((m) {
+                                    return DropdownMenuItem(
+                                      value: m,
+                                      child: Text(m.toUpperCase()),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
 
                         // Botón de enviar
