@@ -43,8 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-/lib/config/api_config.dart
-/lib/config
 IMPLEMENTATION_SUMMARY.md
 LANGUAGE_IMPLEMENTATION_COMPLETE.md
 LANGUAGE_SYSTEM_FINAL.md
@@ -55,7 +53,6 @@ lib/config/api_config.dart
 LANGUAGE_SYSTEM_100_COMPLETE.md
 *.md
 *.png
-lib/config/api_config.dart
 pair_device.ps1
 /lib/backend
 generate_drive_token.js
