@@ -530,40 +530,45 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 34, 34, 34),
-      extendBodyBehindAppBar: true,
-      appBar: AnimatedSearchAppBar(
-        title: LanguageService().getText('app_name'),
-        isScrolled: _isScrolled,
-        showSearch: false,
-        onSearch: (query) {},
-        leading: null,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
-            tooltip: LanguageService().getText('settings'),
+    return ListenableBuilder(
+      listenable: LanguageService(),
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: const Color.fromARGB(255, 34, 34, 34),
+          extendBodyBehindAppBar: true,
+          appBar: AnimatedSearchAppBar(
+            title: LanguageService().getText('app_name'),
+            isScrolled: _isScrolled,
+            showSearch: false,
+            onSearch: (query) {},
+            leading: null,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings),
+                onPressed: () => Navigator.pushNamed(context, '/settings'),
+                tooltip: LanguageService().getText('settings'),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (ScrollNotification scrollInfo) {
-          if (scrollInfo.depth == 0) {
-            if (scrollInfo.metrics.pixels > 10 && !_isScrolled) {
-              setState(() {
-                _isScrolled = true;
-              });
-            } else if (scrollInfo.metrics.pixels <= 10 && _isScrolled) {
-              setState(() {
-                _isScrolled = false;
-              });
-            }
-          }
-          return false;
-        },
-        child: _buildHomeContent(context),
-      ),
+          body: NotificationListener<ScrollNotification>(
+            onNotification: (ScrollNotification scrollInfo) {
+              if (scrollInfo.depth == 0) {
+                if (scrollInfo.metrics.pixels > 10 && !_isScrolled) {
+                  setState(() {
+                    _isScrolled = true;
+                  });
+                } else if (scrollInfo.metrics.pixels <= 10 && _isScrolled) {
+                  setState(() {
+                    _isScrolled = false;
+                  });
+                }
+              }
+              return false;
+            },
+            child: _buildHomeContent(context),
+          ),
+        );
+      },
     );
   }
 }
