@@ -28,6 +28,21 @@ class MusicPlayerScreen extends StatefulWidget {
 class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   final AudioPlayerService _player = AudioPlayerService();
   String? _lastSongId;
+  bool _isNextDirection = true;
+
+  void _skipToNext() {
+    setState(() {
+      _isNextDirection = true;
+    });
+    _player.skipToNext();
+  }
+
+  void _skipToPrevious() {
+    setState(() {
+      _isNextDirection = false;
+    });
+    _player.skipToPrevious();
+  }
 
   @override
   void initState() {
@@ -71,9 +86,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       child: GestureDetector(
                         onHorizontalDragEnd: (details) {
                           if (details.primaryVelocity! < 0) {
-                            _player.skipToNext();
+                            _skipToNext();
                           } else if (details.primaryVelocity! > 0) {
-                            _player.skipToPrevious();
+                            _skipToPrevious();
                           }
                         },
                         onVerticalDragEnd: (details) {
@@ -282,33 +297,34 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                     milliseconds: 350,
                   ), // Un poco más rápido para slide
                   transitionBuilder: (Widget child, Animation<double> animation) {
-                    // Animación para el elemento que ENTRA (Nueva canción)
-                    // Viene desde la derecha (Offset 1, 0) hacia el centro (0, 0)
-                    final inAnimation =
-                        Tween<Offset>(
-                          begin: const Offset(1.0, 0.0),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutQuad,
-                          ),
-                        );
+                    // Configurar animaciones basadas en la dirección
+                    final offsetRight = const Offset(1.0, 0.0);
+                    final offsetLeft = const Offset(-1.0, 0.0);
 
-                    // Animación para el elemento que SALE (Canción anterior)
-                    // Va del centro (0, 0) hacia la izquierda (Offset -1, 0)
-                    // Como la animación de salida va de 1.0 a 0.0, definimos el Tween
-                    // de tal forma que en 1.0 esté en 0 (centro) y en 0.0 esté en -1 (izquierda)
-                    final outAnimation =
-                        Tween<Offset>(
-                          begin: const Offset(-1.0, 0.0),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeInQuad,
-                          ),
-                        );
+                    // Si vamos a siguiente (Next): entra desde derecha (1 -> 0), sale hacia izquierda (0 -> -1)
+                    // Si vamos a anterior (Prev): entra desde izquierda (-1 -> 0), sale hacia derecha (0 -> 1)
+                    
+                    final inTween = _isNextDirection
+                        ? Tween<Offset>(begin: offsetRight, end: Offset.zero)
+                        : Tween<Offset>(begin: offsetLeft, end: Offset.zero);
+
+                    final outTween = _isNextDirection
+                        ? Tween<Offset>(begin: offsetLeft, end: Offset.zero)
+                        : Tween<Offset>(begin: offsetRight, end: Offset.zero);
+
+                    final inAnimation = inTween.animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutQuad,
+                      ),
+                    );
+
+                    final outAnimation = outTween.animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeInQuad,
+                      ),
+                    );
 
                     // Decidir qué animación usar comparando la key
                     if (child.key == ValueKey(song.id)) {
@@ -469,7 +485,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   color: Colors.white,
                   size: 42,
                 ),
-                onPressed: _player.skipToPrevious,
+                onPressed: _skipToPrevious,
               ),
 
               // Play/Pause
@@ -519,7 +535,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   color: Colors.white,
                   size: 42,
                 ),
-                onPressed: _player.skipToNext,
+                onPressed: _skipToNext,
               ),
 
               // Repeat Mode
