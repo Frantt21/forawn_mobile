@@ -114,6 +114,33 @@ class MusicLibraryService {
               songsMissingMetadata,
               startProgress: 0.3,
             );
+
+            // FASE 3: Actualizar la lista principal con los datos recién cacheados
+            // Esto es crucial para que "Latest Favorites" y la Librería muestren artwork
+            for (int i = 0; i < songs.length; i++) {
+              if (songs[i].artworkData == null) {
+                try {
+                  final cacheKey = songs[i].filePath.hashCode.toString();
+                  final cached = await MusicMetadataCache.get(cacheKey);
+                  if (cached != null) {
+                    songs[i] = songs[i].copyWith(
+                      title: cached.title ?? songs[i].title,
+                      artist: cached.artist ?? songs[i].artist,
+                      album: cached.album,
+                      duration: cached.durationMs != null
+                          ? Duration(milliseconds: cached.durationMs!)
+                          : songs[i].duration,
+                      artworkData: cached.artwork,
+                      dominantColor: cached.dominantColor,
+                    );
+                  }
+                } catch (e) {
+                  print(
+                    '[MusicLibrary] Re-hydration error for ${songs[i].title}: $e',
+                  );
+                }
+              }
+            }
           }
         }
       } else {

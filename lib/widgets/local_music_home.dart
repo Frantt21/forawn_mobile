@@ -9,6 +9,7 @@ import '../models/playback_state.dart' as app_state;
 import 'dart:math' as math;
 import 'dart:io';
 import '../services/music_library_service.dart';
+import '../services/music_metadata_cache.dart';
 
 class LocalMusicHome extends StatelessWidget {
   final Function(Song) onSongTap;
@@ -472,22 +473,40 @@ class LocalMusicHome extends StatelessWidget {
                                       valueListenable:
                                           MusicLibraryService.onMetadataUpdated,
                                       builder: (context, updatedPath, _) {
-                                        if (updatedPath == song.filePath ||
-                                            song.artworkData != null) {
-                                          if (song.artworkData != null) {
-                                            return Image.memory(
-                                              song.artworkData!,
-                                              fit: BoxFit.cover,
-                                            );
-                                          }
+                                        // 1. Si el objeto ya tiene artwork, mostrarlo
+                                        if (song.artworkData != null) {
+                                          return Image.memory(
+                                            song.artworkData!,
+                                            fit: BoxFit.cover,
+                                          );
                                         }
-                                        return Container(
-                                          color: Colors.grey[900],
-                                          child: const Icon(
-                                            Icons.music_note,
-                                            color: Colors.white24,
-                                            size: 32,
+
+                                        // 2. Si no, intentar rescatarlo de la caché
+                                        return FutureBuilder<dynamic>(
+                                          future: MusicMetadataCache.get(
+                                            song.filePath.hashCode.toString(),
                                           ),
+                                          builder: (context, snapshot) {
+                                            // Si encontramos datos en caché
+                                            if (snapshot.hasData &&
+                                                snapshot.data?.artwork !=
+                                                    null) {
+                                              return Image.memory(
+                                                snapshot.data!.artwork!,
+                                                fit: BoxFit.cover,
+                                              );
+                                            }
+
+                                            // Fallback
+                                            return Container(
+                                              color: Colors.grey[900],
+                                              child: const Icon(
+                                                Icons.music_note,
+                                                color: Colors.white24,
+                                                size: 32,
+                                              ),
+                                            );
+                                          },
                                         );
                                       },
                                     ),
