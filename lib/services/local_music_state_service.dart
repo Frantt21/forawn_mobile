@@ -54,7 +54,10 @@ class LocalMusicStateService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final songs = await MusicLibraryService.scanFolder(path);
+      final songs = await MusicLibraryService.scanFolder(
+        path,
+        currentSongs: forceReload ? _librarySongs : null,
+      );
 
       _librarySongs = songs;
       _hasLoadedOnce = true;

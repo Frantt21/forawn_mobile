@@ -24,9 +24,22 @@ class MusicLibraryService {
 
   /// Escanea una carpeta en busca de canciones
   /// Soporta rutas normales y URIs de SAF (content://)
-  static Future<List<Song>> scanFolder(String pathOrUri) async {
+  /// Escanea una carpeta en busca de canciones
+  /// Soporta rutas normales y URIs de SAF (content://)
+  static Future<List<Song>> scanFolder(
+    String pathOrUri, {
+    List<Song>? currentSongs,
+  }) async {
     final List<Song> songs = [];
     final List<Song> songsMissingMetadata = [];
+    final Map<String, Song> existingMap = {};
+
+    // Crear mapa de canciones existentes para búsqueda rápida O(1)
+    if (currentSongs != null) {
+      for (var s in currentSongs) {
+        existingMap[s.filePath] = s;
+      }
+    }
 
     // Reset status
     loadingStatus.value = const LibraryLoadingStatus(
@@ -57,12 +70,17 @@ class MusicLibraryService {
           int processed = 0;
           final total = files.length;
 
-          // FASE 1: Crear canciones CON caché si existe (RÁPIDO)
+          // FASE 1: Reutilizar existentes o Crear canciones CON caché (RÁPIDO)
           for (final file in files) {
             final name = file['name'] ?? '';
             final uri = file['uri'] ?? '';
 
-            if (_isAudioFile(name) && uri.isNotEmpty) {
+            if (uri.isNotEmpty && existingMap.containsKey(uri)) {
+              // CASO 1: Canción ya existe y cargada -> REUTILIZAR
+              // Esto salta la lectura de caché y creación de objetos
+              songs.add(existingMap[uri]!);
+            } else if (_isAudioFile(name) && uri.isNotEmpty) {
+              // CASO 2: Canción NUEVA o no cargada -> PROCESAR
               var song = _createSongFromSaf(name, uri);
               bool isCached = false;
 
@@ -101,6 +119,8 @@ class MusicLibraryService {
                 'Analizando archivos ($processed/$total)...',
                 0.1 + (0.2 * (processed / total)), // 10% a 30%
               );
+              // Ceder control a la UI para evitar congelamiento
+              await Future.delayed(Duration.zero);
             }
           }
 
@@ -118,6 +138,9 @@ class MusicLibraryService {
             // FASE 3: Actualizar la lista principal con los datos recién cacheados
             // Esto es crucial para que "Latest Favorites" y la Librería muestren artwork
             for (int i = 0; i < songs.length; i++) {
+              // Yield every 50 updates to prevent freeze during list update
+              if (i % 50 == 0) await Future.delayed(Duration.zero);
+
               if (songs[i].artworkData == null) {
                 try {
                   final cacheKey = songs[i].filePath.hashCode.toString();

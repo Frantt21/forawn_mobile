@@ -1,10 +1,9 @@
-// lib/services/lyrics_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'lyrics_adjuster.dart';
+import 'database_helper.dart';
 import '../config/api_config.dart';
 
 /// Modelo para una línea de lyrics sincronizada
@@ -154,9 +153,8 @@ class LyricsService {
             '_',
           );
 
-      // Intentar obtener desde caché
-      final prefs = await SharedPreferences.getInstance();
-      final cachedData = prefs.getString(cacheKey);
+      // Intentar obtener desde SQLite (Rápido)
+      final cachedData = await DatabaseHelper().getLyrics(cacheKey);
 
       if (cachedData != null) {
         print('[LyricsService] Using cached lyrics for: $trackName');
@@ -260,8 +258,11 @@ class LyricsService {
               syncedLyrics: syncedLines,
             );
 
-            // Guardar en caché
-            await prefs.setString(cacheKey, jsonEncode(lyrics.toJson()));
+            // Guardar en SQLite (Migrado)
+            await DatabaseHelper().insertLyrics(
+              cacheKey,
+              jsonEncode(lyrics.toJson()),
+            );
             print(
               '[LyricsService] Lyrics cached successfully (${syncedLines.length} lines)',
             );
@@ -341,7 +342,10 @@ class LyricsService {
                 syncedLyrics: syncedLines,
               );
 
-              await prefs.setString(cacheKey, jsonEncode(lyrics.toJson()));
+              await DatabaseHelper().insertLyrics(
+                cacheKey,
+                jsonEncode(lyrics.toJson()),
+              );
               print(
                 '[LyricsService] Lyrics cached successfully (${syncedLines.length} lines)',
               );
@@ -422,9 +426,11 @@ class LyricsService {
           '${localTrackName.toLowerCase()}_${localArtistName.toLowerCase()}'
               .replaceAll(RegExp(r'[^a-z0-9_]'), '_');
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(cacheKey, jsonEncode(lyrics.toJson()));
-      print('[LyricsService] Manual lyrics saved for $localTrackName');
+      await DatabaseHelper().insertLyrics(
+        cacheKey,
+        jsonEncode(lyrics.toJson()),
+      );
+      print('[LyricsService] Manual lyrics saved for $localTrackName (SQLite)');
     } catch (e) {
       print('[LyricsService] Error saving manual lyrics: $e');
     }
@@ -433,15 +439,8 @@ class LyricsService {
   /// Limpia el caché de lyrics
   Future<void> clearCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys();
-      final lyricsKeys = keys.where((k) => k.startsWith(_cachePrefix));
-
-      for (final key in lyricsKeys) {
-        await prefs.remove(key);
-      }
-
-      print('[LyricsService] Cache cleared: ${lyricsKeys.length} entries');
+      await DatabaseHelper().clearAllLyrics();
+      print('[LyricsService] Lyrics cache cleared (SQLite)');
     } catch (e) {
       print('[LyricsService] Error clearing cache: $e');
     }
@@ -450,9 +449,7 @@ class LyricsService {
   /// Obtiene el tamaño del caché
   Future<int> getCacheSize() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys();
-      return keys.where((k) => k.startsWith(_cachePrefix)).length;
+      return await DatabaseHelper().countLyrics();
     } catch (e) {
       print('[LyricsService] Error getting cache size: $e');
       return 0;

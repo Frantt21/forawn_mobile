@@ -125,6 +125,7 @@ class MusicMetadataCache {
     Uint8List? artworkData,
     String? artworkUri,
     int? dominantColor,
+    String? filePath,
   }) async {
     try {
       final dbHelper = DatabaseHelper();
@@ -148,6 +149,7 @@ class MusicMetadataCache {
         'duration': durationMs,
         'artwork_path': savedArtworkPath,
         'artwork_uri': artworkUri,
+        'file_path': filePath,
         'dominant_color': dominantColor,
         'timestamp': timestamp,
       };
