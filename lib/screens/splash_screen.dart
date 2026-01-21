@@ -17,7 +17,6 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
-  String _loadingStatus = ""; // To show what's loading
 
   @override
   void initState() {
@@ -50,22 +49,18 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       // 1. Language Service (Crucial for UI)
       // Already initialized in main, but ensuring readiness
-      setState(() => _loadingStatus = "Loading Settings...");
       await Future.delayed(
         const Duration(milliseconds: 300),
       ); // Minimal delay for visual
 
       // 2. Music History (Heavy database op)
-      setState(() => _loadingStatus = "Loading History...");
       await MusicHistoryService().init();
 
       // 3. Playlists (Database op)
-      setState(() => _loadingStatus = "Loading Playlists...");
       await PlaylistService().init();
 
       // 4. Local Music State (Pre-fetch if possible)
       // We init the service (which might load last folder path from prefs)
-      setState(() => _loadingStatus = "Initializing Library...");
       await LocalMusicStateService().init();
 
       // Wait for animation to finish if it hasn't
@@ -139,11 +134,13 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       // Replace with your actual app logo asset if available
                       // displaying an icon for now as placeholder
-                      child: const Center(
-                        child: Icon(
-                          Icons.music_note_rounded,
-                          size: 80,
-                          color: Colors.purpleAccent,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                       // child: Image.asset('assets/icon/icon.png'), // Use this if you have an asset
@@ -170,21 +167,14 @@ class _SplashScreenState extends State<SplashScreen>
 
             const SizedBox(height: 30),
 
-            // Loading Indicator & Text
+            // Loading Indicator (Barra)
             SizedBox(
-              width: 40,
-              height: 40,
-              child: CircularProgressIndicator(
-                color: Colors.purpleAccent.withOpacity(0.7),
-                strokeWidth: 3,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              _loadingStatus,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 14,
+              width: 150,
+              child: LinearProgressIndicator(
+                color: Colors.purpleAccent,
+                backgroundColor: Colors.white10,
+                borderRadius: BorderRadius.circular(10),
+                minHeight: 4,
               ),
             ),
           ],
