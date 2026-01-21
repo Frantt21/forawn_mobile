@@ -8,6 +8,8 @@ import '../services/playlist_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart';
 import '../widgets/lyrics_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/lyrics_service.dart';
 import 'package:audiotags/audiotags.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
@@ -72,7 +74,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               SafeArea(
                 child: Column(
                   children: [
-                    _buildHeader(context),
+                    _buildHeader(context, song),
                     Expanded(
                       child: GestureDetector(
                         onHorizontalDragEnd: (details) {
@@ -93,6 +95,28 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                     _buildControls(song),
                   ],
                 ),
+              ),
+              // Draggable Lyrics Sheet
+              DraggableScrollableSheet(
+                initialChildSize: 0.08,
+                minChildSize: 0.08,
+                maxChildSize: 0.9,
+                snap: true,
+                snapSizes: const [0.08, 0.9],
+                builder: (context, scrollController) {
+                  return SingleChildScrollView(
+                    controller: scrollController,
+                    physics: const ClampingScrollPhysics(),
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.9,
+                      child: LyricsSheet(
+                        song: song,
+                        player: _player,
+                        onTapHeader: () {},
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           );
@@ -126,7 +150,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
     return Colors.purpleAccent;
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, Song song) {
     return GestureDetector(
       onVerticalDragEnd: (details) {
         if (details.primaryVelocity! > 0) {
@@ -154,56 +178,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 letterSpacing: 2,
               ),
             ),
-            PopupMenuButton<String>(
+            IconButton(
               icon: const Icon(Icons.more_vert, color: Colors.white),
-              color: Colors.grey[900],
-              onSelected: (value) async {
-                final currentSong = await _player.currentSongStream.first;
-                if (currentSong == null) return;
-
-                switch (value) {
-                  case 'add_to_playlist':
-                    if (mounted) {
-                      _showAddToPlaylistDialog(context, currentSong);
-                    }
-                    break;
-                  case 'update_metadata':
-                    if (mounted) {
-                      _showMetadataSearchDialog(context, currentSong);
-                    }
-                    break;
-                }
-              },
-              itemBuilder: (context) {
-                return [
-                  PopupMenuItem(
-                    value: 'add_to_playlist',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.playlist_add, color: Colors.white),
-                        const SizedBox(width: 12),
-                        Text(
-                          LanguageService().getText('add_to_playlist'),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'update_metadata',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.edit_note, color: Colors.white),
-                        const SizedBox(width: 12),
-                        Text(
-                          LanguageService().getText('update_metadata'),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ];
-              },
+              onPressed: () => _showOptionsSheet(context, song),
             ),
           ],
         ),
@@ -221,7 +198,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
             tag: 'artwork_${song.id}',
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.3),
@@ -231,7 +208,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(24),
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 350),
                   transitionBuilder:
@@ -323,28 +300,16 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Row: Add to Playlist (Left) - Title/Artist (Center) - Favorite (Right)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 0.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
+              // Stack: Add to Playlist (Left) - Title/Artist (Center) - Favorite (Right)
+              SizedBox(
+                height: 80,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    // Add to Playlist Button
-                    IconButton(
-                      icon: Icon(
-                        Icons.playlist_add,
-                        color: effectiveColor,
-                        size: 28,
-                      ),
-                      onPressed: () {
-                        _showAddToPlaylistDialog(context, song);
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    // Title and Artist
-                    Expanded(
+                    // Title and Artist (Centered)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 48.0),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           TextScroll(
@@ -381,23 +346,41 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Favorite Button
-                    ListenableBuilder(
-                      listenable: PlaylistService(),
-                      builder: (context, child) {
-                        final isLiked = PlaylistService().isLiked(song.id);
-                        return IconButton(
-                          icon: Icon(
-                            isLiked ? Icons.favorite : Icons.favorite_border,
-                            color: isLiked ? effectiveColor : Colors.white,
-                            size: 28,
-                          ),
-                          onPressed: () {
-                            PlaylistService().toggleLike(song.id);
-                          },
-                        );
-                      },
+
+                    // Add to Playlist Button (Left)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.playlist_add,
+                          color: effectiveColor,
+                          size: 28,
+                        ),
+                        onPressed: () {
+                          _showAddToPlaylistDialog(context, song);
+                        },
+                      ),
+                    ),
+
+                    // Favorite Button (Right)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ListenableBuilder(
+                        listenable: PlaylistService(),
+                        builder: (context, child) {
+                          final isLiked = PlaylistService().isLiked(song.id);
+                          return IconButton(
+                            icon: Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: isLiked ? effectiveColor : Colors.white,
+                              size: 28,
+                            ),
+                            onPressed: () {
+                              PlaylistService().toggleLike(song.id);
+                            },
+                          );
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -582,50 +565,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   ),
                 ],
               ),
-
-              const SizedBox(height: 24),
-
-              // Botón de Lyrics translúcido
-              GestureDetector(
-                onTap: () {
-                  _showLyricsSheet(context, song);
-                },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.lyrics, color: effectiveColor, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            LanguageService().getText('show_lyrics'),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 60), // Increased spacing for lyrics peek
             ],
           ),
         );
@@ -633,13 +573,231 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
     );
   }
 
-  // Mostrar Lyrics Sheet
-  void _showLyricsSheet(BuildContext context, Song song) {
+  void _showOptionsSheet(BuildContext context, Song song) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => LyricsSheet(song: song, player: _player),
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (_, controller) => Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.all(24),
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Header Song Info
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: song.artworkData != null
+                        ? Image.memory(
+                            song.artworkData!,
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            color: Colors.white10,
+                            width: 56,
+                            height: 56,
+                            child: const Icon(
+                              Icons.music_note,
+                              color: Colors.white54,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          song.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.white60,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white10),
+
+              // Options
+              ListTile(
+                leading: const Icon(Icons.playlist_add, color: Colors.white),
+                title: const Text(
+                  'Agregar a Playlist',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAddToPlaylistDialog(context, song);
+                },
+              ),
+              ListTile(
+                // Toggle Favorite
+                leading: const Icon(Icons.favorite_border, color: Colors.white),
+                title: const Text(
+                  'Favoritos',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  PlaylistService().toggleLike(song.id);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.white),
+                title: const Text(
+                  'Editar Metadatos',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showEditMetadataDialog(context, song);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.search, color: Colors.white),
+                title: const Text(
+                  'Buscar/Cambiar Letra',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    barrierColor: Colors.black54,
+                    builder: (_) => LyricsSearchDialog(
+                      initialQuery: '${song.title} ${song.artist}',
+                      onLyricSelected: (l) {
+                        LyricsService().saveLyricsToCache(
+                          localTrackName: song.title,
+                          localArtistName: song.artist,
+                          lyrics: l,
+                        );
+                        LyricsService().updateLyrics(l);
+                      },
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Eliminar Letra',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final prefs = await SharedPreferences.getInstance();
+                  final cacheKey =
+                      'lyrics_cache_${'${song.title.toLowerCase()}_${song.artist.toLowerCase()}'.replaceAll(RegExp(r'[^a-z0-9_]'), '_')}';
+                  await prefs.remove(cacheKey);
+                  LyricsService().clearCurrentLyrics();
+                },
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditMetadataDialog(BuildContext context, Song song) {
+    final titleController = TextEditingController(text: song.title);
+    final artistController = TextEditingController(text: song.artist);
+    final albumController = TextEditingController(text: song.album);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2C2C2E),
+        title: const Text(
+          'Editar Metadatos',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Título',
+                labelStyle: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextField(
+              controller: artistController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Artista',
+                labelStyle: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextField(
+              controller: albumController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Álbum',
+                labelStyle: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              // Placeholder for save logic
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
     );
   }
 

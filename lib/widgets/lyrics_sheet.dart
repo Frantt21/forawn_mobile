@@ -10,8 +10,14 @@ import 'dart:ui';
 class LyricsSheet extends StatefulWidget {
   final Song song;
   final AudioPlayerService player;
+  final VoidCallback? onTapHeader; // Callback para tap en el header
 
-  const LyricsSheet({super.key, required this.song, required this.player});
+  const LyricsSheet({
+    super.key,
+    required this.song,
+    required this.player,
+    this.onTapHeader,
+  });
 
   @override
   State<LyricsSheet> createState() => _LyricsSheetState();
@@ -131,7 +137,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
     final menuIconColor = isDark ? Colors.white : Colors.black54;
 
     return Container(
-      margin: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 64),
+      // Margin handled by parent
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -140,139 +146,162 @@ class _LyricsSheetState extends State<LyricsSheet> {
         top: false,
         child: Column(
           children: [
-            // Header / Handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 16, bottom: 24),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: handleColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-
-            // Toolbar
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: Row(
+            // Header / Handle (Tap zone for expanding)
+            GestureDetector(
+              onTap: widget.onTapHeader,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Artwork pequeño
-                  Container(
-                    width: 48,
-                    height: 48,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: isDark ? Colors.white10 : Colors.black12,
-                      image: _currentSong.artworkData != null
-                          ? DecorationImage(
-                              image: MemoryImage(_currentSong.artworkData!),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 16, bottom: 24),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: handleColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                    child: _currentSong.artworkData == null
-                        ? Icon(Icons.music_note, color: secondaryTextColor)
-                        : null,
                   ),
 
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  // Toolbar
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8.0,
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          'Letra',
-                          style: TextStyle(
-                            color: secondaryTextColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1,
+                        // Artwork pequeño
+                        Container(
+                          width: 48,
+                          height: 48,
+                          margin: const EdgeInsets.only(right: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: isDark ? Colors.white10 : Colors.black12,
+                            image: _currentSong.artworkData != null
+                                ? DecorationImage(
+                                    image: MemoryImage(
+                                      _currentSong.artworkData!,
+                                    ),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          child: _currentSong.artworkData == null
+                              ? Icon(
+                                  Icons.music_note,
+                                  color: secondaryTextColor,
+                                )
+                              : null,
+                        ),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Letra',
+                                style: TextStyle(
+                                  color: secondaryTextColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _currentSong.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ).copyWith(color: textColor),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _currentSong.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ).copyWith(color: textColor),
+                        // Menu Button
+                        PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert, color: iconColor),
+                          color: isDark
+                              ? const Color(0xFF2C2C2E)
+                              : Colors.white,
+                          onSelected: (value) async {
+                            if (value == 'sync') {
+                              _showSyncDialog();
+                            } else if (value == 'search') {
+                              _showSearchDialog();
+                            } else if (value == 'delete') {
+                              // Limpiar cache local
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              final cacheKey =
+                                  'lyrics_cache_${'${_currentSong.title.toLowerCase()}_${_currentSong.artist.toLowerCase()}'.replaceAll(RegExp(r'[^a-z0-9_]'), '_')}';
+                              await prefs.remove(cacheKey);
+                              // Limpiar servicio también
+                              LyricsService().clearCurrentLyrics();
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'sync',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.timer,
+                                    size: 20,
+                                    color: menuIconColor,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Sincronizar',
+                                    style: TextStyle(color: menuTextColor),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'search',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.search,
+                                    size: 20,
+                                    color: menuIconColor,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Buscar letra',
+                                    style: TextStyle(color: menuTextColor),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                    color: Colors.redAccent,
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Eliminar letra',
+                                    style: TextStyle(color: Colors.redAccent),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-
-                  // Menu Button
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert, color: iconColor),
-                    color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
-                    onSelected: (value) async {
-                      if (value == 'sync') {
-                        _showSyncDialog();
-                      } else if (value == 'search') {
-                        _showSearchDialog();
-                      } else if (value == 'delete') {
-                        // Limpiar cache local
-                        final prefs = await SharedPreferences.getInstance();
-                        final cacheKey =
-                            'lyrics_cache_${'${_currentSong.title.toLowerCase()}_${_currentSong.artist.toLowerCase()}'
-                                .replaceAll(RegExp(r'[^a-z0-9_]'), '_')}';
-                        await prefs.remove(cacheKey);
-                        // Limpiar servicio también
-                        LyricsService().clearCurrentLyrics();
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'sync',
-                        child: Row(
-                          children: [
-                            Icon(Icons.timer, size: 20, color: menuIconColor),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Sincronizar',
-                              style: TextStyle(color: menuTextColor),
-                            ),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'search',
-                        child: Row(
-                          children: [
-                            Icon(Icons.search, size: 20, color: menuIconColor),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Buscar letra',
-                              style: TextStyle(color: menuTextColor),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.delete_outline,
-                              size: 20,
-                              color: Colors.redAccent,
-                            ),
-                            SizedBox(width: 12),
-                            Text(
-                              'Eliminar letra',
-                              style: TextStyle(color: Colors.redAccent),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -342,270 +371,21 @@ class _LyricsSheetState extends State<LyricsSheet> {
   }
 
   void _showSearchDialog() {
-    final controller = TextEditingController(
-      text: '${_currentSong.title} ${_currentSong.artist}',
-    );
-    // Usar StatefulBuilder para rebuildear el diálogo
     showDialog(
       context: context,
       barrierColor: Colors.black.withOpacity(0.5),
-      builder: (context) {
-        bool searching = false;
-        List<Lyrics> results = [];
-        String? error;
-
-        // Función de búsqueda reutilizable
-        Future<void> performSearch(String query, StateSetter setState) async {
-          if (query.isEmpty) return;
-          setState(() {
-            searching = true;
-            error = null;
-            results = [];
-          });
-          try {
-            final res = await LyricsService().searchLyrics(query);
-            setState(() {
-              results = res;
-              searching = false;
-              if (res.isEmpty) {
-                error = "No se encontraron resultados";
-              }
-            });
-          } catch (e) {
-            setState(() {
-              searching = false;
-              error = "Error al buscar";
-            });
-          }
-        }
-
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  constraints: const BoxConstraints(
-                    maxWidth: 500,
-                    maxHeight: 600,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[900]!.withOpacity(0.95),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1,
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header
-                      Row(
-                        children: [
-                          const SizedBox(width: 48), // Balance close button
-                          const Expanded(
-                            child: Text(
-                              'Buscar Letra',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.close,
-                              color: Colors.white70,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Search Input (Card Style)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1C1C1E),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
-                          ),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: TextField(
-                          controller: controller,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Título Artista',
-                            hintStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.3),
-                            ),
-                            border: InputBorder.none,
-                            suffixIcon: IconButton(
-                              icon: const Icon(
-                                Icons.search,
-                                color: Colors.purpleAccent,
-                              ),
-                              onPressed: () =>
-                                  performSearch(controller.text, setState),
-                            ),
-                          ),
-                          onSubmitted: (val) => performSearch(val, setState),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Loading
-                      if (searching)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(20),
-                            child: CircularProgressIndicator(
-                              color: Colors.purpleAccent,
-                            ),
-                          ),
-                        ),
-
-                      // Error
-                      if (error != null)
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Center(
-                            child: Text(
-                              error!,
-                              style: const TextStyle(color: Colors.white70),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-
-                      // Results List
-                      if (results.isNotEmpty)
-                        Flexible(
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 8),
-                            itemCount: results.length,
-                            itemBuilder: (context, index) {
-                              final l = results[index];
-                              return InkWell(
-                                onTap: () async {
-                                  await LyricsService().saveLyricsToCache(
-                                    localTrackName: _currentSong.title,
-                                    localArtistName: _currentSong.artist,
-                                    lyrics: l,
-                                  );
-                                  Navigator.pop(context);
-                                  // Forzar actualización inmediata con los lyrics seleccionados
-                                  LyricsService().updateLyrics(l);
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.05),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.05),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      // Icon
-                                      Container(
-                                        width: 48,
-                                        height: 48,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.lyrics_outlined,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      // Text Info
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              l.trackName,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              l.artistName,
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(
-                                                  0.5,
-                                                ),
-                                                fontSize: 13,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      // Synced Badge
-                                      if (l.syncedLyrics.isNotEmpty)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green.withOpacity(
-                                              0.2,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.timer,
-                                            color: Colors.greenAccent,
-                                            size: 14,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (context) => LyricsSearchDialog(
+        initialQuery: '${_currentSong.title} ${_currentSong.artist}',
+        onLyricSelected: (l) async {
+          await LyricsService().saveLyricsToCache(
+            localTrackName: _currentSong.title,
+            localArtistName: _currentSong.artist,
+            lyrics: l,
+          );
+          // Forzar actualización inmediata
+          LyricsService().updateLyrics(l);
+        },
+      ),
     );
   }
 
@@ -622,6 +402,275 @@ class _LyricsSheetState extends State<LyricsSheet> {
         minimumSize: const Size(60, 36),
       ),
       child: Text(label, style: const TextStyle(fontSize: 12)),
+    );
+  }
+}
+
+class LyricsSearchDialog extends StatefulWidget {
+  final String initialQuery;
+  final Function(Lyrics) onLyricSelected;
+
+  const LyricsSearchDialog({
+    super.key,
+    required this.initialQuery,
+    required this.onLyricSelected,
+  });
+
+  @override
+  State<LyricsSearchDialog> createState() => _LyricsSearchDialogState();
+}
+
+class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
+  late TextEditingController _controller;
+  bool _searching = false;
+  List<Lyrics> _results = [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialQuery);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.isEmpty) return;
+    setState(() {
+      _searching = true;
+      _error = null;
+      _results = [];
+    });
+    try {
+      final res = await LyricsService().searchLyrics(query);
+      if (mounted) {
+        setState(() {
+          _results = res;
+          _searching = false;
+          if (res.isEmpty) {
+            _error = "No se encontraron resultados";
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _searching = false;
+          _error = "Error al buscar";
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          constraints: const BoxConstraints(
+            maxWidth: 500,
+            maxHeight: 600,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.grey[900]!.withOpacity(0.95),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  const SizedBox(width: 48),
+                  const Expanded(
+                    child: Text(
+                      'Buscar Letra',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white70,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Search Input
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                child: TextField(
+                  controller: _controller,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Título Artista',
+                    hintStyle: TextStyle(
+                      color: Colors.white.withOpacity(0.3),
+                    ),
+                    border: InputBorder.none,
+                    suffixIcon: IconButton(
+                      icon: const Icon(
+                        Icons.search,
+                        color: Colors.purpleAccent,
+                      ),
+                      onPressed: () => _performSearch(_controller.text),
+                    ),
+                  ),
+                  onSubmitted: _performSearch,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Loading
+              if (_searching)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(
+                      color: Colors.purpleAccent,
+                    ),
+                  ),
+                ),
+
+              // Error
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Center(
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: Colors.white70),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+
+              // Results List
+              if (_results.isNotEmpty)
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 8),
+                    itemCount: _results.length,
+                    itemBuilder: (context, index) {
+                      final l = _results[index];
+                      return InkWell(
+                        onTap: () {
+                          widget.onLyricSelected(l);
+                          Navigator.pop(context);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.05),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.lyrics_outlined,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l.trackName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      l.artistName,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.5),
+                                        fontSize: 13,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (l.syncedLyrics.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.timer,
+                                    color: Colors.greenAccent,
+                                    size: 14,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
