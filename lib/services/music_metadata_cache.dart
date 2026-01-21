@@ -1,9 +1,9 @@
-import 'dart:convert';
+// lib/services/music_metadata_cache.dart
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:image/image.dart' as img;
+// import 'package:image/image.dart' as img; // Ya no usamos compresión pesada
 import 'package:path_provider/path_provider.dart';
+import 'database_helper.dart';
 
 /// Metadata de una canción (clase pública para uso externo)
 class SongMetadata {
@@ -26,21 +26,18 @@ class SongMetadata {
   });
 }
 
-/// Servicio de caché persistente para metadata de música (FileSystem + SharedPrefs)
+/// Servicio de caché persistente para metadata de música (FileSystem + SQLite)
 ///
 /// Características optimizadas:
-/// - Compresión de artwork (300x300, JPEG 85%)
-/// - Límite de tamaño total (100MB)
+/// - Almacenamiento metadata en SQLite (Rápido y eficiente)
+/// - Artworks en calidad ORIGINAL (Sin compresión)
 /// - Limpieza automática de caché antiguo (>30 días)
-/// - Estadísticas de uso
 class MusicMetadataCache {
   // Caché en memoria para acceso rápido durante la sesión
   static final Map<String, _CachedMetadata> _memoryCache = {};
 
   // Configuración
-  static const int maxArtworkSize = 200 * 1024; // 200KB max por artwork
   static const int maxCacheAge = 30; // días
-  static const int maxCacheSize = 100 * 1024 * 1024; // 100MB total
 
   /// Obtener archivo de caché para una key
   static Future<File> _getCacheFile(String key) async {
@@ -50,7 +47,7 @@ class MusicMetadataCache {
     return File('${dir.path}/$fileName');
   }
 
-  /// Obtener metadata del caché (memoria O disco)
+  /// Obtener metadata del caché (memoria O disco/sqlite)
   static Future<SongMetadata?> get(String key) async {
     // 1. Memoria
     if (_memoryCache.containsKey(key)) {
@@ -58,45 +55,44 @@ class MusicMetadataCache {
     }
 
     try {
-      // 2. Disco
-      final prefs = await SharedPreferences.getInstance();
+      // 2. Base de Datos (SQLite)
+      final dbHelper = DatabaseHelper();
+      final data = await dbHelper.getMetadata(key);
 
-      // Intentar leer texto (título, artista...)
-      final metaJson = prefs.getString('meta_txt_$key');
+      if (data == null) return null;
 
       Uint8List? artworkBytes;
 
-      // Intentar leer imagen del sistema de archivos
-      final file = await _getCacheFile(key);
-      if (await file.exists()) {
-        artworkBytes = await file.readAsBytes();
+      // Intentar leer imagen del sistema de archivos usando la ruta almacenada
+      // Si la ruta no existe en DB, intentamos la ruta generada por defecto
+      final artworkPath = data['artwork_path'] as String?;
+      File artworkFile;
+
+      if (artworkPath != null && artworkPath.isNotEmpty) {
+        artworkFile = File(artworkPath);
+      } else {
+        // Fallback backward database compatibility
+        artworkFile = await _getCacheFile(key);
       }
 
-      if (metaJson != null) {
-        final data = json.decode(metaJson) as Map<String, dynamic>;
-        final cached = _CachedMetadata(
-          title: data['title'],
-          artist: data['artist'],
-          album: data['album'],
-          durationMs: data['duration'],
-          artworkBytes: artworkBytes,
-          artworkUri: data['artworkUri'], // Cargar URI
-          dominantColor: data['dominantColor'], // Cargar color
-          timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
-        );
-
-        // Hidratar memoria
-        _memoryCache[key] = cached;
-        return _convertToSongMetadata(cached);
-      } else if (artworkBytes != null) {
-        // Solo imagen encontrada
-        final cached = _CachedMetadata(
-          artworkBytes: artworkBytes,
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-        );
-        _memoryCache[key] = cached;
-        return _convertToSongMetadata(cached);
+      if (await artworkFile.exists()) {
+        artworkBytes = await artworkFile.readAsBytes();
       }
+
+      final cached = _CachedMetadata(
+        title: data['title'],
+        artist: data['artist'],
+        album: data['album'],
+        durationMs: data['duration'],
+        artworkBytes: artworkBytes,
+        artworkUri: data['artwork_uri'],
+        dominantColor: data['dominant_color'],
+        timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+      );
+
+      // Hidratar memoria
+      _memoryCache[key] = cached;
+      return _convertToSongMetadata(cached);
     } catch (e) {
       print('[MetadataCache] Error reading cache: $e');
     }
@@ -117,31 +113,7 @@ class MusicMetadataCache {
     );
   }
 
-  /// Comprimir imagen para almacenamiento eficiente
-  static Uint8List? _compressArtwork(Uint8List originalBytes) {
-    try {
-      // Decodificar imagen
-      final image = img.decodeImage(originalBytes);
-      if (image == null) return null;
-
-      // Redimensionar a máximo 300x300 (mantiene aspect ratio)
-      final resized = img.copyResize(
-        image,
-        width: image.width > 300 ? 300 : image.width,
-        height: image.height > 300 ? 300 : image.height,
-        interpolation: img.Interpolation.average,
-      );
-
-      // Comprimir como JPEG con calidad 85
-      final compressed = img.encodeJpg(resized, quality: 85);
-      return Uint8List.fromList(compressed);
-    } catch (e) {
-      print('[MetadataCache] Error compressing artwork: $e');
-      return null;
-    }
-  }
-
-  // Eliminado método save(Tag tag) para desacoplar de librería específica
+  // Se eliminó _compressArtwork para mantener calidad original
 
   /// Guardar metadata directamente
   static Future<void> saveFromMetadata({
@@ -155,31 +127,32 @@ class MusicMetadataCache {
     int? dominantColor,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final dbHelper = DatabaseHelper();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
+      String? savedArtworkPath;
 
-      // 1. Guardar Texto + URI en SharedPrefs
-      final data = {
+      // 1. Guardar Imagen en Disco (FileSystem) SIN COMPRESIÓN
+      if (artworkData != null && artworkData.isNotEmpty) {
+        final file = await _getCacheFile(key);
+        // Escribimos los bytes originales directamente
+        await file.writeAsBytes(artworkData);
+        savedArtworkPath = file.path;
+      }
+
+      // 2. Guardar Texto + Path en SQLite
+      final row = {
+        'id': key,
         'title': title,
         'artist': artist,
         'album': album,
         'duration': durationMs,
-        'artworkUri': artworkUri, // Guardar URI
-        'dominantColor': dominantColor, // Guardar color
+        'artwork_path': savedArtworkPath,
+        'artwork_uri': artworkUri,
+        'dominant_color': dominantColor,
         'timestamp': timestamp,
       };
-      await prefs.setString('meta_txt_$key', json.encode(data));
 
-      // 2. Guardar Imagen en Disco (FileSystem) (Solo si tenemos bytes binarios, si tenemos URI, ¿necesitamos bytes? Quizás como fallback)
-      Uint8List? finalArtBytes;
-      if (artworkData != null) {
-        final compressed = _compressArtwork(artworkData);
-        if (compressed != null) {
-          final file = await _getCacheFile(key);
-          await file.writeAsBytes(compressed);
-          finalArtBytes = compressed;
-        }
-      }
+      await dbHelper.insertMetadata(row);
 
       // 3. Actualizar memoria
       _memoryCache[key] = _CachedMetadata(
@@ -187,7 +160,7 @@ class MusicMetadataCache {
         artist: artist,
         album: album,
         durationMs: durationMs,
-        artworkBytes: finalArtBytes,
+        artworkBytes: artworkData, // Guardamos los bytes originales
         artworkUri: artworkUri,
         dominantColor: dominantColor,
         timestamp: timestamp,
@@ -209,9 +182,9 @@ class MusicMetadataCache {
         await file.delete();
       }
 
-      // 3. Eliminar metadata de SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('meta_txt_$key');
+      // 3. Eliminar metadata de SQLite
+      final dbHelper = DatabaseHelper();
+      await dbHelper.deleteMetadata(key);
 
       print('[MetadataCache] Deleted cache for key: $key');
     } catch (e) {
@@ -231,12 +204,11 @@ class MusicMetadataCache {
         }
       }
 
-      // Limpiar prefs keys
-      final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys().where((k) => k.startsWith('meta_txt_'));
-      for (var k in keys) {
-        await prefs.remove(k);
-      }
+      // Limpiar Tabla SQLite
+      final dbHelper = DatabaseHelper();
+      await dbHelper.clearAll();
+
+      print('[MetadataCache] All cache cleared (Files + SQLite)');
     } catch (e) {
       print('[MetadataCache] Error clearing: $e');
     }
@@ -249,7 +221,7 @@ class _CachedMetadata {
   final String? artist;
   final String? album;
   final int? durationMs;
-  final Uint8List? artworkBytes; // RAW bytes, no base64 string
+  final Uint8List? artworkBytes; // RAW bytes
   final String? artworkUri; // URI content://
   final int? dominantColor; // Color dominante cacheado
   final int timestamp; // Timestamp de cuando se guardó
