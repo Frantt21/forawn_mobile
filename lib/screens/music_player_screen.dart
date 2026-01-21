@@ -304,7 +304,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         children: [
           // Row for Title/Artist (Left) and Favorite (Right)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 14.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
