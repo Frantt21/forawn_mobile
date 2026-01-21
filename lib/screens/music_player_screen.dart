@@ -1,4 +1,4 @@
-// lib/screens/music_player_screen.dart
+import 'package:text_scroll/text_scroll.dart'; // Added
 import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -14,8 +14,8 @@ import 'package:http/http.dart' as http;
 import '../services/foranly_service.dart';
 import '../services/metadata_service.dart';
 import '../services/saf_helper.dart';
-import '../services/music_library_service.dart'; // Added
-import '../services/music_metadata_cache.dart'; // Added
+import '../services/music_library_service.dart';
+import '../services/music_metadata_cache.dart';
 import 'dart:typed_data';
 
 class MusicPlayerScreen extends StatefulWidget {
@@ -47,8 +47,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    // Listener vacío o para debug si es necesario,
-    // pero ya no necesitamos lógica aquí para el UI básico
   }
 
   @override
@@ -60,7 +58,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
           final song = snapshot.data;
 
           if (song == null) {
-            // Manejar caso null pero mostrando UI base o loader
             return Container(
               color: Colors.black,
               child: const Center(
@@ -71,17 +68,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
 
           return Stack(
             children: [
-              // Fondo con blur
               _buildBackground(song),
-
-              // Contenido Principal
               SafeArea(
                 child: Column(
                   children: [
-                    // Header
                     _buildHeader(context),
-
-                    // Contenido central (Artwork o Lyrics)
                     Expanded(
                       child: GestureDetector(
                         onHorizontalDragEnd: (details) {
@@ -99,8 +90,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                         child: _buildArtwork(song),
                       ),
                     ),
-
-                    // Info de canción y Controles
                     _buildControls(song),
                   ],
                 ),
@@ -113,7 +102,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   }
 
   Widget _buildBackground(Song song) {
-    // Usar color cacheado si está disponible
     final backgroundColor = song.dominantColor != null
         ? Color(song.dominantColor!)
         : Colors.grey[900]!;
@@ -151,8 +139,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
               onPressed: () => Navigator.of(context).pop(),
             ),
-
-            // Título dinámico
             Text(
               LanguageService().getText('now_playing').toUpperCase(),
               style: const TextStyle(
@@ -161,8 +147,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 letterSpacing: 2,
               ),
             ),
-
-            // Menú de opciones
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.white),
               color: Colors.grey[900],
@@ -171,32 +155,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 if (currentSong == null) return;
 
                 switch (value) {
-                  case 'like':
-                    // Toggle favoritos usando el servicio
-                    final isLiked = PlaylistService().isLiked(currentSong.id);
-                    await PlaylistService().toggleLike(currentSong.id);
-
-                    // if (mounted) {
-                    //   ScaffoldMessenger.of(context).showSnackBar(
-                    //     SnackBar(
-                    //       content: Text(
-                    //         isLiked
-                    //             ? LanguageService().getText(
-                    //                 'removed_from_favorites',
-                    //               )
-                    //             : LanguageService().getText(
-                    //                 'added_to_favorites',
-                    //               ),
-                    //       ),
-                    //       backgroundColor: isLiked
-                    //           ? Colors.grey[700]
-                    //           : Colors.purpleAccent,
-                    //     ),
-                    //   );
-                    // }
-                    break;
                   case 'add_to_playlist':
-                    // Mostrar diálogo de agregar a playlist
                     if (mounted) {
                       _showAddToPlaylistDialog(context, currentSong);
                     }
@@ -209,33 +168,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 }
               },
               itemBuilder: (context) {
-                // Obtener canción actual para verificar estado
-                final currentSong = _player.currentSong;
-                final isLiked = currentSong != null
-                    ? PlaylistService().isLiked(currentSong.id)
-                    : false;
-
                 return [
-                  PopupMenuItem(
-                    value: 'like',
-                    child: Row(
-                      children: [
-                        Icon(
-                          isLiked ? Icons.favorite : Icons.favorite_border,
-                          color: isLiked ? Colors.purpleAccent : Colors.white,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          isLiked
-                              ? LanguageService().getText(
-                                  'remove_from_favorites',
-                                )
-                              : LanguageService().getText('add_to_favorites'),
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
                   PopupMenuItem(
                     value: 'add_to_playlist',
                     child: Row(
@@ -293,52 +226,50 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: AnimatedSwitcher(
-                  duration: const Duration(
-                    milliseconds: 350,
-                  ), // Un poco más rápido para slide
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    // Configurar animaciones basadas en la dirección
-                    final offsetRight = const Offset(1.0, 0.0);
-                    final offsetLeft = const Offset(-1.0, 0.0);
-
-                    // Si vamos a siguiente (Next): entra desde derecha (1 -> 0), sale hacia izquierda (0 -> -1)
-                    // Si vamos a anterior (Prev): entra desde izquierda (-1 -> 0), sale hacia derecha (0 -> 1)
-                    
-                    final inTween = _isNextDirection
-                        ? Tween<Offset>(begin: offsetRight, end: Offset.zero)
-                        : Tween<Offset>(begin: offsetLeft, end: Offset.zero);
-
-                    final outTween = _isNextDirection
-                        ? Tween<Offset>(begin: offsetLeft, end: Offset.zero)
-                        : Tween<Offset>(begin: offsetRight, end: Offset.zero);
-
-                    final inAnimation = inTween.animate(
-                      CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutQuad,
-                      ),
-                    );
-
-                    final outAnimation = outTween.animate(
-                      CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeInQuad,
-                      ),
-                    );
-
-                    // Decidir qué animación usar comparando la key
-                    if (child.key == ValueKey(song.id)) {
-                      return SlideTransition(
-                        position: inAnimation,
-                        child: child,
-                      );
-                    } else {
-                      return SlideTransition(
-                        position: outAnimation,
-                        child: child,
-                      );
-                    }
-                  },
+                  duration: const Duration(milliseconds: 350),
+                  transitionBuilder:
+                      (Widget child, Animation<double> animation) {
+                        final offsetRight = const Offset(1.0, 0.0);
+                        final offsetLeft = const Offset(-1.0, 0.0);
+                        final inTween = _isNextDirection
+                            ? Tween<Offset>(
+                                begin: offsetRight,
+                                end: Offset.zero,
+                              )
+                            : Tween<Offset>(
+                                begin: offsetLeft,
+                                end: Offset.zero,
+                              );
+                        final outTween = _isNextDirection
+                            ? Tween<Offset>(begin: offsetLeft, end: Offset.zero)
+                            : Tween<Offset>(
+                                begin: offsetRight,
+                                end: Offset.zero,
+                              );
+                        final inAnimation = inTween.animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutQuad,
+                          ),
+                        );
+                        final outAnimation = outTween.animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeInQuad,
+                          ),
+                        );
+                        if (child.key == ValueKey(song.id)) {
+                          return SlideTransition(
+                            position: inAnimation,
+                            child: child,
+                          );
+                        } else {
+                          return SlideTransition(
+                            position: outAnimation,
+                            child: child,
+                          );
+                        }
+                      },
                   child: song.artworkData != null
                       ? Image.memory(
                           song.artworkData!,
@@ -371,25 +302,65 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Título y Artista
-          Text(
-            song.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 26, // Más grande
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            song.artist,
-            style: const TextStyle(color: Colors.white60, fontSize: 18),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          // Row for Title/Artist (Left) and Favorite (Right)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextScroll(
+                      song.title,
+                      mode: TextScrollMode.endless,
+                      velocity: const Velocity(pixelsPerSecond: Offset(30, 0)),
+                      delayBefore: const Duration(seconds: 2),
+                      pauseBetween: const Duration(seconds: 2),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.left,
+                      selectable: true,
+                    ),
+                    const SizedBox(height: 4),
+                    TextScroll(
+                      song.artist,
+                      mode: TextScrollMode.endless,
+                      velocity: const Velocity(pixelsPerSecond: Offset(30, 0)),
+                      delayBefore: const Duration(seconds: 2),
+                      pauseBetween: const Duration(seconds: 2),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.left,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Favorite Button
+              ListenableBuilder(
+                listenable: PlaylistService(),
+                builder: (context, child) {
+                  final isLiked = PlaylistService().isLiked(song.id);
+                  return IconButton(
+                    icon: Icon(
+                      isLiked ? Icons.favorite : Icons.favorite_border,
+                      color: isLiked ? Colors.purpleAccent : Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      PlaylistService().toggleLike(song.id);
+                    },
+                  );
+                },
+              ),
+            ],
           ),
 
           const SizedBox(height: 30),

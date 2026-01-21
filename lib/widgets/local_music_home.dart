@@ -150,20 +150,45 @@ class LocalMusicHome extends StatelessWidget {
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    // Background Image
-                                    song.artworkData != null
-                                        ? Image.memory(
+                                    // Background Image with Cache Fallback
+                                    ValueListenableBuilder<String?>(
+                                      valueListenable:
+                                          MusicLibraryService.onMetadataUpdated,
+                                      builder: (context, updatedPath, _) {
+                                        // 1. Si el objeto tiene artwork, mostrarlo
+                                        if (song.artworkData != null) {
+                                          return Image.memory(
                                             song.artworkData!,
                                             fit: BoxFit.cover,
-                                          )
-                                        : Container(
-                                            color: Colors.grey[900],
-                                            child: const Icon(
-                                              Icons.music_note,
-                                              color: Colors.white24,
-                                              size: 32,
-                                            ),
+                                          );
+                                        }
+
+                                        // 2. Si no, intentar rescatarlo de la caché
+                                        return FutureBuilder<dynamic>(
+                                          future: MusicMetadataCache.get(
+                                            song.filePath.hashCode.toString(),
                                           ),
+                                          builder: (context, snapshot) {
+                                            if (snapshot.hasData &&
+                                                snapshot.data?.artwork !=
+                                                    null) {
+                                              return Image.memory(
+                                                snapshot.data!.artwork!,
+                                                fit: BoxFit.cover,
+                                              );
+                                            }
+                                            return Container(
+                                              color: Colors.grey[900],
+                                              child: const Icon(
+                                                Icons.music_note,
+                                                color: Colors.white24,
+                                                size: 32,
+                                              ),
+                                            );
+                                          },
+                                        );
+                                      },
+                                    ),
                                     // Gradient Overlay
                                     Container(
                                       decoration: BoxDecoration(
@@ -310,32 +335,64 @@ class LocalMusicHome extends StatelessWidget {
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
-                                      // Background image
-                                      playlist.imagePath != null &&
+                                      // Background image logic with fallback
+                                      Builder(
+                                        builder: (context) {
+                                          if (playlist.imagePath != null &&
                                               File(
                                                 playlist.imagePath!,
-                                              ).existsSync()
-                                          ? Image.file(
+                                              ).existsSync()) {
+                                            return Image.file(
                                               File(playlist.imagePath!),
                                               fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                    return const Center(
-                                                      child: Icon(
-                                                        Icons.music_note,
-                                                        color: Colors.white24,
-                                                        size: 40,
-                                                      ),
-                                                    );
-                                                  },
-                                            )
-                                          : const Center(
-                                              child: Icon(
-                                                Icons.music_note,
-                                                color: Colors.white24,
-                                                size: 40,
+                                              errorBuilder: (_, __, ___) =>
+                                                  const Center(
+                                                    child: Icon(
+                                                      Icons.music_note,
+                                                      color: Colors.white24,
+                                                      size: 40,
+                                                    ),
+                                                  ),
+                                            );
+                                          } else if (playlist
+                                              .songs
+                                              .isNotEmpty) {
+                                            // Fallback to first song's artwork from cache
+                                            final firstSong =
+                                                playlist.songs.first;
+                                            return FutureBuilder<dynamic>(
+                                              future: MusicMetadataCache.get(
+                                                firstSong.filePath.hashCode
+                                                    .toString(),
                                               ),
+                                              builder: (context, snapshot) {
+                                                if (snapshot.hasData &&
+                                                    snapshot.data?.artwork !=
+                                                        null) {
+                                                  return Image.memory(
+                                                    snapshot.data!.artwork!,
+                                                    fit: BoxFit.cover,
+                                                  );
+                                                }
+                                                return const Center(
+                                                  child: Icon(
+                                                    Icons.music_note,
+                                                    color: Colors.white24,
+                                                    size: 40,
+                                                  ),
+                                                );
+                                              },
+                                            );
+                                          }
+                                          return const Center(
+                                            child: Icon(
+                                              Icons.music_note,
+                                              color: Colors.white24,
+                                              size: 40,
                                             ),
+                                          );
+                                        },
+                                      ),
                                       // Gradient overlay
                                       Container(
                                         decoration: BoxDecoration(

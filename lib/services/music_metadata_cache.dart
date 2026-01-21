@@ -43,7 +43,10 @@ class MusicMetadataCache {
   static Future<File> _getCacheFile(String key) async {
     final dir = await getApplicationCacheDirectory();
     // Usar hashcode para evitar problemas con caracteres especiales en rutas
-    final fileName = 'art_${key.hashCode}.jpg';
+    // Usar key directamente si es numérica (hash code string) para evitar doble hash
+    // Aseguramos caracteres seguros reemplazando todo lo que no sea alfanumérico
+    final safeKey = key.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    final fileName = 'art_$safeKey.jpg';
     return File('${dir.path}/$fileName');
   }
 

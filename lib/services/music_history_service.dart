@@ -16,9 +16,13 @@ class MusicHistoryService extends ChangeNotifier {
 
   List<Song> get history => List.unmodifiable(_history);
 
+  bool _initialized = false;
+
   Future<void> init() async {
+    if (_initialized) return;
     await _checkAndMigrate();
     await _loadHistory();
+    _initialized = true;
   }
 
   /// Migración única de SharedPreferences a SQLite
