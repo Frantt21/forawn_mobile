@@ -59,12 +59,11 @@ class AudioPlayerService {
       );
 
   // Estado del reproductor mapeado al nuestro
-  Stream<app_state.PlayerState> get playerStateStream => _audioPlayer
+  // Estado del reproductor mapeado al nuestro
+  late final Stream<app_state.PlayerState> playerStateStream = _audioPlayer
       .playerStateStream
       .map(_mapToAppPlayerState)
-      .doOnData((state) {
-        print('[AudioPlayerService] State changed: $state');
-      });
+      .distinct();
 
   Stream<bool> get shuffleModeStream =>
       _playlistSubject.map((p) => p.isShuffle).distinct();
