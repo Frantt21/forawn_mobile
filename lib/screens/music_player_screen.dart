@@ -151,6 +151,13 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   }
 
   Widget _buildHeader(BuildContext context, Song song) {
+    // Obtener color dominante para los botones
+    final color = _getDominantColor(song);
+    // Asegurar contraste/brillo mínimo similar a los controles
+    final effectiveColor = HSLColor.fromColor(color).lightness < 0.3
+        ? HSLColor.fromColor(color).withLightness(0.6).toColor()
+        : color;
+
     return GestureDetector(
       onVerticalDragEnd: (details) {
         if (details.primaryVelocity! > 0) {
@@ -158,14 +165,14 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         }
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.keyboard_arrow_down,
-                color: Colors.white,
+                color: effectiveColor,
                 size: 32,
               ),
               onPressed: () => Navigator.of(context).pop(),
@@ -179,7 +186,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
+              icon: Icon(Icons.more_vert, color: effectiveColor),
               onPressed: () => _showOptionsSheet(context, song),
             ),
           ],
@@ -589,7 +596,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
           ),
           child: ListView(
             controller: controller,
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.only(top: 16),
             children: [
               Center(
                 child: Container(
@@ -603,58 +610,64 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
               const SizedBox(height: 24),
               // Header Song Info
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: song.artworkData != null
-                        ? Image.memory(
-                            song.artworkData!,
-                            width: 56,
-                            height: 56,
-                            fit: BoxFit.cover,
-                          )
-                        : Container(
-                            color: Colors.white10,
-                            width: 56,
-                            height: 56,
-                            child: const Icon(
-                              Icons.music_note,
-                              color: Colors.white54,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: song.artworkData != null
+                          ? Image.memory(
+                              song.artworkData!,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: Colors.white10,
+                              width: 56,
+                              height: 56,
+                              child: const Icon(
+                                Icons.music_note,
+                                color: Colors.white54,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                          Text(
+                            song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.white60,
+                            ),
                           ),
-                        ),
-                        Text(
-                          song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.white60,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
-              const Divider(color: Colors.white10),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Divider(color: Colors.white10),
+              ),
 
               // Options
               ListTile(
@@ -668,16 +681,28 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   _showAddToPlaylistDialog(context, song);
                 },
               ),
-              ListTile(
-                // Toggle Favorite
-                leading: const Icon(Icons.favorite_border, color: Colors.white),
-                title: const Text(
-                  'Favoritos',
-                  style: TextStyle(color: Colors.white),
-                ),
-                onTap: () {
-                  PlaylistService().toggleLike(song.id);
-                  Navigator.pop(context);
+              // Toggle Favorite
+              ValueListenableBuilder<List<String>>(
+                valueListenable: PlaylistService().favoritesNotifier,
+                builder: (context, favorites, _) {
+                  final isFavorite = favorites.contains(song.id);
+                  return ListTile(
+                    leading: Icon(
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: isFavorite ? Colors.redAccent : Colors.white,
+                    ),
+                    title: Text(
+                      isFavorite
+                          ? LanguageService().getText('remove_from_favorites')
+                          : LanguageService().getText('add_to_favorites'),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    onTap: () {
+                      PlaylistService().toggleLike(song.id);
+                      // Don't pop immediately so user sees the change state
+                      // Navigator.pop(context);
+                    },
+                  );
                 },
               ),
               ListTile(
@@ -688,7 +713,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  _showEditMetadataDialog(context, song);
+                  _showMetadataSearchDialog(context, song);
                 },
               ),
               ListTile(
@@ -738,65 +763,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showEditMetadataDialog(BuildContext context, Song song) {
-    final titleController = TextEditingController(text: song.title);
-    final artistController = TextEditingController(text: song.artist);
-    final albumController = TextEditingController(text: song.album);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2E),
-        title: const Text(
-          'Editar Metadatos',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Título',
-                labelStyle: TextStyle(color: Colors.white70),
-              ),
-            ),
-            TextField(
-              controller: artistController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Artista',
-                labelStyle: TextStyle(color: Colors.white70),
-              ),
-            ),
-            TextField(
-              controller: albumController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Álbum',
-                labelStyle: TextStyle(color: Colors.white70),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              // Placeholder for save logic
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
       ),
     );
   }

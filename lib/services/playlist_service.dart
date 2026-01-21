@@ -19,6 +19,7 @@ class PlaylistService extends ChangeNotifier {
 
   List<Playlist> get playlists => List.unmodifiable(_playlists);
   Set<String> get likedSongIds => Set.unmodifiable(_likedSongIds);
+  final ValueNotifier<List<String>> favoritesNotifier = ValueNotifier([]);
 
   bool isInitialized = false;
 
@@ -141,6 +142,7 @@ class PlaylistService extends ChangeNotifier {
     final favoriteIds = await dbHelper.getFavoriteSongIds();
     _likedSongIds.clear();
     _likedSongIds.addAll(favoriteIds);
+    favoritesNotifier.value = List.from(_likedSongIds);
 
     notifyListeners();
   }
@@ -197,6 +199,7 @@ class PlaylistService extends ChangeNotifier {
       _likedSongIds.add(songId);
       await dbHelper.addToFavorites(songId);
     }
+    favoritesNotifier.value = List.from(_likedSongIds);
     notifyListeners();
   }
 
