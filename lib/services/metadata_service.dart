@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:palette_generator/palette_generator.dart';
 import 'music_metadata_cache.dart';
 import 'saf_helper.dart';
+import 'language_service.dart';
 
 /// Prioridad de carga de metadatos
 enum MetadataPriority {
@@ -296,31 +297,30 @@ class MetadataService {
     );
   }
 
-  /// Extrae el color dominante del artwork
+  /// Extrae el color dominante del artwork (Optimizado: Redimensiona a 50px)
   Future<int?> _extractDominantColor(Uint8List artworkBytes) async {
     try {
-      print(
-        '[MetadataService] Extracting dominant color for image of size: ${artworkBytes.length}',
+      print('[MetadataService] Extracting dominant color (optimized 50px)...');
+
+      // Decodificar imagen redimensionada a 50px para velocidad extrema
+      final codec = await ui.instantiateImageCodec(
+        artworkBytes,
+        targetWidth: 50,
       );
-      // Decodificar imagen
-      final codec = await ui.instantiateImageCodec(artworkBytes);
       final frame = await codec.getNextFrame();
       final image = frame.image;
 
-      // Generar paleta
+      // Generar paleta sobre la imagen pequeña
       final paletteGenerator = await PaletteGenerator.fromImage(
         image,
-        maximumColorCount: 16, // Reducido para mejor rendimiento
+        maximumColorCount: 16,
       );
 
-      // Obtener color dominante o vibrante
+      // Obtener color dominante
       final dominantColor =
           paletteGenerator.dominantColor?.color ??
           paletteGenerator.vibrantColor?.color;
 
-      print(
-        '[MetadataService] Dominant color extracted: ${dominantColor?.value.toRadixString(16)}',
-      );
       return dominantColor?.value;
     } catch (e) {
       print('[MetadataService] Error extracting dominant color: $e');
@@ -365,10 +365,8 @@ class MetadataService {
 
       // Notificar progreso
       final progress = results.length / requests.length;
-      _notifyProgress(
-        'Optimizando experiencia... ${(progress * 100).toInt()}%',
-        progress,
-      );
+      final message = LanguageService().getText('extracting_colors');
+      _notifyProgress('$message ${(progress * 100).toInt()}%', progress);
 
       // Pequeño delay entre lotes para no saturar
       if (i + batchSize < requests.length) {
@@ -376,7 +374,7 @@ class MetadataService {
       }
     }
 
-    _notifyProgress('¡Listo!', 1.0);
+    _notifyProgress(LanguageService().getText('completed'), 1.0);
     // Ocultar mensaje después de un tiempo
     Future.delayed(const Duration(seconds: 2), () {
       _notifyProgress('', null);

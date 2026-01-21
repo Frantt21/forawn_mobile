@@ -264,5 +264,6 @@
   "metadata_updated": "Metadatos actualizados",
   "metadata_update_error": "Error al actualizar metadatos",
   "search_metadata_placeholder": "Buscar metadatos (Título, Artista...)",
-  "no_recent_activity": "No hay actividad reciente"
+  "no_recent_activity": "No hay actividad reciente",
+  "extracting_colors": "Analizando colores..."
 }

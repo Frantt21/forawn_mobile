@@ -264,5 +264,6 @@
   "metadata_updated": "Metadata updated",
   "metadata_update_error": "Error updating metadata",
   "search_metadata_placeholder": "Search metadata (Title, Artist...)",
-  "no_recent_activity": "No recent activity"
+  "no_recent_activity": "No recent activity",
+  "extracting_colors": "Extracting colors..."
 }
