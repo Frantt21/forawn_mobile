@@ -246,7 +246,26 @@ class DownloadService {
             await downloadsDir.create(recursive: true);
           } catch (_) {}
         }
-        final destPath = '${downloadsDir.path}/$fileName';
+
+        String destPath = '${downloadsDir.path}/$fileName';
+
+        // Manejar colisiones de nombre: agregar (1), (2), etc.
+        if (await File(destPath).exists()) {
+          int counter = 1;
+          String nameWithoutExt = fileName;
+          String ext = '';
+
+          if (fileName.contains('.')) {
+            nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+            ext = fileName.substring(fileName.lastIndexOf('.'));
+          }
+
+          while (await File(destPath).exists()) {
+            destPath = '${downloadsDir.path}/$nameWithoutExt ($counter)$ext';
+            counter++;
+          }
+        }
+
         await File(tempPath).copy(destPath);
         print('[DownloadService] Archivo guardado en: $destPath');
       }

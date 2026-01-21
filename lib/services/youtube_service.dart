@@ -81,109 +81,131 @@ class CachedSong {
 class YouTubeService {
   /// Buscar videos en YouTube
   Future<List<YouTubeVideo>> search(String query, {int limit = 40}) async {
-    try {
-      final url = ApiConfig.getYouTubeSearchUrl(query, limit: limit);
-      final uri = Uri.parse(url);
+    final backends = ApiConfig.getRotatedBackends();
+    Exception? lastError;
 
-      print('[YouTubeService] Searching: $query');
+    for (final baseUrl in backends) {
+      try {
+        final url = ApiConfig.getYouTubeSearchUrl(query, baseUrl, limit: limit);
+        final uri = Uri.parse(url);
 
-      final response = await http.get(uri);
+        print('[YouTubeService] Searching ($baseUrl): $query');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final results = (data['results'] as List)
-            .map((v) => YouTubeVideo.fromJson(v))
-            .toList();
+        final response = await http.get(uri);
 
-        print('[YouTubeService] Found ${results.length} results');
-        return results;
-      } else {
-        print('[YouTubeService] Error: ${response.statusCode}');
-        throw Exception('Failed to search YouTube: ${response.statusCode}');
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final results = (data['results'] as List)
+              .map((v) => YouTubeVideo.fromJson(v))
+              .toList();
+
+          print('[YouTubeService] Found ${results.length} results');
+          return results;
+        } else {
+          print('[YouTubeService] Error ($baseUrl): ${response.statusCode}');
+          lastError = Exception(
+            'Failed to search YouTube: ${response.statusCode}',
+          );
+        }
+      } catch (e) {
+        print('[YouTubeService] Exception ($baseUrl): $e');
+        lastError = Exception(e.toString());
       }
-    } catch (e) {
-      print('[YouTubeService] Exception: $e');
-      rethrow;
     }
+    throw lastError ?? Exception('Failed to search YouTube on all backends');
   }
 
   /// Verificar si una canción está en caché
   Future<CachedSong> checkCache(String title, String artist) async {
-    try {
-      final url = ApiConfig.getCacheCheckUrl(title, artist);
-      final uri = Uri.parse(url);
+    final backends = ApiConfig.getRotatedBackends();
 
-      print('[YouTubeService] Checking cache: $title by $artist');
+    for (final baseUrl in backends) {
+      try {
+        final url = ApiConfig.getCacheCheckUrl(title, artist, baseUrl);
+        final uri = Uri.parse(url);
 
-      final response = await http.get(uri);
+        print('[YouTubeService] Checking cache ($baseUrl): $title by $artist');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final cachedSong = CachedSong.fromJson(data);
+        final response = await http.get(uri);
 
-        if (cachedSong.cached) {
-          print('[YouTubeService] ✓ Cache HIT');
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final cachedSong = CachedSong.fromJson(data);
+
+          if (cachedSong.cached) {
+            print('[YouTubeService] ✓ Cache HIT');
+          } else {
+            print('[YouTubeService] Cache MISS');
+          }
+
+          return cachedSong;
         } else {
-          print('[YouTubeService] Cache MISS');
+          print(
+            '[YouTubeService] Error checking cache ($baseUrl): ${response.statusCode}',
+          );
         }
-
-        return cachedSong;
-      } else {
-        print('[YouTubeService] Error checking cache: ${response.statusCode}');
-        return CachedSong(cached: false);
+      } catch (e) {
+        print('[YouTubeService] Exception checking cache ($baseUrl): $e');
       }
-    } catch (e) {
-      print('[YouTubeService] Exception checking cache: $e');
-      return CachedSong(cached: false);
     }
+    return CachedSong(cached: false);
   }
 
   /// Obtener estadísticas del caché
   Future<Map<String, dynamic>?> getCacheStats() async {
-    try {
-      final uri = Uri.parse(ApiConfig.getCacheStatsUrl());
-      final response = await http.get(uri);
+    final backends = ApiConfig.getRotatedBackends();
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
+    for (final baseUrl in backends) {
+      try {
+        final uri = Uri.parse(ApiConfig.getCacheStatsUrl(baseUrl));
+        final response = await http.get(uri);
+
+        if (response.statusCode == 200) {
+          return json.decode(response.body);
+        }
+      } catch (e) {
+        print('[YouTubeService] Error getting cache stats ($baseUrl): $e');
       }
-      return null;
-    } catch (e) {
-      print('[YouTubeService] Error getting cache stats: $e');
-      return null;
     }
+    return null;
   }
 
   /// Limpiar caché manualmente
   Future<Map<String, dynamic>?> cleanupCache() async {
-    try {
-      final uri = Uri.parse(ApiConfig.getCacheCleanupUrl());
-      final response = await http.post(uri);
+    final backends = ApiConfig.getRotatedBackends();
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
+    for (final baseUrl in backends) {
+      try {
+        final uri = Uri.parse(ApiConfig.getCacheCleanupUrl(baseUrl));
+        final response = await http.post(uri);
+
+        if (response.statusCode == 200) {
+          return json.decode(response.body);
+        }
+      } catch (e) {
+        print('[YouTubeService] Error cleaning cache ($baseUrl): $e');
       }
-      return null;
-    } catch (e) {
-      print('[YouTubeService] Error cleaning cache: $e');
-      return null;
     }
+    return null;
   }
 
   /// Obtener cuota de Google Drive
   Future<Map<String, dynamic>?> getDriveQuota() async {
-    try {
-      final uri = Uri.parse(ApiConfig.getDriveQuotaUrl());
-      final response = await http.get(uri);
+    final backends = ApiConfig.getRotatedBackends();
 
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
+    for (final baseUrl in backends) {
+      try {
+        final uri = Uri.parse(ApiConfig.getDriveQuotaUrl(baseUrl));
+        final response = await http.get(uri);
+
+        if (response.statusCode == 200) {
+          return json.decode(response.body);
+        }
+      } catch (e) {
+        print('[YouTubeService] Error getting drive quota ($baseUrl): $e');
       }
-      return null;
-    } catch (e) {
-      print('[YouTubeService] Error getting drive quota: $e');
-      return null;
     }
+    return null;
   }
 
   /// Formatear bytes a formato legible

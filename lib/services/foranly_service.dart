@@ -16,28 +16,15 @@ class ForanlyService {
         ? '$trackTitle - $artistName'
         : '';
 
-    // 1. Intentar con servidor primario
-    try {
-      final url = await _tryGetUrlDirect(
-        ApiConfig.foranlyBackendPrimary,
-        youtubeUrl,
-        query,
-      );
-      if (url != null) return url;
-    } catch (e) {
-      print('[ForanlyService] Error en primario (direct): $e');
-    }
+    final backends = ApiConfig.getRotatedBackends();
 
-    // 2. Intentar con servidor de respaldo
-    try {
-      final url = await _tryGetUrlDirect(
-        ApiConfig.foranlyBackendBackup,
-        youtubeUrl,
-        query,
-      );
-      if (url != null) return url;
-    } catch (e) {
-      print('[ForanlyService] Error en backup (direct): $e');
+    for (final baseUrl in backends) {
+      try {
+        final url = await _tryGetUrlDirect(baseUrl, youtubeUrl, query);
+        if (url != null) return url;
+      } catch (e) {
+        print('[ForanlyService] Error en backend ($baseUrl): $e');
+      }
     }
 
     return null;
@@ -46,20 +33,15 @@ class ForanlyService {
   /// Obtener URL de descarga buscando por Query (Título - Artista)
   /// Retorna la URL de descarga directa o null si falla
   Future<String?> getDownloadUrlWait(String query) async {
-    // 1. Intentar con servidor primario
-    try {
-      final url = await _tryGetUrl(ApiConfig.foranlyBackendPrimary, query);
-      if (url != null) return url;
-    } catch (e) {
-      print('[ForanlyService] Error en primario: $e');
-    }
+    final backends = ApiConfig.getRotatedBackends();
 
-    // 2. Intentar con servidor de respaldo
-    try {
-      final url = await _tryGetUrl(ApiConfig.foranlyBackendBackup, query);
-      if (url != null) return url;
-    } catch (e) {
-      print('[ForanlyService] Error en backup: $e');
+    for (final baseUrl in backends) {
+      try {
+        final url = await _tryGetUrl(baseUrl, query);
+        if (url != null) return url;
+      } catch (e) {
+        print('[ForanlyService] Error en backend ($baseUrl): $e');
+      }
     }
 
     return null;
@@ -70,22 +52,25 @@ class ForanlyService {
     String title,
     String artist,
   ) async {
-    final baseUrl = ApiConfig.foranlyBackendPrimary;
+    final backends = ApiConfig.getRotatedBackends();
     final encodedTitle = Uri.encodeComponent(title);
     final encodedArtist = Uri.encodeComponent(artist);
-    final url =
-        '$baseUrl/metadata/search?title=$encodedTitle&artist=$encodedArtist';
 
-    try {
-      print('[ForanlyService] Searching metadata: $url');
-      final response = await http
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 15));
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
+    for (final baseUrl in backends) {
+      final url =
+          '$baseUrl/metadata/search?title=$encodedTitle&artist=$encodedArtist';
+
+      try {
+        print('[ForanlyService] Searching metadata: $url');
+        final response = await http
+            .get(Uri.parse(url))
+            .timeout(const Duration(seconds: 15));
+        if (response.statusCode == 200) {
+          return json.decode(response.body) as Map<String, dynamic>;
+        }
+      } catch (e) {
+        print('[ForanlyService] Error searching metadata ($baseUrl): $e');
       }
-    } catch (e) {
-      print('[ForanlyService] Error searching metadata: $e');
     }
     return null;
   }
