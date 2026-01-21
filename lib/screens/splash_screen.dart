@@ -15,28 +15,15 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _fadeAnimation;
-
+  double _loadingProgress = 0.0;
   @override
   void initState() {
     super.initState();
 
-    // Animation setup related to the logo
+    // Controller used for timing the splash screen duration
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
-      ),
     );
 
     _animationController.forward();
@@ -49,18 +36,22 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       // 1. Language Service (Crucial for UI)
       // Already initialized in main, but ensuring readiness
+      setState(() => _loadingProgress = 0.1);
       await Future.delayed(
         const Duration(milliseconds: 300),
       ); // Minimal delay for visual
 
       // 2. Music History (Heavy database op)
+      setState(() => _loadingProgress = 0.4);
       await MusicHistoryService().init();
 
       // 3. Playlists (Database op)
+      setState(() => _loadingProgress = 0.7);
       await PlaylistService().init();
 
       // 4. Local Music State (Pre-fetch if possible)
       // We init the service (which might load last folder path from prefs)
+      setState(() => _loadingProgress = 0.9);
       await LocalMusicStateService().init();
 
       // Wait for animation to finish if it hasn't
@@ -80,6 +71,7 @@ class _SplashScreenState extends State<SplashScreen>
       }
 
       // Small extra pause for smoothness
+      setState(() => _loadingProgress = 1.0);
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
@@ -111,57 +103,28 @@ class _SplashScreenState extends State<SplashScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Animated Logo
-            AnimatedBuilder(
-              animation: _animationController,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _scaleAnimation.value,
-                  child: Opacity(
-                    opacity: _fadeAnimation.value,
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.black,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.purpleAccent.withOpacity(0.5),
-                            blurRadius: 40,
-                            spreadRadius: 10,
-                          ),
-                        ],
-                      ),
-                      // Replace with your actual app logo asset if available
-                      // displaying an icon for now as placeholder
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                      // child: Image.asset('assets/icon/icon.png'), // Use this if you have an asset
-                    ),
-                  ),
-                );
-              },
+            // Logo without animation or shadow
+            SizedBox(
+              width: 150,
+              height: 150,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
             const SizedBox(height: 50),
 
             // App Name
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: const Text(
-                "FORAWN",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 4,
-                ),
+            const Text(
+              "FORAWN",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
               ),
             ),
 
@@ -171,6 +134,7 @@ class _SplashScreenState extends State<SplashScreen>
             SizedBox(
               width: 150,
               child: LinearProgressIndicator(
+                value: _loadingProgress,
                 color: Colors.purpleAccent,
                 backgroundColor: Colors.white10,
                 borderRadius: BorderRadius.circular(10),
