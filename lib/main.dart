@@ -184,7 +184,7 @@ class _ForawnAppState extends State<ForawnApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Forawn Mobile',
+      title: 'Forawn',
       debugShowCheckedModeBanner: false,
 
       // Theme configuration
