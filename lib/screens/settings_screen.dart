@@ -373,7 +373,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                         // Limpiar historial de SharedPreferences
                         final prefs = await SharedPreferences.getInstance();
-                        await prefs.remove('assistant_chat_history');
+                        await prefs.remove(
+                          'assistant_chat_history',
+                        ); // Assistant Dialog
+                        await prefs.remove('foraai_sessions'); // ForaAI Screen
 
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
