@@ -303,64 +303,71 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Row for Title/Artist (Left) and Favorite (Right)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextScroll(
-                      song.title,
-                      mode: TextScrollMode.endless,
-                      velocity: const Velocity(pixelsPerSecond: Offset(30, 0)),
-                      delayBefore: const Duration(seconds: 2),
-                      pauseBetween: const Duration(seconds: 2),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextScroll(
+                        song.title,
+                        mode: TextScrollMode.endless,
+                        velocity: const Velocity(
+                          pixelsPerSecond: Offset(30, 0),
+                        ),
+                        delayBefore: const Duration(seconds: 2),
+                        pauseBetween: const Duration(seconds: 2),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.left,
+                        selectable: true,
                       ),
-                      textAlign: TextAlign.left,
-                      selectable: true,
-                    ),
-                    const SizedBox(height: 4),
-                    TextScroll(
-                      song.artist,
-                      mode: TextScrollMode.endless,
-                      velocity: const Velocity(pixelsPerSecond: Offset(30, 0)),
-                      delayBefore: const Duration(seconds: 2),
-                      pauseBetween: const Duration(seconds: 2),
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 16,
+                      const SizedBox(height: 4),
+                      TextScroll(
+                        song.artist,
+                        mode: TextScrollMode.endless,
+                        velocity: const Velocity(
+                          pixelsPerSecond: Offset(30, 0),
+                        ),
+                        delayBefore: const Duration(seconds: 2),
+                        pauseBetween: const Duration(seconds: 2),
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.left,
                       ),
-                      textAlign: TextAlign.left,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              // Favorite Button
-              ListenableBuilder(
-                listenable: PlaylistService(),
-                builder: (context, child) {
-                  final isLiked = PlaylistService().isLiked(song.id);
-                  return IconButton(
-                    icon: Icon(
-                      isLiked ? Icons.favorite : Icons.favorite_border,
-                      color: isLiked ? Colors.purpleAccent : Colors.white,
-                      size: 28,
-                    ),
-                    onPressed: () {
-                      PlaylistService().toggleLike(song.id);
-                    },
-                  );
-                },
-              ),
-            ],
+                const SizedBox(width: 16),
+                // Favorite Button
+                ListenableBuilder(
+                  listenable: PlaylistService(),
+                  builder: (context, child) {
+                    final isLiked = PlaylistService().isLiked(song.id);
+                    return IconButton(
+                      icon: Icon(
+                        isLiked ? Icons.favorite : Icons.favorite_border,
+                        color: isLiked ? Colors.purpleAccent : Colors.white,
+                        size: 28,
+                      ),
+                      onPressed: () {
+                        PlaylistService().toggleLike(song.id);
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
 
           const SizedBox(height: 30),

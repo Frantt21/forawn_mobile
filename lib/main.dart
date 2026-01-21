@@ -12,6 +12,7 @@ import 'screens/qr_generator_screen.dart';
 import 'services/global_download_manager.dart';
 import 'services/version_check_service.dart';
 import 'services/language_service.dart';
+import 'screens/splash_screen.dart';
 
 import 'package:audio_service/audio_service.dart';
 import 'services/audio_handler.dart';
@@ -233,8 +234,9 @@ class _ForawnAppState extends State<ForawnApp> {
       ),
 
       // Routing configuration
-      initialRoute: '/',
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) => const SplashScreen(),
         '/': (context) => const HomeScreen(),
         '/local-music': (context) => const LocalMusicScreen(),
         '/notifications': (context) => const NotificationsScreen(),
