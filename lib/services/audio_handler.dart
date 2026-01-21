@@ -99,7 +99,21 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> skipToPrevious() => _player.skipToPrevious();
   @override
-  Future<void> stop() => _player.stop();
+  Future<void> stop() async {
+    await _player.stop();
+    playbackState.add(
+      playbackState.value.copyWith(
+        playing: false,
+        processingState: AudioProcessingState.idle,
+      ),
+    );
+  }
+
+  @override
+  Future<void> onTaskRemoved() async {
+    await stop();
+  }
+
   @override
   Future<void> seek(Duration position) => _player.seek(position);
 }
