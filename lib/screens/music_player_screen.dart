@@ -716,7 +716,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ListTile(
                 leading: const Icon(Icons.search, color: Colors.white),
                 title: Text(
-                  LanguageService().getText('search_change_lyrics'),
+                  LanguageService().getText('search_lyrics'),
                   style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {

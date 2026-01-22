@@ -268,5 +268,8 @@
   "extracting_colors": "Extracting colors...",
   "delete_song_confirm": "Are you sure you want to delete \"%s\"?\nThis action cannot be undone.",
   "song_deleted": "Song deleted successfully",
-  "delete_file_error": "Error deleting file"
+  "delete_file_error": "Error deleting file",
+  "edit_metadata": "Edit metadata",
+  "search_lyrics": "Search lyrics",
+  "delete_lyrics": "Delete lyrics"
 }

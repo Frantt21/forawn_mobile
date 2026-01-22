@@ -268,5 +268,8 @@
   "extracting_colors": "Analizando colores...",
   "delete_song_confirm": "¿Estás seguro de que quieres eliminar \"%s\"?\nEsta acción no se puede deshacer.",
   "song_deleted": "Canción eliminada correctamente",
-  "delete_file_error": "Error al eliminar el archivo"
+  "delete_file_error": "Error al eliminar el archivo",
+  "edit_metadata": "Editar metadatos",
+  "search_lyrics": "Buscar letra",
+  "delete_lyrics": "Borrar letra"
 }

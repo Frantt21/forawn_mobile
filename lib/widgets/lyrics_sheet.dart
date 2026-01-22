@@ -206,7 +206,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Letra',
+                                LanguageService().getText('lyrics'),
                                 style: TextStyle(
                                   color: secondaryTextColor,
                                   fontSize: 12,
