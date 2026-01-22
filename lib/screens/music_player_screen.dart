@@ -314,34 +314,38 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                         children: [
                           TextScroll(
                             song.title,
+                            key: ValueKey('title_${song.id}'),
                             mode: TextScrollMode.endless,
                             velocity: const Velocity(
                               pixelsPerSecond: Offset(30, 0),
                             ),
-                            delayBefore: const Duration(seconds: 2),
-                            pauseBetween: const Duration(seconds: 2),
+                            delayBefore: const Duration(seconds: 3),
+                            pauseBetween: const Duration(seconds: 3),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,
-                            selectable: true,
+                            selectable:
+                                false, // Disable selection to avoid conflicts
                           ),
                           const SizedBox(height: 4),
                           TextScroll(
                             song.artist,
+                            key: ValueKey('artist_${song.id}'),
                             mode: TextScrollMode.endless,
                             velocity: const Velocity(
                               pixelsPerSecond: Offset(30, 0),
                             ),
-                            delayBefore: const Duration(seconds: 2),
-                            pauseBetween: const Duration(seconds: 2),
+                            delayBefore: const Duration(seconds: 3),
+                            pauseBetween: const Duration(seconds: 3),
                             style: const TextStyle(
                               color: Colors.white60,
                               fontSize: 16,
                             ),
                             textAlign: TextAlign.center,
+                            selectable: false,
                           ),
                         ],
                       ),
