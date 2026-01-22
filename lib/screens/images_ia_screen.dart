@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as p;
-import 'package:http/http.dart' as http; // Added for verification if needed
+// Added for verification if needed
 
 import '../config/api_config.dart';
 import '../services/image_service.dart';
