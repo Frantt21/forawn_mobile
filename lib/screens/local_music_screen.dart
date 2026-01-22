@@ -1179,31 +1179,87 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   void _showPlaylistOptions(Playlist playlist) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey[900],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.4,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        builder: (_, controller) => Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.only(top: 16),
             children: [
-              const SizedBox(height: 10),
-              ListTile(
-                title: Text(
-                  playlist.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                subtitle: Text(
-                  "${playlist.songs.length} canciones",
-                  style: const TextStyle(color: Colors.white54),
+              ),
+              const SizedBox(height: 24),
+              // Header Info
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(8),
+                        image: playlist.imagePath != null
+                            ? DecorationImage(
+                                image: File(playlist.imagePath!).existsSync()
+                                    ? FileImage(File(playlist.imagePath!))
+                                    : NetworkImage(playlist.imagePath!)
+                                          as ImageProvider,
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: playlist.imagePath == null
+                          ? const Icon(Icons.music_note, color: Colors.white54)
+                          : null,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            playlist.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          Text(
+                            "${playlist.songs.length} ${LanguageService().getText('songs')}",
+                            style: const TextStyle(color: Colors.white54),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Divider(color: Colors.white24),
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Divider(color: Colors.white10),
+              ),
+
+              // Options
               ListTile(
                 leading: Icon(
                   playlist.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
@@ -1216,7 +1272,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                   style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
-                  Navigator.pop(ctx);
+                  Navigator.pop(context);
                   PlaylistService().togglePin(playlist.id);
                 },
               ),
@@ -1227,26 +1283,26 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                   style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
-                  Navigator.pop(ctx);
+                  Navigator.pop(context);
                   _showEditPlaylistDialog(context, playlist);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
+                leading: const Icon(Icons.delete, color: Colors.redAccent),
                 title: Text(
                   LanguageService().getText('delete'),
-                  style: const TextStyle(color: Colors.red),
+                  style: const TextStyle(color: Colors.redAccent),
                 ),
                 onTap: () {
-                  Navigator.pop(ctx);
+                  Navigator.pop(context);
                   _confirmDeletePlaylist(playlist);
                 },
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 24),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
