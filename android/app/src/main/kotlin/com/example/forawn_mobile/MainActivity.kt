@@ -92,6 +92,27 @@ class MainActivity : AudioServiceActivity() {
           }
         }
 
+        "deleteFile" -> {
+          val uriStr = call.argument<String>("uri")
+          if (uriStr == null) {
+             result.error("INVALID_ARGS", "uri is null", null)
+             return@setMethodCallHandler
+          }
+          try {
+             // Try deleting as regular file first if not content://
+             val file = File(uriStr)
+             if (file.exists()) {
+                 result.success(file.delete())
+                 return@setMethodCallHandler
+             }
+             // If not regular file or not exists, try SAF
+             val ok = deleteSafFile(Uri.parse(uriStr))
+             result.success(ok)
+          } catch(e: Exception) {
+             result.error("DELETE_ERROR", e.message, null)
+          }
+        }
+
         "readBytesFromUri" -> {
           val uriString = call.argument<String>("uri")
           val maxBytes = call.argument<Int>("maxBytes") ?: (512 * 1024)
