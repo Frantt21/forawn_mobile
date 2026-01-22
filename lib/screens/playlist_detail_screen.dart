@@ -880,6 +880,203 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     );
   }
 
+  void _showPlaylistOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (_, controller) => Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.only(top: 16, bottom: 24),
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  LanguageService().getText('options'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Divider(color: Colors.white10),
+              ),
+
+              // Actions
+              _buildOptionItem(
+                icon: Icons.shuffle,
+                title: LanguageService().getText('shuffle'),
+                onTap: () {
+                  Navigator.pop(context);
+                  final songs = _currentPlaylist.songs;
+                  if (songs.isNotEmpty) {
+                    _audioPlayer.toggleShuffle();
+                    _audioPlayer.loadPlaylist(
+                      songs,
+                      initialIndex: 0,
+                      autoPlay: true,
+                    );
+                    Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            const MusicPlayerScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              var tween = Tween(
+                                begin: const Offset(0.0, 1.0),
+                                end: Offset.zero,
+                              ).chain(CurveTween(curve: Curves.easeOutCubic));
+                              return SlideTransition(
+                                position: animation.drive(tween),
+                                child: child,
+                              );
+                            },
+                      ),
+                    );
+                  }
+                },
+              ),
+
+              if (widget.playlist.id != 'favorites_virtual')
+                _buildOptionItem(
+                  icon: Icons.edit,
+                  title: LanguageService().getText('edit_playlist'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showEditPlaylistDialog(context, _currentPlaylist);
+                  },
+                ),
+
+              _buildOptionItem(
+                icon: Icons.add,
+                title: LanguageService().getText('add_songs'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAddSongsDialog(context, _currentPlaylist);
+                },
+              ),
+
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Divider(color: Colors.white10),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
+                child: Text(
+                  LanguageService().getText('information'),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              _buildOptionItem(
+                icon: Icons.sort_by_alpha,
+                title: LanguageService().getText('sort_by_title'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _virtualSongs.sort(
+                      (a, b) => a.title.toLowerCase().compareTo(
+                        b.title.toLowerCase(),
+                      ),
+                    );
+                  });
+                },
+              ),
+
+              _buildOptionItem(
+                icon: Icons.person,
+                title: LanguageService().getText('sort_by_artist'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _virtualSongs.sort(
+                      (a, b) => (a.artist ?? '').toLowerCase().compareTo(
+                        (b.artist ?? '').toLowerCase(),
+                      ),
+                    );
+                  });
+                },
+              ),
+
+              _buildOptionItem(
+                icon: Icons.access_time,
+                title: LanguageService().getText('sort_by_date'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    // Restaurar orden original
+                    if (widget.playlist.id == 'favorites_virtual') {
+                      // Reload from service source for favorites
+                      // Actually for normal playlists we should reload from DB or service
+                      // For simplicity, we just trigger a rebuild which might not reset order if _virtualSongs was manipulated in place
+                      // But for Favorites virtual logic:
+                      _virtualSongs = List.from(widget.playlist.songs);
+                    } else {
+                      // For normal playlists, _virtualSongs is initialized from widget.playlist.song
+                      // If we mutated _virtualSongs, we need to restore.
+                      // Best way is to fetch fresh from service
+                      final fresh = PlaylistService().playlists.firstWhere(
+                        (p) => p.id == widget.playlist.id,
+                        orElse: () => widget.playlist,
+                      );
+                      _virtualSongs = List.from(fresh.songs);
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.white),
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final playlist = _currentPlaylist;
@@ -942,165 +1139,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               });
             },
           ),
-          // Menú de 3 puntos (solo si no está buscando)
           if (!_isSearching)
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, color: textColor),
-              color: Colors.grey[900],
-              onSelected: (value) {
-                switch (value) {
-                  case 'shuffle':
-                    if (songs.isNotEmpty) {
-                      _audioPlayer.toggleShuffle();
-                      _audioPlayer.loadPlaylist(
-                        songs,
-                        initialIndex: 0,
-                        autoPlay: true,
-                      );
-                      Navigator.of(context).push(
-                        PageRouteBuilder(
-                          pageBuilder:
-                              (context, animation, secondaryAnimation) =>
-                                  const MusicPlayerScreen(),
-                          transitionsBuilder:
-                              (context, animation, secondaryAnimation, child) {
-                                var tween = Tween(
-                                  begin: const Offset(0.0, 1.0),
-                                  end: Offset.zero,
-                                ).chain(CurveTween(curve: Curves.easeOutCubic));
-                                return SlideTransition(
-                                  position: animation.drive(tween),
-                                  child: child,
-                                );
-                              },
-                        ),
-                      );
-                    }
-                    break;
-                  case 'sort_title':
-                    setState(() {
-                      songs.sort(
-                        (a, b) => a.title.toLowerCase().compareTo(
-                          b.title.toLowerCase(),
-                        ),
-                      );
-                    });
-                    break;
-                  case 'sort_artist':
-                    setState(() {
-                      songs.sort(
-                        (a, b) => (a.artist ?? '').toLowerCase().compareTo(
-                          (b.artist ?? '').toLowerCase(),
-                        ),
-                      );
-                    });
-                    break;
-                  case 'sort_date':
-                    // Restaurar orden original (orden de agregado)
-                    setState(() {
-                      if (widget.playlist.id == 'favorites_virtual') {
-                        _virtualSongs = List.from(widget.playlist.songs);
-                      }
-                    });
-                    break;
-                  case 'edit_playlist':
-                    _showEditPlaylistDialog(context, _currentPlaylist);
-                    break;
-                  case 'add_songs':
-                    _showAddSongsDialog(context, _currentPlaylist);
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'shuffle',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.shuffle, color: Colors.white, size: 20),
-                      const SizedBox(width: 12),
-                      Text(
-                        LanguageService().getText('shuffle'),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'edit_playlist',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.edit, color: Colors.white, size: 20),
-                      const SizedBox(width: 12),
-                      Text(
-                        LanguageService().getText('edit_playlist'),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'add_songs',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.add, color: Colors.white, size: 20),
-                      const SizedBox(width: 12),
-                      Text(
-                        LanguageService().getText('add_songs'),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'sort_title',
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.sort_by_alpha,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        LanguageService().getText('sort_by_title'),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'sort_artist',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.person, color: Colors.white, size: 20),
-                      const SizedBox(width: 12),
-                      Text(
-                        LanguageService().getText('sort_by_artist'),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'sort_date',
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        LanguageService().getText('sort_by_date'),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            IconButton(
+              icon: Icon(Icons.more_horiz, color: textColor),
+              onPressed: () => _showPlaylistOptions(context),
             ),
         ],
       ),
