@@ -185,9 +185,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
       if (currentPlaylist.imagePath != null) {
         if (File(currentPlaylist.imagePath!).existsSync()) {
-          imageProvider = FileImage(File(currentPlaylist.imagePath!));
+          // Use ResizeImage to optimize memory and speed
+          imageProvider = ResizeImage(
+            FileImage(File(currentPlaylist.imagePath!)),
+            width: 20, // Reduced size for color extraction is sufficient
+            height: 20,
+          );
         } else {
-          imageProvider = NetworkImage(currentPlaylist.imagePath!);
+          imageProvider = ResizeImage(
+            NetworkImage(currentPlaylist.imagePath!),
+            width: 20,
+            height: 20,
+          );
         }
       }
 
@@ -195,13 +204,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
         final PaletteGenerator paletteGenerator =
             await PaletteGenerator.fromImageProvider(
               imageProvider,
-              size: const Size(200, 200),
-              maximumColorCount: 20,
+              size: const Size(20, 20), // Matching the resized image
+              maximumColorCount: 16, // Reduced count
             );
 
         final extractedColor =
             paletteGenerator.dominantColor?.color ??
             paletteGenerator.vibrantColor?.color ??
+            paletteGenerator.mutedColor?.color ??
             Colors.purple;
 
         // Oscurecer el color para que no sea tan chillón
