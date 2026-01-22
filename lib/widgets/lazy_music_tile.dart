@@ -4,6 +4,8 @@ import '../models/song.dart';
 import '../services/metadata_service.dart';
 import '../widgets/artwork_container.dart';
 
+import 'animated_playing_indicator.dart';
+
 /// Widget que carga metadatos de forma lazy (solo cuando es visible)
 class LazyMusicTile extends StatefulWidget {
   final Song song;
@@ -137,7 +139,15 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
         overflow: TextOverflow.ellipsis,
       ),
       trailing: widget.isPlaying
-          ? const Icon(Icons.graphic_eq, color: Colors.purpleAccent)
+          ? SizedBox(
+              width: 24,
+              height: 24,
+              child: AnimatedPlayingIndicator(
+                color: widget.song.dominantColor != null
+                    ? Color(widget.song.dominantColor!)
+                    : Colors.purpleAccent,
+              ),
+            )
           : null,
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
