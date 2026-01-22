@@ -118,6 +118,17 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
     final displayTitle = _title ?? widget.song.title;
     final displayArtist = _artist ?? widget.song.artist;
 
+    Color? activeColor;
+    if (widget.isPlaying) {
+      final rawColor = widget.song.dominantColor != null
+          ? Color(widget.song.dominantColor!)
+          : Colors.purpleAccent;
+      // Ajuste de brillo igual que en el reproductor
+      activeColor = HSLColor.fromColor(rawColor).lightness < 0.3
+          ? HSLColor.fromColor(rawColor).withLightness(0.6).toColor()
+          : rawColor;
+    }
+
     return ListTile(
       leading: ArtworkContainer.song(
         artworkData: _artwork,
@@ -129,7 +140,7 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: widget.isPlaying ? Colors.purpleAccent : Colors.white,
+          color: widget.isPlaying ? activeColor : Colors.white,
           fontWeight: widget.isPlaying ? FontWeight.bold : null,
         ),
       ),
@@ -143,9 +154,7 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
               width: 24,
               height: 24,
               child: AnimatedPlayingIndicator(
-                color: widget.song.dominantColor != null
-                    ? Color(widget.song.dominantColor!)
-                    : Colors.purpleAccent,
+                color: activeColor ?? Colors.purpleAccent,
               ),
             )
           : null,

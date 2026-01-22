@@ -669,9 +669,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               // Options
               ListTile(
                 leading: const Icon(Icons.playlist_add, color: Colors.white),
-                title: const Text(
-                  'Agregar a Playlist',
-                  style: TextStyle(color: Colors.white),
+                title: Text(
+                  LanguageService().getText('add_to_playlist'),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -704,9 +704,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.white),
-                title: const Text(
-                  'Editar Metadatos',
-                  style: TextStyle(color: Colors.white),
+                title: Text(
+                  LanguageService().getText('edit_metadata'),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -715,9 +715,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.search, color: Colors.white),
-                title: const Text(
-                  'Buscar/Cambiar Letra',
-                  style: TextStyle(color: Colors.white),
+                title: Text(
+                  LanguageService().getText('search_change_lyrics'),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -743,9 +743,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   Icons.delete_outline,
                   color: Colors.redAccent,
                 ),
-                title: const Text(
-                  'Eliminar Letra',
-                  style: TextStyle(color: Colors.redAccent),
+                title: Text(
+                  LanguageService().getText('delete_lyrics'),
+                  style: const TextStyle(color: Colors.redAccent),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
