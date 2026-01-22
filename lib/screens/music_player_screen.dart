@@ -151,13 +151,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   }
 
   Widget _buildHeader(BuildContext context, Song song) {
-    // Obtener color dominante para los botones
-    final color = _getDominantColor(song);
-    // Asegurar contraste/brillo mínimo similar a los controles
-    final effectiveColor = HSLColor.fromColor(color).lightness < 0.3
-        ? HSLColor.fromColor(color).withLightness(0.6).toColor()
-        : color;
-
     return GestureDetector(
       onVerticalDragEnd: (details) {
         if (details.primaryVelocity! > 0) {
@@ -170,9 +163,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
-              icon: Icon(
+              icon: const Icon(
                 Icons.keyboard_arrow_down,
-                color: effectiveColor,
+                color: Colors.white,
                 size: 32,
               ),
               onPressed: () => Navigator.of(context).pop(),
@@ -186,7 +179,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
             ),
             IconButton(
-              icon: Icon(Icons.more_vert, color: effectiveColor),
+              icon: const Icon(Icons.more_vert, color: Colors.white),
               onPressed: () => _showOptionsSheet(context, song),
             ),
           ],
