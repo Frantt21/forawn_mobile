@@ -1286,8 +1286,79 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     SongOptionsBottomSheet.show(
       context: context,
       song: song,
-      options: [SongOption.like, SongOption.addToPlaylist],
+      options: [SongOption.like, SongOption.addToPlaylist, SongOption.delete],
       onAddToPlaylist: () => _showAddToPlaylistDialog(context, song),
+      onOptionSelected: (option) {
+        if (option == SongOption.delete) {
+          _confirmDeleteSong(context, song);
+        }
+      },
+    );
+  }
+
+  void _confirmDeleteSong(BuildContext context, Song song) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: Text(
+          LanguageService().getText('delete'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          LanguageService()
+              .getText('delete_song_confirm')
+              .replaceFirst('%s', song.title),
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(LanguageService().getText('cancel')),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx); // Cerrar dialogo
+              try {
+                final success = await SafHelper.deleteFile(song.filePath);
+                if (success) {
+                  // Actualizar librería
+                  await _musicState.refresh();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          LanguageService().getText('song_deleted'),
+                        ),
+                      ),
+                    );
+                  }
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          LanguageService().getText('delete_file_error'),
+                        ),
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              }
+            },
+            child: Text(
+              LanguageService().getText('delete'),
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -129,7 +129,19 @@ class SafHelper {
       });
       return result == true;
     } catch (e) {
-      print('copyUriToFile error: $e');
+      return false;
+    }
+  }
+
+  // Delete file at URI
+  static Future<bool> deleteFile(String uri) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('deleteFile', {
+        'uri': uri,
+      });
+      return result == true;
+    } catch (e) {
+      print('deleteFile error: $e');
       return false;
     }
   }
