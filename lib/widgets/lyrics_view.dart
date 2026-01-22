@@ -178,14 +178,12 @@ class _LyricsViewState extends State<LyricsView> {
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 200),
                     style: TextStyle(
-                      fontSize: isCurrent ? 26 : 24, // Sutil zoom
-                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
                       height: 1.5,
                       color: isCurrent
                           ? widget.textColor
-                          : widget.textColor.withOpacity(
-                              0.3,
-                            ), // Opacidad simple MUCHO más rápido que Blur
+                          : widget.textColor.withOpacity(0.3),
                     ),
                     child: Text(line.text, textAlign: TextAlign.start),
                   ),
