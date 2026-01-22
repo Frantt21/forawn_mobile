@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import '../services/audio_player_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/language_service.dart';
 import 'lyrics_view.dart';
 import 'dart:ui';
 
@@ -136,7 +137,9 @@ class _LyricsSheetState extends State<LyricsSheet> {
     final menuTextColor = isDark ? Colors.white : Colors.black87;
     final menuIconColor = isDark ? Colors.white : Colors.black54;
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 800),
+      curve: Curves.easeInOut,
       // Margin handled by parent
       decoration: BoxDecoration(
         color: backgroundColor,
@@ -258,7 +261,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
                                   ),
                                   const SizedBox(width: 12),
                                   Text(
-                                    'Sincronizar',
+                                    LanguageService().getText('sync'),
                                     style: TextStyle(color: menuTextColor),
                                   ),
                                 ],
@@ -275,13 +278,13 @@ class _LyricsSheetState extends State<LyricsSheet> {
                                   ),
                                   const SizedBox(width: 12),
                                   Text(
-                                    'Buscar letra',
+                                    LanguageService().getText('search_lyrics'),
                                     style: TextStyle(color: menuTextColor),
                                   ),
                                 ],
                               ),
                             ),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'delete',
                               child: Row(
                                 children: [
@@ -292,7 +295,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
                                   ),
                                   SizedBox(width: 12),
                                   Text(
-                                    'Eliminar letra',
+                                    LanguageService().getText('delete_lyrics'),
                                     style: TextStyle(color: Colors.redAccent),
                                   ),
                                 ],
@@ -337,15 +340,15 @@ class _LyricsSheetState extends State<LyricsSheet> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2C2C2E),
-        title: const Text(
-          'Sincronización',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          LanguageService().getText('synchronization'),
+          style: const TextStyle(color: Colors.white),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Ajustar tiempo de inicio de letras.\nActual: ${_offset.inMilliseconds}ms',
+              '${LanguageService().getText('adjust_lyrics_time')}\n${LanguageService().getText('current')}: ${_offset.inMilliseconds}ms',
               style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 20),
@@ -363,7 +366,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Listo'),
+            child: Text(LanguageService().getText('done')),
           ),
         ],
       ),
@@ -474,17 +477,11 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24),
         child: Container(
-          constraints: const BoxConstraints(
-            maxWidth: 500,
-            maxHeight: 600,
-          ),
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
           decoration: BoxDecoration(
             color: Colors.grey[900]!.withOpacity(0.95),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
           ),
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -495,11 +492,11 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
               Row(
                 children: [
                   const SizedBox(width: 48),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Buscar Letra',
+                      LanguageService().getText('search_lyrics'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -507,10 +504,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: Colors.white70,
-                    ),
+                    icon: const Icon(Icons.close, color: Colors.white70),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -522,9 +516,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1C1C1E),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                  ),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
                 ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -534,10 +526,8 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                   controller: _controller,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'Título Artista',
-                    hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                    ),
+                    hintText: LanguageService().getText('title_artist'),
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                     border: InputBorder.none,
                     suffixIcon: IconButton(
                       icon: const Icon(
@@ -569,7 +559,9 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                   padding: const EdgeInsets.all(8.0),
                   child: Center(
                     child: Text(
-                      _error!,
+                      _error!.contains('No se encontraron')
+                          ? LanguageService().getText('no_results')
+                          : LanguageService().getText('error_searching'),
                       style: const TextStyle(color: Colors.white70),
                       textAlign: TextAlign.center,
                     ),
@@ -581,8 +573,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                 Flexible(
                   child: ListView.separated(
                     shrinkWrap: true,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: 8),
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemCount: _results.length,
                     itemBuilder: (context, index) {
                       final l = _results[index];
@@ -618,8 +609,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                               const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       l.trackName,
