@@ -297,15 +297,13 @@ class MetadataService {
     );
   }
 
-  /// Extrae el color dominante del artwork (Optimizado: Redimensiona a 50px)
   Future<int?> _extractDominantColor(Uint8List artworkBytes) async {
     try {
-      print('[MetadataService] Extracting dominant color (optimized 50px)...');
+      print('[MetadataService] Extracting dominant color (optimized 20px)...');
 
-      // Decodificar imagen redimensionada a 50px para velocidad extrema
       final codec = await ui.instantiateImageCodec(
         artworkBytes,
-        targetWidth: 50,
+        targetWidth: 20,
       );
       final frame = await codec.getNextFrame();
       final image = frame.image;
