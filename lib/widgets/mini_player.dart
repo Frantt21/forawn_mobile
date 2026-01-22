@@ -98,10 +98,6 @@ class MiniPlayer extends StatelessWidget {
                                 : const Color.fromARGB(255, 45, 45, 45))
                             .withOpacity(0.7),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1,
-                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.3),
