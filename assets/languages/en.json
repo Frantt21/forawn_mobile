@@ -12,7 +12,6 @@
   "translator": "Translator",
   "qr_generator": "QR Generator",
   "main_sections": "Main Sections",
-  
   "new_chat": "New Chat",
   "write_message": "Write a message...",
   "regenerate": "Regenerate",
@@ -22,32 +21,27 @@
   "image_processed": "Image processed successfully",
   "cancelled": "Cancelled",
   "error": "Error",
-  
   "search_music": "Search music...",
   "download": "Download",
   "downloading": "Downloading",
   "search": "Search",
   "new": "New",
   "no_results": "No results found",
-  
   "generate_image": "Generate Image",
   "enter_prompt": "Enter your prompt...",
   "aspect_ratio": "Aspect Ratio",
   "generate": "Generate",
   "generating": "Generating...",
-  
   "translate_text": "Translate Text",
   "enter_text": "Enter text to translate...",
   "target_language": "Target Language",
   "translate": "Translate",
   "translating": "Translating...",
-  
   "generate_qr": "Generate QR Code",
   "enter_data": "Enter data for QR code...",
   "qr_size": "QR Size",
   "save": "Save",
   "share": "Share",
-  
   "language": "Language",
   "select_language": "Choose your preferred language",
   "language_changed": "Language changed successfully",
@@ -56,24 +50,20 @@
   "version": "Version",
   "app_version": "App Version",
   "check_updates": "Check",
-  
   "general": "General",
   "storage": "Storage",
   "information": "Information",
   "danger_zone": "Danger Zone",
-  
   "notifications_enabled": "Notifications enabled",
   "notifications_disabled": "Notifications disabled",
-  "receive_alerts": "Receive alerts and updates",
-  
+  "receive_alerts": "Receive alerts and updates",  
   "reset_settings": "Reset Settings",
   "reset_settings_desc": "Return to default configuration",
   "reset_confirmation": "Reset settings?",
   "reset_message": "This will clear your saved preferences. Your downloads will not be deleted.",
   "cancel": "Cancel",
   "reset": "Reset",
-  "settings_reset": "Settings reset",
-  
+  "settings_reset": "Settings reset",  
   "checking_updates": "Checking for updates...",
   "update_available": "Update available",
   "current_version": "Current version",
@@ -83,7 +73,6 @@
   "download_update": "Download",
   "latest_version": "You have the latest version",
   "update_check_error": "Error checking for updates",
-  
   "storage_available": "available",
   "clear_music_cache": "Clear music cache",
   "clear_music_cache_desc": "Delete stored metadata and artwork",
@@ -98,15 +87,12 @@
   "selected": "selected",
   "songs_added": "songs added",
   "add": "Add",
-  
   "muyai_fast": "Muyai (fast)",
   "agayosu_medium": "Agayosu (Medium)",
   "oseiku_slow": "Oseiku (Slow)",
-  
   "limit_reached": "Limit reached. Will reset in",
   "api_not_configured": "API key not configured:",
   "min": "min",
-  
   "quick_access": "Quick Access",
   "recent_screens": "Recent Screens",
   "clear": "Clear",
@@ -115,7 +101,6 @@
   "explore_options": "Explore the options above to get started",
   "refreshing": "Refreshing...",
   "clear_all": "Clear all",
-  
   "good_morning": "Good morning",
   "good_afternoon": "Good afternoon",
   "good_evening": "Good evening",
@@ -124,7 +109,6 @@
   "visited_hours_ago": "Visited {{hours}}h ago",
   "visited_yesterday": "Visited yesterday",
   "visited_days_ago": "Visited {{days}}d ago",
-  
   "clear_notifications": "Clear notifications",
   "clear_notifications_confirm": "Are you sure you want to delete all notifications?",
   "delete": "Delete",
@@ -137,15 +121,13 @@
   "ago_hours": "{{hours}}h ago",
   "yesterday": "Yesterday",
   "ago_days": "{{days}}d ago",
-  
   "monday": "Monday",
   "tuesday": "Tuesday",
   "wednesday": "Wednesday",
   "thursday": "Thursday",
   "friday": "Friday",
   "saturday": "Saturday",
-  "sunday": "Sunday",
-  
+  "sunday": "Sunday",  
   "folder_selected": "Folder selected successfully",
   "folder_select_error": "Could not select folder",
   "enter_search_term": "Please enter a search term",
@@ -163,7 +145,6 @@
   "results": "Results",
   "search_to_start": "Search for songs to get started",
   "popularity": "Popularity",
-  
   "deleted_from_history": "Deleted from history",
   "clear_history": "Clear history",
   "clear_history_confirm": "Are you sure you want to delete all history?",
@@ -171,7 +152,6 @@
   "no_downloads_in_history": "No downloads in history",
   "today": "Today",
   "days_ago": "{{days}} days ago",
-  
   "ai_generator": "AI Generator",
   "clear_history_images": "Clear history",
   "clear_history_images_confirm": "Are you sure you want to delete all generated images?",
@@ -183,8 +163,7 @@
   "image_save_error": "Error saving image",
   "storage_permission_needed": "Storage permission needed",
   "image_generation_error": "Could not generate image",
-  "enter_description": "Write a description to generate the image",
-  
+  "enter_description": "Write a description to generate the image",  
   "source_language": "Source Language",
   "enter_text_translate": "Enter text to translate...",
   "translation": "Translation",
@@ -192,13 +171,11 @@
   "translation_error": "Translation error",
   "copy_translation": "Copy translation",
   "translation_copied": "Translation copied",
-  
   "enter_qr_data": "Enter data for QR code...",
   "qr_generated": "QR code generated",
   "enter_data_qr": "Enter data to generate QR code",
   "qr_saved": "QR code saved",
   "qr_save_error": "Error saving QR code",
-  
   "lang_english": "English",
   "lang_spanish": "Spanish",
   "lang_french": "French",
@@ -209,7 +186,6 @@
   "lang_japanese": "Japanese",
   "lang_korean": "Korean",
   "lang_russian": "Russian",
-  
   "no_songs_found": "No mp3 songs found",
   "no_songs_loaded": "No songs loaded",
   "no_music": "No music",
