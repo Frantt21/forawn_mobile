@@ -11,8 +11,7 @@
   "image_generator": "Imágenes",
   "translator": "Traductor",
   "qr_generator": "QRs",
-  "main_sections": "Secciones Principales",
-  
+  "main_sections": "Secciones Principales",  
   "new_chat": "Nuevo Chat",
   "write_message": "Escribe un mensaje...",
   "regenerate": "Regenerar",
@@ -22,32 +21,27 @@
   "image_processed": "Imagen procesada correctamente",
   "cancelled": "Cancelado",
   "error": "Error",
-  
   "search_music": "Buscar música...",
   "download": "Descargar",
   "downloading": "Descargando",
   "search": "Buscar",
   "new": "Nueva",
-  "no_results": "No se encontraron resultados",
-  
+  "no_results": "No se encontraron resultados",  
   "generate_image": "Generar Imagen",
   "enter_prompt": "Ingresa tu prompt...",
   "aspect_ratio": "Relación de Aspecto",
   "generate": "Generar",
   "generating": "Generando...",
-  
   "translate_text": "Traducir Texto",
   "enter_text": "Ingresa texto para traducir...",
   "target_language": "Idioma Destino",
   "translate": "Traducir",
   "translating": "Traduciendo...",
-  
   "generate_qr": "Generar Código QR",
   "enter_data": "Ingresa datos para el código QR...",
   "qr_size": "Tamaño QR",
   "save": "Guardar",
   "share": "Compartir",
-  
   "language": "Idioma",
   "select_language": "Elige tu idioma preferido",
   "language_changed": "Idioma cambiado exitosamente",
@@ -56,16 +50,13 @@
   "version": "Versión",
   "app_version": "Versión de la aplicación",
   "check_updates": "Comprobar",
-  
   "general": "General",
   "storage": "Almacenamiento",
   "information": "Información",
   "danger_zone": "Zona de Peligro",
-  
   "notifications_enabled": "Notificaciones activadas",
   "notifications_disabled": "Notificaciones desactivadas",
   "receive_alerts": "Recibir alertas y novedades",
-  
   "reset_settings": "Restablecer ajustes",
   "reset_settings_desc": "Volver a la configuración predeterminada",
   "reset_confirmation": "¿Restablecer ajustes?",
@@ -73,7 +64,6 @@
   "cancel": "Cancelar",
   "reset": "Restablecer",
   "settings_reset": "Ajustes restablecidos",
-  
   "checking_updates": "Buscando actualizaciones...",
   "update_available": "Actualización disponible",
   "current_version": "Versión actual",
@@ -83,7 +73,6 @@
   "download_update": "Descargar",
   "latest_version": "Ya tienes la última versión",
   "update_check_error": "Error al verificar actualizaciones",
-  
   "storage_available": "disponible",
   "clear_music_cache": "Limpiar caché de música",
   "clear_music_cache_desc": "Elimina metadatos y carátulas almacenadas",
@@ -98,15 +87,12 @@
   "selected": "seleccionadas",
   "songs_added": "canciones agregadas",
   "add": "Agregar",
-  
   "muyai_fast": "Muyai (rápido)",
   "agayosu_medium": "Agayosu (Medio)",
   "oseiku_slow": "Oseiku (Lento)",
-  
   "limit_reached": "Límite alcanzado. Se restablecerá en",
   "api_not_configured": "API key no configurada:",
   "min": "min",
-  
   "quick_access": "Acceso Rápido",
   "recent_screens": "Pantallas recientes",
   "clear": "Limpiar",
@@ -115,7 +101,6 @@
   "explore_options": "Explora las opciones de arriba para comenzar",
   "refreshing": "Refrescando...",
   "clear_all": "Limpiar todo",
-  
   "good_morning": "Buenos días",
   "good_afternoon": "Buenas tardes",
   "good_evening": "Buenas noches",
@@ -124,7 +109,6 @@
   "visited_hours_ago": "Visitado hace {{hours}}h",
   "visited_yesterday": "Visitado ayer",
   "visited_days_ago": "Visitado hace {{days}}d",
-  
   "clear_notifications": "Limpiar notificaciones",
   "clear_notifications_confirm": "¿Estás seguro de que quieres eliminar todas las notificaciones?",
   "delete": "Eliminar",
@@ -137,15 +121,13 @@
   "ago_hours": "Hace {{hours}}h",
   "yesterday": "Ayer",
   "ago_days": "Hace {{days}}d",
-  
   "monday": "Lunes",
   "tuesday": "Martes",
   "wednesday": "Miércoles",
   "thursday": "Jueves",
   "friday": "Viernes",
   "saturday": "Sábado",
-  "sunday": "Domingo",
-  
+  "sunday": "Domingo",  
   "folder_selected": "Carpeta seleccionada correctamente",
   "folder_select_error": "No se pudo seleccionar la carpeta",
   "enter_search_term": "Por favor ingresa un término de búsqueda",
@@ -162,8 +144,7 @@
   "completed": "Completado",
   "results": "Resultados",
   "search_to_start": "Busca canciones para comenzar",
-  "popularity": "Popularidad",
-  
+  "popularity": "Popularidad",  
   "deleted_from_history": "Eliminado del historial",
   "clear_history": "Limpiar historial",
   "clear_history_confirm": "¿Estás seguro de que quieres eliminar todo el historial?",
@@ -171,7 +152,6 @@
   "no_downloads_in_history": "No hay descargas en el historial",
   "today": "Hoy",
   "days_ago": "Hace {{days}} días",
-  
   "ai_generator": "Generador IA",
   "clear_history_images": "Borrar historial",
   "clear_history_images_confirm": "¿Estás seguro de querer borrar todas las imágenes generadas?",
@@ -184,7 +164,6 @@
   "storage_permission_needed": "Se necesitan permisos de almacenamiento",
   "image_generation_error": "No se pudo generar la imagen",
   "enter_description": "Escribe una descripción para generar la imagen",
-  
   "source_language": "Idioma Origen",
   "enter_text_translate": "Ingresa texto para traducir...",
   "translation": "Traducción",
@@ -192,13 +171,11 @@
   "translation_error": "Error de traducción",
   "copy_translation": "Copiar traducción",
   "translation_copied": "Traducción copiada",
-  
   "enter_qr_data": "Ingresa datos para el código QR...",
   "qr_generated": "Código QR generado",
   "enter_data_qr": "Ingresa datos para generar código QR",
   "qr_saved": "Código QR guardado",
   "qr_save_error": "Error al guardar código QR",
-  
   "lang_english": "Inglés",
   "lang_spanish": "Español",
   "lang_french": "Francés",
@@ -209,7 +186,6 @@
   "lang_japanese": "Japonés",
   "lang_korean": "Coreano",
   "lang_russian": "Ruso",
-  
   "no_songs_found": "No se encontraron canciones mp3",
   "no_songs_loaded": "No hay canciones cargadas",
   "no_music": "Sin música",
