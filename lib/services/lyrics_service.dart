@@ -107,6 +107,10 @@ class LyricsService {
   Stream<Lyrics?> get currentLyricsStream => _currentLyricsSubject.stream;
   Lyrics? get currentLyrics => _currentLyricsSubject.valueOrNull;
 
+  final BehaviorSubject<bool> _isLoadingSubject = BehaviorSubject.seeded(false);
+  Stream<bool> get isLoadingStream => _isLoadingSubject.stream;
+  bool get isLoading => _isLoadingSubject.value;
+
   String? _currentTrackingId;
 
   /// Sets the current song and triggers fetching in background
@@ -115,15 +119,14 @@ class LyricsService {
     if (_currentTrackingId == trackingId) return; // Already tracking
 
     _currentTrackingId = trackingId;
-    // Don't emit null immediately if we want to show previous lyics or just keep UI stable?
-    // User wants "loaded logic", so maybe we clear it or maybe we keep it?
-    // To match user expectation of "loading logic initially", we should probably reset
     _currentLyricsSubject.add(null);
+    _isLoadingSubject.add(true); // Start loading
 
     // Fetch in background
     fetchLyrics(title, artist).then((lyrics) {
       if (_currentTrackingId == trackingId) {
         _currentLyricsSubject.add(lyrics);
+        _isLoadingSubject.add(false); // Stop loading
       }
     });
   }
@@ -131,10 +134,12 @@ class LyricsService {
   /// Manually updates the current lyrics (e.g. from manual search selection)
   void updateLyrics(Lyrics lyrics) {
     _currentLyricsSubject.add(lyrics);
+    _isLoadingSubject.add(false);
   }
 
   void clearCurrentLyrics() {
     _currentLyricsSubject.add(null);
+    _isLoadingSubject.add(false);
     _currentTrackingId = null;
   }
 
@@ -200,21 +205,23 @@ class LyricsService {
             final searchTrack = cleanTrack.toLowerCase();
             final searchArtist = cleanArtist.toLowerCase();
 
-            // Calcular similitud para título (debe ser >50% o match exacto)
+            // Calcular similitud para título (debe ser muy alta >80% o match exacto)
             final trackSimilarity = _calculateSimilarity(
               resultTrackName,
               searchTrack,
             );
             final trackExactMatch = resultTrackName == searchTrack;
-            final trackMatches = trackExactMatch || trackSimilarity > 0.5;
+            // Umbral estricto para título
+            final trackMatches = trackExactMatch || trackSimilarity > 0.8;
 
-            // Calcular similitud para artista (debe ser >50% o match exacto)
+            // Calcular similitud para artista (debe ser muy alta >80% o match exacto)
             final artistSimilarity = _calculateSimilarity(
               resultArtistName,
               searchArtist,
             );
             final artistExactMatch = resultArtistName == searchArtist;
-            final artistMatches = artistExactMatch || artistSimilarity > 0.5;
+            // Umbral estricto para artista
+            final artistMatches = artistExactMatch || artistSimilarity > 0.8;
 
             // Rechazar si NO coinciden AMBOS
             if (!trackMatches || !artistMatches) {
@@ -271,91 +278,9 @@ class LyricsService {
           }
         }
 
-        // Si no se encontró ningún match válido con artista, intentar solo con título
         print(
-          '[LyricsService] No results with artist, trying with title only...',
+          '[LyricsService] No exact match (track & artist) found in LRCLIB',
         );
-
-        final fallbackParams = {'q': cleanTrack};
-        final fallbackUri = Uri.parse(
-          '${ApiConfig.lyricsBaseUrl}/search',
-        ).replace(queryParameters: fallbackParams);
-        print('[LyricsService] LRCLIB Fallback URL: $fallbackUri');
-
-        final fallbackResponse = await http
-            .get(fallbackUri)
-            .timeout(const Duration(seconds: 10));
-
-        if (fallbackResponse.statusCode == 200) {
-          final fallbackResults = jsonDecode(fallbackResponse.body) as List;
-
-          if (fallbackResults.isEmpty) {
-            print('[LyricsService] No results from fallback search');
-            return null;
-          }
-
-          // Buscar el mejor match en los resultados del fallback
-          for (final item in fallbackResults) {
-            final data = item as Map<String, dynamic>;
-
-            final syncedLyricsRaw = data['syncedLyrics'] as String?;
-            final plainLyrics = data['plainLyrics'] as String? ?? '';
-            final resultTrackName = (data['trackName'] as String? ?? '')
-                .toLowerCase();
-            final resultArtistName = (data['artistName'] as String? ?? '')
-                .toLowerCase();
-
-            // Solo verificar que el título coincida
-            final searchTrack = cleanTrack.toLowerCase();
-
-            final trackMatches =
-                resultTrackName.contains(searchTrack) ||
-                searchTrack.contains(resultTrackName) ||
-                _calculateSimilarity(resultTrackName, searchTrack) > 0.6;
-
-            if (!trackMatches) {
-              continue;
-            }
-
-            if (syncedLyricsRaw != null && syncedLyricsRaw.isNotEmpty) {
-              print(
-                '[LyricsService] Found synced lyrics from LRCLIB (fallback)',
-              );
-              print(
-                '[LyricsService] Match: "$resultTrackName" by "$resultArtistName"',
-              );
-
-              final syncedLines = syncedLyricsRaw
-                  .split('\n')
-                  .where((line) => line.trim().isNotEmpty)
-                  .map((line) => LyricLine.fromString(line))
-                  .where((line) => line.text.isNotEmpty)
-                  .toList();
-
-              final lyrics = Lyrics(
-                trackName: data['trackName'] as String? ?? trackName,
-                artistName: data['artistName'] as String? ?? artistName,
-                albumName: data['albumName'] as String?,
-                duration: (data['duration'] as num?)?.toInt(),
-                instrumental: data['instrumental'] as bool? ?? false,
-                plainLyrics: plainLyrics,
-                syncedLyrics: syncedLines,
-              );
-
-              await DatabaseHelper().insertLyrics(
-                cacheKey,
-                jsonEncode(lyrics.toJson()),
-              );
-              print(
-                '[LyricsService] Lyrics cached successfully (${syncedLines.length} lines)',
-              );
-
-              return lyrics;
-            }
-          }
-        }
-
-        print('[LyricsService] No valid synced lyrics found in any search');
         return null;
       } else if (response.statusCode == 404) {
         print('[LyricsService] No lyrics found in LRCLIB for: $trackName');

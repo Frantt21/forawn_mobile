@@ -31,6 +31,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
   late Song _currentSong;
   StreamSubscription? _lyricsSubscription;
   StreamSubscription? _playerSubscription;
+  StreamSubscription? _loadingSubscription; // Nueva suscripción
 
   @override
   void initState() {
@@ -46,7 +47,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
             _currentSong = song;
             _offset = Duration.zero;
             _lyrics = null;
-            _isLoading = true;
+            // El estado de carga lo manejará el stream de isLoading
           });
           // El stream de lyrics se actualizará automáticamente
           // porque AudioPlayerService llama a LyricsService
@@ -62,24 +63,28 @@ class _LyricsSheetState extends State<LyricsSheet> {
     final currentInMemory = LyricsService().currentLyrics;
     if (currentInMemory != null) {
       _lyrics = currentInMemory;
-      _isLoading = false;
+      // isLoading debería venir del servicio, inicializar correctamente
+      _isLoading = LyricsService().isLoading;
     } else {
       // Fallback si no se disparó (ej. primera carga app), forzarlo
       LyricsService().setCurrentSong(_currentSong.title, _currentSong.artist);
+      _isLoading = true; // Asumir carga inicial
     }
 
     // Suscribirse al stream global de lyrics para actualizaciones
     _lyricsSubscription = LyricsService().currentLyricsStream.listen((lyrics) {
       if (mounted) {
         setState(() {
-          // Si llega null, es que está cargando NUEVA canción
-          if (lyrics == null) {
-            _lyrics = null;
-            _isLoading = true;
-          } else {
-            _lyrics = lyrics;
-            _isLoading = false;
-          }
+          _lyrics = lyrics;
+        });
+      }
+    });
+
+    // Suscribirse al estado de carga
+    _loadingSubscription = LyricsService().isLoadingStream.listen((loading) {
+      if (mounted) {
+        setState(() {
+          _isLoading = loading;
         });
       }
     });
@@ -104,6 +109,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
   void dispose() {
     _lyricsSubscription?.cancel();
     _playerSubscription?.cancel();
+    _loadingSubscription?.cancel(); // Cancelar nueva suscripción
     super.dispose();
   }
 
@@ -315,14 +321,55 @@ class _LyricsSheetState extends State<LyricsSheet> {
             Expanded(
               child: _isLoading
                   ? Center(child: CircularProgressIndicator(color: iconColor))
+                  : _lyrics == null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.lyrics_outlined,
+                              size: 48,
+                              color: secondaryTextColor.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              LanguageService().getText(
+                                'lyrics_not_found_manual',
+                              ),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: secondaryTextColor,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              onPressed: _showSearchDialog,
+                              icon: Icon(
+                                Icons.search,
+                                size: 18,
+                                color: textColor,
+                              ),
+                              label: Text(
+                                LanguageService().getText('search_lyrics'),
+                                style: TextStyle(color: textColor),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: secondaryTextColor.withOpacity(0.3),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   : LyricsView(
                       lyrics: _lyrics,
                       progressStream: widget.player.progressStream,
                       onSeek: (position) {
-                        // Al hacer tap, buscamos ajustando el offset inverso
-                        // Si la linea dice 10s y el offset es +1s (tarde), el audio deberia ir a 11s?
-                        // No, si offset es retraso visual, el audio es el master.
-                        // Simplemente seek al timestamp
                         widget.player.seek(position);
                       },
                       offset: _offset,
