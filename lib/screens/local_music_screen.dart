@@ -363,9 +363,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
       stream: _audioPlayer.currentSongStream,
       builder: (context, songSnapshot) {
         final currentSong = songSnapshot.data;
-        final dominantColor = currentSong?.dominantColor != null
-            ? Color(currentSong!.dominantColor!)
-            : null;
+        // final dominantColor = currentSong?.dominantColor != null
+        //     ? Color(currentSong!.dominantColor!)
+        //     : null;
 
         return ListenableBuilder(
           listenable: LanguageService(),
@@ -436,8 +436,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                 children: [
                   // 1. Ambient Background Layer (History Based)
                   Positioned.fill(
-                    child: AmbientBackground(
-                      songs: MusicHistoryService().history,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: (_tabIndex == 0 && !_isSearching) ? 1.0 : 0.0,
+                      child: AmbientBackground(
+                        songs: MusicHistoryService().history,
+                      ),
                     ),
                   ),
 
