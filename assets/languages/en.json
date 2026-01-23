@@ -247,5 +247,6 @@
   "delete_file_error": "Error deleting file",
   "edit_metadata": "Edit metadata",
   "search_lyrics": "Search lyrics",
-  "delete_lyrics": "Delete lyrics"
+  "delete_lyrics": "Delete lyrics",
+  "lyrics_not_found_manual": "Lyrics not found (try manual search)"
 }

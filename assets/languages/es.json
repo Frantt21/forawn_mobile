@@ -247,5 +247,6 @@
   "delete_file_error": "Error al eliminar el archivo",
   "edit_metadata": "Editar metadatos",
   "search_lyrics": "Buscar letra",
-  "delete_lyrics": "Borrar letra"
+  "delete_lyrics": "Borrar letra",
+  "lyrics_not_found_manual": "Letra no encontrada (prueba buscarla manualmente)"
 }
