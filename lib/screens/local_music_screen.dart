@@ -24,6 +24,7 @@ import '../utils/text_utils.dart';
 import 'playlist_detail_screen.dart';
 import 'music_player_screen.dart';
 import '../widgets/local_music_home.dart';
+import '../widgets/ambient_background.dart';
 
 class LocalMusicScreen extends StatefulWidget {
   final String searchQuery;
@@ -433,33 +434,12 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
               ),
               body: Stack(
                 children: [
-                  // 1. Background Gradient Layer
-                  if (dominantColor != null)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: 400,
-                      child: IgnorePointer(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                dominantColor.withOpacity(0.6),
-                                const Color.fromARGB(
-                                  255,
-                                  34,
-                                  34,
-                                  34,
-                                ).withOpacity(0.0),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                  // 1. Ambient Background Layer (History Based)
+                  Positioned.fill(
+                    child: AmbientBackground(
+                      songs: MusicHistoryService().history,
                     ),
+                  ),
 
                   // 2. Main Content Layer
                   SafeArea(
