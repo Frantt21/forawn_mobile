@@ -41,6 +41,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   int _tabIndex = 0; // 0: Library, 1: Playlists
   bool _isGridView = true; // Playlist view mode
 
+  // Persistent gradient color
+  Color? _lastGradientColor;
+
   // Búsqueda
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
@@ -365,8 +368,36 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
         return ListenableBuilder(
           listenable: LanguageService(),
           builder: (context, _) {
+            // Get dominant color for background gradient
+            final dominantColor = currentSong?.dominantColor != null
+                ? Color(currentSong!.dominantColor!)
+                : _lastGradientColor ??
+                      const Color(
+                        0xFF6A1B9A,
+                      ); // Use last color or purple fallback
+
+            // Create a more visible gradient
+            final gradientColor = HSLColor.fromColor(
+              dominantColor,
+            ).withSaturation(0.6).withLightness(0.15).toColor();
+
+            // Update last gradient color if we have a current song
+            if (currentSong?.dominantColor != null &&
+                _lastGradientColor != gradientColor) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {
+                    _lastGradientColor = gradientColor;
+                  });
+                }
+              });
+            }
+
+            // Only show gradient on Home tab (index 0)
+            final showGradient = _tabIndex == 0;
+
             return Scaffold(
-              backgroundColor: const Color.fromARGB(255, 34, 34, 34),
+              backgroundColor: const Color(0xFF000000), // Pure black background
               extendBodyBehindAppBar: true,
               appBar: AppBar(
                 title: _isSearching
@@ -429,16 +460,27 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
               ),
               body: Stack(
                 children: [
-                  // 1. Ambient Background Layer (History Based) - DESACTIVADO
-                  // Positioned.fill(
-                  //   child: AnimatedOpacity(
-                  //     duration: const Duration(milliseconds: 300),
-                  //     opacity: (_tabIndex == 0 && !_isSearching) ? 1.0 : 0.0,
-                  //     child: AmbientBackgroundStatic(
-                  //       songs: MusicHistoryService().history,
-                  //     ),
-                  //   ),
-                  // ),
+                  // 1. Gradient Background Layer
+                  Positioned.fill(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeInOut,
+                      decoration: BoxDecoration(
+                        gradient: showGradient
+                            ? LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  gradientColor.withOpacity(0.7),
+                                  gradientColor.withOpacity(0.4),
+                                  const Color(0xFF1C1C1E).withOpacity(0.0),
+                                ],
+                                stops: const [0.0, 0.15, 0.35],
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
 
                   // 2. Main Content Layer
                   SafeArea(
@@ -526,6 +568,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                                   children: [
                                     // Index 0: Home
                                     LocalMusicHome(
+                                      currentTabIndex: _tabIndex,
                                       favoriteSongs:
                                           _getFavoritesPlaylist().songs,
                                       onSongTap: (song) {

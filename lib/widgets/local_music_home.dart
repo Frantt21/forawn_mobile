@@ -17,6 +17,7 @@ class LocalMusicHome extends StatelessWidget {
   final VoidCallback onCreatePlaylist;
   final Function(Playlist) onPlaylistTap;
   final List<Song> favoriteSongs;
+  final int currentTabIndex;
 
   const LocalMusicHome({
     super.key,
@@ -24,6 +25,7 @@ class LocalMusicHome extends StatelessWidget {
     required this.onCreatePlaylist,
     required this.onPlaylistTap,
     required this.favoriteSongs,
+    this.currentTabIndex = 0,
   });
 
   @override
