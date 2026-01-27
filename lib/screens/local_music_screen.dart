@@ -24,7 +24,6 @@ import '../utils/text_utils.dart';
 import 'playlist_detail_screen.dart';
 import 'music_player_screen.dart';
 import '../widgets/local_music_home.dart';
-import '../widgets/ambient_background_static.dart';
 
 class LocalMusicScreen extends StatefulWidget {
   final String searchQuery;
