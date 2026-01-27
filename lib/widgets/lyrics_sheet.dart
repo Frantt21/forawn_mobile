@@ -374,37 +374,142 @@ class _LyricsSheetState extends State<LyricsSheet> {
   void _showSyncDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2E),
-        title: Text(
-          LanguageService().getText('synchronization'),
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${LanguageService().getText('adjust_lyrics_time')}\n${LanguageService().getText('current')}: ${_offset.inMilliseconds}ms',
-              style: const TextStyle(color: Colors.white70),
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            decoration: BoxDecoration(
+              color: Colors.grey[900]!.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
             ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildSyncButton('-500ms', -500),
-                _buildSyncButton('-100ms', -100),
-                _buildSyncButton('+100ms', 100),
-                _buildSyncButton('+500ms', 500),
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.purpleAccent.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.timer,
+                        color: Colors.purpleAccent,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            LanguageService().getText('synchronization'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            LanguageService().getText('adjust_lyrics_time'),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Current Offset Display
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C1C1E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${LanguageService().getText('current')}: ',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        '${_offset.inMilliseconds}ms',
+                        style: const TextStyle(
+                          color: Colors.purpleAccent,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Sync Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildSyncButton('-500ms', -500),
+                    _buildSyncButton('-100ms', -100),
+                    _buildSyncButton('+100ms', 100),
+                    _buildSyncButton('+500ms', 500),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Done Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purpleAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      LanguageService().getText('done'),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(LanguageService().getText('done')),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -429,18 +534,39 @@ class _LyricsSheetState extends State<LyricsSheet> {
   }
 
   Widget _buildSyncButton(String label, int ms) {
-    return ElevatedButton(
-      onPressed: () {
-        _adjustOffset(ms);
-        Navigator.pop(context);
-        _showSyncDialog(); // Reabrir para actualizar texto (hack rápido)
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white10,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-        minimumSize: const Size(60, 36),
+    final isNegative = ms < 0;
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: ElevatedButton(
+          onPressed: () {
+            _adjustOffset(ms);
+            // Force rebuild to update the offset display
+            (context as Element).markNeedsBuild();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isNegative
+                ? Colors.red.withOpacity(0.15)
+                : Colors.green.withOpacity(0.15),
+            foregroundColor: isNegative ? Colors.redAccent : Colors.greenAccent,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: isNegative
+                    ? Colors.redAccent.withOpacity(0.3)
+                    : Colors.greenAccent.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            elevation: 0,
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 12)),
     );
   }
 }
