@@ -107,7 +107,7 @@ class _SplashScreenState extends State<SplashScreen>
               width: 150,
               height: 150,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(24),
                 child: Image.asset(
                   'assets/images/logo.png',
                   fit: BoxFit.contain,
@@ -118,12 +118,11 @@ class _SplashScreenState extends State<SplashScreen>
 
             // App Name
             const Text(
-              "FORAWN",
+              "Forawn",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 4,
               ),
             ),
 
