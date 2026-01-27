@@ -86,13 +86,16 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   void _scrollToIndex(int index) {
-    if (index >= 0 && !_itemScrollController.isAttached) return;
+    if (!_itemScrollController.isAttached) return;
+
+    // Si el índice es -1 (antes de empezar), volver al inicio
+    final targetIndex = index >= 0 ? index : 0;
 
     // Calcular alineación dinámica
-    final alignment = _getAlignment(index);
+    final alignment = _getAlignment(targetIndex);
 
     _itemScrollController.scrollTo(
-      index: index,
+      index: targetIndex,
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeInOutCubic,
       alignment: alignment,
@@ -129,11 +132,6 @@ class _LyricsViewState extends State<LyricsView> {
     return ValueListenableBuilder<int>(
       valueListenable: _currentIndexNotifier,
       builder: (context, currentIndex, _) {
-        // Esperar a tener la primera posición válida para evitar saltos visuales
-        if (currentIndex == -1) {
-          return const SizedBox.shrink();
-        }
-
         return ShaderMask(
           shaderCallback: (rect) {
             return const LinearGradient(
@@ -208,7 +206,7 @@ class _LyricsViewState extends State<LyricsView> {
     for (int i = 0; i < lyrics.length; i++) {
       // Si esta línea es futura, la anterior era la actual
       if (lyrics[i].timestamp > targetTime) {
-        return i > 0 ? i - 1 : 0;
+        return i > 0 ? i - 1 : -1;
       }
     }
     // Si llegamos al final, es la última línea
@@ -216,15 +214,6 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   double _getAlignment(int index) {
-    // Transición suave de top a center en las primeras 10 líneas
-    // Esto evita el efecto de "estiramiento" visual
-    if (index < 10) {
-      // Interpolación suave de 0.2 (cerca del top) a 0.5 (centro)
-      // Usando una curva easeOut para suavizar la transición
-      final progress = index / 10.0;
-      final easedProgress = 1 - (1 - progress) * (1 - progress); // easeOut
-      return 0.2 + (easedProgress * 0.3); // 0.2 → 0.5
-    }
-    return 0.5; // Centro para el resto
+    return 0.1;
   }
 }
