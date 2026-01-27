@@ -12,6 +12,7 @@ import '../utils/text_utils.dart';
 import '../widgets/lazy_music_tile.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/song_options_bottom_sheet.dart';
+import '../widgets/artwork_widget.dart';
 import '../services/music_metadata_cache.dart';
 import 'music_player_screen.dart';
 import 'package:image_picker/image_picker.dart';
@@ -783,24 +784,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      secondary: ClipRRect(
+                                      secondary: ArtworkWidget(
+                                        artworkPath: song.artworkPath,
+                                        artworkUri: song.artworkUri,
+                                        width: 48,
+                                        height: 48,
                                         borderRadius: BorderRadius.circular(4),
-                                        child: song.artworkData != null
-                                            ? Image.memory(
-                                                song.artworkData!,
-                                                width: 48,
-                                                height: 48,
-                                                fit: BoxFit.cover,
-                                              )
-                                            : Container(
-                                                width: 48,
-                                                height: 48,
-                                                color: Colors.grey[800],
-                                                child: const Icon(
-                                                  Icons.music_note,
-                                                  color: Colors.white24,
-                                                ),
-                                              ),
+                                        dominantColor: song.dominantColor,
                                       ),
                                       activeColor: Colors.purpleAccent,
                                       checkColor: Colors.white,
@@ -1201,7 +1191,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                                 'favorites_virtual'
                                             ? Icons.favorite
                                             : Icons.music_note,
-                                        size: 100 * _imageScale,
+                                        size: 300 * _imageScale * 0.5,
                                         color: Colors.white.withOpacity(0.5),
                                       ),
                                     ),

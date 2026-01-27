@@ -7,6 +7,7 @@ import '../services/lyrics_service.dart';
 import '../services/language_service.dart';
 import 'lyrics_view.dart';
 import 'dart:ui';
+import 'artwork_widget.dart';
 
 class LyricsSheet extends StatefulWidget {
   final Song song;
@@ -183,28 +184,16 @@ class _LyricsSheetState extends State<LyricsSheet> {
                     child: Row(
                       children: [
                         // Artwork pequeño
-                        Container(
-                          width: 48,
-                          height: 48,
-                          margin: const EdgeInsets.only(right: 12),
-                          decoration: BoxDecoration(
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: ArtworkWidget(
+                            artworkPath: _currentSong.artworkPath,
+                            artworkUri: _currentSong.artworkUri,
+                            width: 48,
+                            height: 48,
                             borderRadius: BorderRadius.circular(8),
-                            color: isDark ? Colors.white10 : Colors.black12,
-                            image: _currentSong.artworkData != null
-                                ? DecorationImage(
-                                    image: MemoryImage(
-                                      _currentSong.artworkData!,
-                                    ),
-                                    fit: BoxFit.cover,
-                                  )
-                                : null,
+                            dominantColor: _currentSong.dominantColor,
                           ),
-                          child: _currentSong.artworkData == null
-                              ? Icon(
-                                  Icons.music_note,
-                                  color: secondaryTextColor,
-                                )
-                              : null,
                         ),
 
                         Expanded(

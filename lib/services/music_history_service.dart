@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import '../services/database_helper.dart';
+import '../services/music_library_service.dart';
 
 class MusicHistoryService extends ChangeNotifier {
   static final MusicHistoryService _instance = MusicHistoryService._internal();
@@ -22,7 +23,42 @@ class MusicHistoryService extends ChangeNotifier {
     if (_initialized) return;
     await _checkAndMigrate();
     await _loadHistory();
+
+    // Escuchar actualizaciones de metadatos en segundo plano
+    MusicLibraryService.onMetadataUpdated.addListener(_onMetadataUpdated);
+
     _initialized = true;
+  }
+
+  void _onMetadataUpdated() async {
+    final uri = MusicLibraryService.onMetadataUpdated.value;
+    if (uri != null && _history.isNotEmpty) {
+      final index = _history.indexWhere((s) => s.filePath == uri);
+      if (index != -1) {
+        // Hydrate from cache
+        final dbHelper = DatabaseHelper();
+        final cacheKey = uri.hashCode.toString();
+        final metadata = await dbHelper.getMetadata(cacheKey);
+
+        if (metadata != null) {
+          final currentSong = _history[index];
+          final updatedSong = currentSong.copyWith(
+            title: metadata['title'],
+            artist: metadata['artist'],
+            album: metadata['album'],
+            duration: metadata['duration'] != null
+                ? Duration(milliseconds: metadata['duration'])
+                : null,
+            artworkPath: metadata['artwork_path'],
+            artworkUri: metadata['artwork_uri'],
+            dominantColor: metadata['dominant_color'],
+          );
+
+          _history[index] = updatedSong;
+          notifyListeners();
+        }
+      }
+    }
   }
 
   /// Migración única de SharedPreferences a SQLite
@@ -53,6 +89,8 @@ class MusicHistoryService extends ChangeNotifier {
               'album': song.album,
               'duration': song.duration?.inMilliseconds,
               'file_path': song.filePath,
+              'artwork_path': song.artworkPath,
+              'artwork_uri': song.artworkUri,
               'timestamp': DateTime.now().millisecondsSinceEpoch,
               // No artwork bytes here to save space/time during migration
             });
@@ -88,6 +126,8 @@ class MusicHistoryService extends ChangeNotifier {
                   ? Duration(milliseconds: metadata['duration'])
                   : null,
               filePath: metadata['file_path'],
+              artworkPath: metadata['artwork_path'],
+              artworkUri: metadata['artwork_uri'],
               dominantColor: metadata['dominant_color'],
             ),
           );
@@ -121,6 +161,8 @@ class MusicHistoryService extends ChangeNotifier {
         'album': song.album,
         'duration': song.duration?.inMilliseconds,
         'file_path': song.filePath,
+        'artwork_path': song.artworkPath,
+        'artwork_uri': song.artworkUri,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'dominant_color': song.dominantColor,
       });

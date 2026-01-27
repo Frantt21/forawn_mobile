@@ -11,7 +11,7 @@ class SongMetadata {
   final String artist;
   final String? album;
   final int? durationMs;
-  final Uint8List? artwork;
+  final String? artworkPath; // Ruta al archivo (cacheado)
   final String? artworkUri; // URI content:// de Android
   final int? dominantColor; // Color dominante cacheado
 
@@ -20,7 +20,7 @@ class SongMetadata {
     required this.artist,
     this.album,
     this.durationMs,
-    this.artwork,
+    this.artworkPath,
     this.artworkUri,
     this.dominantColor,
   });
@@ -30,10 +30,10 @@ class SongMetadata {
 ///
 /// Características optimizadas:
 /// - Almacenamiento metadata en SQLite (Rápido y eficiente)
-/// - Artworks en calidad ORIGINAL (Sin compresión)
+/// - Artworks solo se guardan en disco, no en RAM
 /// - Limpieza automática de caché antiguo (>30 días)
 class MusicMetadataCache {
-  // Caché en memoria para acceso rápido durante la sesión
+  // Caché en memoria para acceso rápido durante la sesión (Solo Texto/Rutas)
   static final Map<String, _CachedMetadata> _memoryCache = {};
 
   // Configuración
@@ -42,9 +42,6 @@ class MusicMetadataCache {
   /// Obtener archivo de caché para una key
   static Future<File> _getCacheFile(String key) async {
     final dir = await getApplicationCacheDirectory();
-    // Usar hashcode para evitar problemas con caracteres especiales en rutas
-    // Usar key directamente si es numérica (hash code string) para evitar doble hash
-    // Aseguramos caracteres seguros reemplazando todo lo que no sea alfanumérico
     final safeKey = key.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
     final fileName = 'art_$safeKey.jpg';
     return File('${dir.path}/$fileName');
@@ -64,22 +61,16 @@ class MusicMetadataCache {
 
       if (data == null) return null;
 
-      Uint8List? artworkBytes;
-
       // Intentar leer imagen del sistema de archivos usando la ruta almacenada
       // Si la ruta no existe en DB, intentamos la ruta generada por defecto
-      final artworkPath = data['artwork_path'] as String?;
-      File artworkFile;
+      String? artworkPath = data['artwork_path'] as String?;
 
-      if (artworkPath != null && artworkPath.isNotEmpty) {
-        artworkFile = File(artworkPath);
-      } else {
-        // Fallback backward database compatibility
-        artworkFile = await _getCacheFile(key);
-      }
-
-      if (await artworkFile.exists()) {
-        artworkBytes = await artworkFile.readAsBytes();
+      // Fallback backward database compatibility
+      if (artworkPath == null || artworkPath.isEmpty) {
+        final defaultFile = await _getCacheFile(key);
+        if (await defaultFile.exists()) {
+          artworkPath = defaultFile.path;
+        }
       }
 
       final cached = _CachedMetadata(
@@ -87,7 +78,7 @@ class MusicMetadataCache {
         artist: data['artist'],
         album: data['album'],
         durationMs: data['duration'],
-        artworkBytes: artworkBytes,
+        artworkPath: artworkPath,
         artworkUri: data['artwork_uri'],
         dominantColor: data['dominant_color'],
         timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
@@ -110,13 +101,11 @@ class MusicMetadataCache {
       artist: cached.artist ?? 'Unknown Artist',
       album: cached.album,
       durationMs: cached.durationMs,
-      artwork: cached.artworkBytes,
+      artworkPath: cached.artworkPath,
       artworkUri: cached.artworkUri,
       dominantColor: cached.dominantColor,
     );
   }
-
-  // Se eliminó _compressArtwork para mantener calidad original
 
   /// Guardar metadata directamente
   static Future<void> saveFromMetadata({
@@ -159,13 +148,13 @@ class MusicMetadataCache {
 
       await dbHelper.insertMetadata(row);
 
-      // 3. Actualizar memoria
+      // 3. Actualizar memoria (Solo rutas, sin bytes)
       _memoryCache[key] = _CachedMetadata(
         title: title,
         artist: artist,
         album: album,
         durationMs: durationMs,
-        artworkBytes: artworkData, // Guardamos los bytes originales
+        artworkPath: savedArtworkPath,
         artworkUri: artworkUri,
         dominantColor: dominantColor,
         timestamp: timestamp,
@@ -226,7 +215,7 @@ class _CachedMetadata {
   final String? artist;
   final String? album;
   final int? durationMs;
-  final Uint8List? artworkBytes; // RAW bytes
+  final String? artworkPath; // Path al archivo en disco
   final String? artworkUri; // URI content://
   final int? dominantColor; // Color dominante cacheado
   final int timestamp; // Timestamp de cuando se guardó
@@ -236,12 +225,9 @@ class _CachedMetadata {
     this.artist,
     this.album,
     this.durationMs,
-    this.artworkBytes,
+    this.artworkPath,
     this.artworkUri,
     this.dominantColor,
     required this.timestamp,
   });
-
-  // Getter de compatibilidad por si alguien llamaba .artwork
-  Uint8List? get artwork => artworkBytes;
 }

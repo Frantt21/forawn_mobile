@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
 import '../models/song.dart';
 import '../services/metadata_service.dart';
-import '../widgets/artwork_container.dart';
-
+import '../widgets/artwork_widget.dart';
 import 'animated_playing_indicator.dart';
 
 /// Widget que carga metadatos de forma lazy (solo cuando es visible)
@@ -28,7 +26,8 @@ class LazyMusicTile extends StatefulWidget {
 class _LazyMusicTileState extends State<LazyMusicTile> {
   String? _title;
   String? _artist;
-  Uint8List? _artwork;
+  String? _artworkPath;
+  String? _artworkUri;
   bool _isLoading = false;
   bool _isLoaded = false;
 
@@ -41,16 +40,35 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
   @override
   void didUpdateWidget(LazyMusicTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.song.filePath != widget.song.filePath) {
-      // Reset state and reload if song changes
-      setState(() {
-        _title = null;
-        _artist = null;
-        _artwork = null;
-        _isLoaded = false;
-        _isLoading = false;
-      });
-      _loadMetadata();
+
+    // Check if it's a different song OR if metadata updated (e.g. artwork loaded in background)
+    if (oldWidget.song.filePath != widget.song.filePath ||
+        oldWidget.song.artworkPath != widget.song.artworkPath ||
+        oldWidget.song.title != widget.song.title ||
+        oldWidget.song.artist != widget.song.artist) {
+      // If we have new data in widget.song, update state immediately
+      // This is crucial for when background loading finishes and rebuilds the parent widget
+      if (widget.song.artworkPath != null) {
+        setState(() {
+          _title = widget.song.title;
+          _artist = widget.song.artist;
+          _artworkPath = widget.song.artworkPath;
+          _artworkUri = widget.song.artworkUri;
+          _isLoaded = true;
+          _isLoading = false;
+        });
+      } else if (oldWidget.song.filePath != widget.song.filePath) {
+        // Only reset and reload if it's a completely different song file
+        setState(() {
+          _title = null;
+          _artist = null;
+          _artworkPath = null;
+          _artworkUri = null;
+          _isLoaded = false;
+          _isLoading = false;
+        });
+        _loadMetadata();
+      }
     }
   }
 
@@ -58,11 +76,12 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
     if (_isLoading || _isLoaded) return;
 
     // Si el Song ya tiene datos completos, usarlos directamente
-    if (widget.song.artworkData != null) {
+    if (widget.song.artworkPath != null) {
       setState(() {
         _title = widget.song.title;
         _artist = widget.song.artist;
-        _artwork = widget.song.artworkData;
+        _artworkPath = widget.song.artworkPath;
+        _artworkUri = widget.song.artworkUri;
         _isLoaded = true;
       });
       return;
@@ -88,7 +107,8 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
         setState(() {
           _title = metadata.title;
           _artist = metadata.artist;
-          _artwork = metadata.artwork;
+          _artworkPath = metadata.artworkPath;
+          _artworkUri = metadata.artworkUri;
           _isLoaded = true;
         });
       } else if (mounted) {
@@ -109,7 +129,11 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
         });
       }
     } finally {
-      _isLoading = false;
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -130,10 +154,12 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
     }
 
     return ListTile(
-      leading: ArtworkContainer.song(
-        artworkData: _artwork,
+      leading: ArtworkWidget(
+        artworkPath: _artworkPath,
+        artworkUri: _artworkUri,
         size: 48,
-        borderRadius: 4,
+        borderRadius: BorderRadius.circular(4),
+        dominantColor: widget.song.dominantColor,
       ),
       title: Text(
         displayTitle,

@@ -1,7 +1,7 @@
 // lib/services/audio_player_service.dart
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:rxdart/rxdart.dart';
@@ -12,7 +12,8 @@ import '../models/playback_state.dart'
     as app_state; // Alias para evitar conflicto con just_audio
 import 'music_history_service.dart';
 import 'music_metadata_cache.dart';
-import 'saf_helper.dart';
+
+import 'metadata_service.dart';
 import 'lyrics_service.dart';
 
 class AudioPlayerService {
@@ -382,7 +383,7 @@ class AudioPlayerService {
     if (rawSong == null) return false;
 
     // Hidratar metadatos desde caché o archivo si es necesario
-    if (rawSong.artworkData == null || rawSong.dominantColor == null) {
+    if (rawSong.artworkPath == null && rawSong.artworkUri == null) {
       try {
         // 1. Intentar Caché primero
         final cached = await MusicMetadataCache.get(rawSong.id);
@@ -391,57 +392,33 @@ class AudioPlayerService {
             title: cached.title,
             artist: cached.artist,
             album: cached.album ?? rawSong.album,
-            artworkData: cached.artwork ?? rawSong.artworkData,
+            artworkPath: cached.artworkPath,
+            artworkUri: cached.artworkUri,
             dominantColor: cached.dominantColor ?? rawSong.dominantColor,
           );
-        } else if (rawSong.artworkData == null) {
-          // Solo cargar de archivo si REALMENTE falta el artwork (evita recarga lenta por solo color)
-          // 2. Cargar metadatos del archivo (tags reales)
-          String? finalTitle;
-          String? finalArtist;
-          String? finalAlbum;
-          Uint8List? finalArtwork;
+        } else {
+          // 2. Si no está en caché, usar MetadataService para cargar y guardar
+          // Esto maneja SAF y archivos locales, extrae artwork, guarda en disco y devuelve paths
+          final metadata = await MetadataService().loadMetadata(
+            id: rawSong.id,
+            filePath: rawSong.filePath.startsWith('content://')
+                ? null
+                : rawSong.filePath,
+            safUri: rawSong.filePath.startsWith('content://')
+                ? rawSong.filePath
+                : null,
+          );
 
-          if (rawSong.filePath.startsWith('content://')) {
-            // Usar SafHelper para archivos SAF
-            final metadata = await SafHelper.getMetadataFromUri(
-              rawSong.filePath,
+          if (metadata != null) {
+            rawSong = rawSong.copyWith(
+              title: metadata.title,
+              artist: metadata.artist,
+              album: metadata.album ?? rawSong.album,
+              artworkPath: metadata.artworkPath,
+              artworkUri: metadata.artworkUri,
+              dominantColor: metadata.dominantColor ?? rawSong.dominantColor,
             );
-            if (metadata != null) {
-              finalTitle = (metadata['title'] as String?)?.trim();
-              finalArtist = (metadata['artist'] as String?)?.trim();
-              finalAlbum = metadata['album'] as String?;
-              finalArtwork = metadata['artworkData'] as Uint8List?;
-            }
-          } else {
-            // Usar AudioTags para archivos locales
-            final metadataSong = await rawSong.loadMetadata();
-            finalTitle = metadataSong.title;
-            finalArtist = metadataSong.artist;
-            finalAlbum = metadataSong.album;
-            finalArtwork = metadataSong.artworkData;
           }
-
-          rawSong = rawSong.copyWith(
-            title: (finalTitle != null && finalTitle.isNotEmpty)
-                ? finalTitle
-                : rawSong.title,
-            artist: (finalArtist != null && finalArtist.isNotEmpty)
-                ? finalArtist
-                : rawSong.artist,
-            album: finalAlbum ?? rawSong.album,
-            artworkData: finalArtwork,
-          );
-
-          // Guardar en caché para futuro
-          MusicMetadataCache.saveFromMetadata(
-            key: rawSong.id,
-            title: rawSong.title,
-            artist: rawSong.artist,
-            album: rawSong.album,
-            durationMs: rawSong.duration?.inMilliseconds,
-            artworkData: rawSong.artworkData,
-          );
         }
         _playlist.updateCurrentSong(rawSong);
       } catch (e) {
@@ -501,7 +478,8 @@ class AudioPlayerService {
         title: cached.title ?? current.title,
         artist: cached.artist ?? current.artist,
         album: cached.album ?? current.album,
-        artworkData: cached.artwork ?? current.artworkData,
+        artworkPath: cached.artworkPath,
+        artworkUri: cached.artworkUri,
         dominantColor: cached.dominantColor ?? current.dominantColor,
       );
 

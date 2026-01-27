@@ -7,8 +7,9 @@ import '../services/language_service.dart';
 import '../services/audio_player_service.dart';
 
 import 'dart:io';
-import '../services/music_library_service.dart';
+
 import '../services/music_metadata_cache.dart';
+import '../widgets/artwork_widget.dart';
 import 'animated_playing_indicator.dart';
 
 class LocalMusicHome extends StatelessWidget {
@@ -160,42 +161,15 @@ class LocalMusicHome extends StatelessWidget {
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    // Background Image with Cache Fallback
-                                    ValueListenableBuilder<String?>(
-                                      valueListenable:
-                                          MusicLibraryService.onMetadataUpdated,
-                                      builder: (context, updatedPath, _) {
-                                        // 1. Si el objeto tiene artwork, mostrarlo
-                                        if (song.artworkData != null) {
-                                          return Image.memory(
-                                            song.artworkData!,
-                                            fit: BoxFit.cover,
-                                          );
-                                        }
-
-                                        // 2. Si no, intentar rescatarlo de la caché
-                                        return FutureBuilder<dynamic>(
-                                          future: MusicMetadataCache.get(
-                                            song.filePath.hashCode.toString(),
-                                          ),
-                                          builder: (context, snapshot) {
-                                            if (snapshot.hasData &&
-                                                snapshot.data?.artwork !=
-                                                    null) {
-                                              return Image.memory(
-                                                snapshot.data!.artwork!,
-                                                fit: BoxFit.cover,
-                                              );
-                                            }
-                                            return Container(
-                                              color: Colors.grey[900],
-                                              child: const Icon(
-                                                Icons.music_note,
-                                                color: Colors.white24,
-                                                size: 32,
-                                              ),
-                                            );
-                                          },
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        return ArtworkWidget(
+                                          artworkPath: song.artworkPath,
+                                          artworkUri: song.artworkUri,
+                                          width: constraints.maxWidth,
+                                          height: constraints.maxHeight,
+                                          fit: BoxFit.cover,
+                                          dominantColor: song.dominantColor,
                                         );
                                       },
                                     ),
@@ -535,45 +509,15 @@ class LocalMusicHome extends StatelessWidget {
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    // Background Image with Metadata Updates
-                                    ValueListenableBuilder<String?>(
-                                      valueListenable:
-                                          MusicLibraryService.onMetadataUpdated,
-                                      builder: (context, updatedPath, _) {
-                                        // 1. Si el objeto ya tiene artwork, mostrarlo
-                                        if (song.artworkData != null) {
-                                          return Image.memory(
-                                            song.artworkData!,
-                                            fit: BoxFit.cover,
-                                          );
-                                        }
-
-                                        // 2. Si no, intentar rescatarlo de la caché
-                                        return FutureBuilder<dynamic>(
-                                          future: MusicMetadataCache.get(
-                                            song.filePath.hashCode.toString(),
-                                          ),
-                                          builder: (context, snapshot) {
-                                            // Si encontramos datos en caché
-                                            if (snapshot.hasData &&
-                                                snapshot.data?.artwork !=
-                                                    null) {
-                                              return Image.memory(
-                                                snapshot.data!.artwork!,
-                                                fit: BoxFit.cover,
-                                              );
-                                            }
-
-                                            // Fallback
-                                            return Container(
-                                              color: Colors.grey[900],
-                                              child: const Icon(
-                                                Icons.music_note,
-                                                color: Colors.white24,
-                                                size: 32,
-                                              ),
-                                            );
-                                          },
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        return ArtworkWidget(
+                                          artworkPath: song.artworkPath,
+                                          artworkUri: song.artworkUri,
+                                          width: constraints.maxWidth,
+                                          height: constraints.maxHeight,
+                                          fit: BoxFit.cover,
+                                          dominantColor: song.dominantColor,
                                         );
                                       },
                                     ),

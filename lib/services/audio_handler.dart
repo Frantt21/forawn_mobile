@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
-import 'package:path_provider/path_provider.dart';
+
 import 'audio_player_service.dart';
 import '../models/playback_state.dart' as app_state;
 
@@ -43,19 +43,12 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
 
-      // Intentar guardar artwork como archivo temporal para mostrarlo en notificación
       Uri? artUri;
-      if (song.artworkData != null) {
-        try {
-          final tempDir = await getTemporaryDirectory();
-          final artFile = File(
-            '${tempDir.path}/current_artwork_${song.id}.jpg',
-          );
-          await artFile.writeAsBytes(song.artworkData!);
-          artUri = Uri.file(artFile.path);
-        } catch (e) {
-          print('[AudioHandler] Error saving artwork: $e');
-        }
+      // Usar artworkPath ya cacheado si existe
+      if (song.artworkPath != null) {
+        artUri = Uri.file(song.artworkPath!);
+      } else if (song.artworkUri != null) {
+        artUri = Uri.parse(song.artworkUri!);
       }
 
       mediaItem.add(

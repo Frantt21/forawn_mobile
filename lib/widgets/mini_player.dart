@@ -6,6 +6,7 @@ import '../services/language_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart';
 import '../screens/music_player_screen.dart';
+import '../widgets/artwork_widget.dart';
 
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
@@ -143,20 +144,17 @@ class MiniPlayer extends StatelessWidget {
                           ),
                         );
                       },
-                  child: song.artworkData != null
-                      ? Image.memory(
-                          song.artworkData!,
-                          key: ValueKey(song.id),
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          key: const ValueKey('placeholder'),
-                          color: Colors.grey[850],
-                          child: const Icon(
-                            Icons.music_note,
-                            color: Colors.white54,
-                          ),
-                        ),
+                  child: ArtworkWidget(
+                    key: ValueKey(song.id),
+                    artworkPath: song.artworkPath,
+                    artworkUri: song.artworkUri,
+                    width: null, // Let it use size
+                    height: null,
+                    size:
+                        55, // Explicit size for caching optimization (~70 container - 16 padding)
+                    fit: BoxFit.cover,
+                    dominantColor: song.dominantColor,
+                  ),
                 ),
               ),
             ),

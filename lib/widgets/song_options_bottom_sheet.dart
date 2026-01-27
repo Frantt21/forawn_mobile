@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/song.dart';
 import '../services/playlist_service.dart';
 import '../services/language_service.dart';
-import 'artwork_container.dart';
+import 'artwork_widget.dart';
 
 /// Opciones disponibles en el bottom sheet
 enum SongOption { like, addToPlaylist, removeFromPlaylist, delete }
@@ -75,10 +75,13 @@ class SongOptionsBottomSheet extends StatelessWidget {
           const SizedBox(height: 10),
           // Header con información de la canción
           ListTile(
-            leading: ArtworkContainer.song(
-              artworkData: song.artworkData,
-              size: 50,
-              borderRadius: 4,
+            leading: ArtworkWidget(
+              artworkPath: song.artworkPath,
+              artworkUri: song.artworkUri,
+              width: 50,
+              height: 50,
+              borderRadius: BorderRadius.circular(4),
+              dominantColor: song.dominantColor,
             ),
             title: Text(
               song.title,

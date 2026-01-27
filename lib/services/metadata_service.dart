@@ -7,7 +7,6 @@ import 'dart:ui' as ui;
 import 'package:palette_generator/palette_generator.dart';
 import 'music_metadata_cache.dart';
 import 'saf_helper.dart';
-import 'language_service.dart';
 
 /// Prioridad de carga de metadatos
 enum MetadataPriority {
@@ -71,10 +70,6 @@ class MetadataService {
       StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get progressStream => _progressController.stream;
 
-  void _notifyProgress(String message, double? progress) {
-    _progressController.add({'message': message, 'progress': progress});
-  }
-
   /// Carga metadatos con prioridad y retry
   ///
   /// Parámetros:
@@ -118,6 +113,7 @@ class MetadataService {
 
   /// Carga con retry logic
 
+  /// Carga con retry logic
   Future<SongMetadata?> _loadWithRetry({
     required String id,
     String? filePath,
@@ -128,51 +124,49 @@ class MetadataService {
   }) async {
     for (int attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        final metadata = await _loadFromSource(
+        final rawMetadata = await _loadFromSource(
           filePath: filePath,
           safUri: safUri,
           skipMediaStore: skipMediaStore,
         );
 
-        if (metadata != null) {
+        if (rawMetadata != null) {
           // Extraer color dominante del artwork (si existe)
           int? dominantColor;
-          if (metadata.artwork != null) {
-            dominantColor = await _extractDominantColor(metadata.artwork!);
+
+          // Guardar artwork en disco si viene como bytes crudos
+          Uint8List? artworkBytes = rawMetadata['artworkBytes'];
+
+          if (artworkBytes != null && artworkBytes.isNotEmpty) {
+            dominantColor = await _extractDominantColor(artworkBytes);
           }
 
           // Guardar en caché persistente (incluyendo color)
+          // Esto guardará los bytes en disco y nos despreocuparemos de ellos en RAM
           await MusicMetadataCache.saveFromMetadata(
             key: id,
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            durationMs: metadata.durationMs,
-            artworkData: metadata.artwork,
-            artworkUri: metadata.artworkUri,
+            title: rawMetadata['title'],
+            artist: rawMetadata['artist'],
+            album: rawMetadata['album'],
+            durationMs: rawMetadata['durationMsg'],
+            artworkData: artworkBytes, // Se guarda en disco y se libera
+            artworkUri: rawMetadata['artworkUri'],
             dominantColor: dominantColor,
           );
 
-          // Crear metadata con color y guardar en memoria
-          final metadataWithColor = SongMetadata(
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            durationMs: metadata.durationMs,
-            artwork: metadata.artwork,
-            artworkUri: metadata.artworkUri,
-            dominantColor: dominantColor,
-          );
-          _addToMemoryCache(id, metadataWithColor);
+          // Cargar desde caché para obtener la RUTA del archivo, no los bytes
+          final cachedMetadata = await MusicMetadataCache.get(id);
 
-          return metadataWithColor;
+          if (cachedMetadata != null) {
+            _addToMemoryCache(id, cachedMetadata);
+            return cachedMetadata;
+          }
         }
       } catch (e) {
         print(
           '[MetadataService] Attempt ${attempt + 1}/$maxRetries failed: $e',
         );
         if (attempt < maxRetries - 1) {
-          // Esperar antes de reintentar (backoff exponencial)
           await Future.delayed(Duration(milliseconds: 100 * (attempt + 1)));
         }
       }
@@ -184,123 +178,71 @@ class MetadataService {
     return null;
   }
 
-  /// Carga desde fuente (local o SAF)
-  Future<SongMetadata?> _loadFromSource({
+  /// Carga desde fuente (local o SAF) y devuelve un Map temporal con bytes
+  /// NO devuelve SongMetadata porque SongMetadata ya no soporta bytes
+  Future<Map<String, dynamic>?> _loadFromSource({
     String? filePath,
     String? safUri,
     bool skipMediaStore = false,
   }) async {
-    print(
-      '[MetadataService] Loading from: filePath=$filePath, safUri=$safUri, skipMediaStore=$skipMediaStore',
-    );
+    // ... Implementación similar pero devolviendo Map ...
+    // Para simplificar, usamos _convertMapToRawMap que normaliza los datos
 
     if (safUri != null) {
-      // Cargar desde SAF
-      print('[MetadataService] Using SAF path: $safUri');
       final metadata = await SafHelper.getMetadataFromUri(safUri);
-      if (metadata != null) {
-        final result = _convertMapToMetadata(metadata);
-        print(
-          '[MetadataService] SAF metadata loaded, has artwork: ${result.artwork != null}',
-        );
-        return result;
-      }
+      if (metadata != null) return _normalizeMetadataMap(metadata);
     } else if (filePath != null) {
-      // Intentar primero con MediaStore (Mucho más rápido) - SOLO SI NO se solicita skip
       if (!skipMediaStore) {
-        print('[MetadataService] Trying MediaStore for: $filePath');
         final mediaStoreData = await SafHelper.getMetadataFromMediaStore(
           filePath,
         );
         if (mediaStoreData != null) {
-          // Encontrado en MediaStore!
-          print('[MetadataService] MediaStore found data');
-          var metadata = _convertMapToMetadata(mediaStoreData);
-          print(
-            '[MetadataService] Has artworkUri: ${metadata.artworkUri}, has artwork bytes: ${metadata.artwork != null}',
-          );
+          var normalized = _normalizeMetadataMap(mediaStoreData);
 
-          // Si tenemos URI pero no bytes, cargar los bytes del thumbnail
-          if (metadata.artwork == null && metadata.artworkUri != null) {
-            print(
-              '[MetadataService] Loading artwork bytes from URI: ${metadata.artworkUri}',
-            );
+          // Cargar bytes si hace falta
+          if (normalized['artworkBytes'] == null &&
+              normalized['artworkUri'] != null) {
             try {
               final bytes = await SafHelper.readBytesFromUri(
-                metadata.artworkUri!,
-                maxBytes: 200 * 1024, // Thumbnail
+                normalized['artworkUri'],
+                maxBytes: 200 * 1024,
               );
-              print(
-                '[MetadataService] Loaded ${bytes?.length ?? 0} bytes of artwork',
-              );
-              if (bytes != null && bytes.isNotEmpty) {
-                metadata = SongMetadata(
-                  title: metadata.title,
-                  artist: metadata.artist,
-                  album: metadata.album,
-                  durationMs: metadata.durationMs,
-                  artwork: bytes,
-                  artworkUri: metadata.artworkUri,
-                );
-                print('[MetadataService] ✓ Artwork loaded successfully');
-              } else {
-                print('[MetadataService] ✗ No artwork bytes received');
+              if (bytes != null) {
+                normalized['artworkBytes'] = bytes;
               }
             } catch (e) {
-              print('[MetadataService] ✗ Error loading art bytes: $e');
+              print('[MetadataService] Error reading art bytes: $e');
             }
           }
-          return metadata;
-        } else {
-          print('[MetadataService] MediaStore returned null, trying fallback');
+          return normalized;
         }
-      } // Ends if (!skipMediaStore)
+      }
 
-      // Fallback: Leer archivo usando el método nativo (SafHelper puede leer file:// URIs)
-      try {
-        if (File(filePath).existsSync()) {
-          print('[MetadataService] Using fallback file:// method');
-          // Convertir ruta de archivo a URI file://
-          final fileUri = Uri.file(filePath).toString();
-          final metadataMap = await SafHelper.getMetadataFromUri(fileUri);
-
-          if (metadataMap != null) {
-            final result = _convertMapToMetadata(metadataMap);
-            print(
-              '[MetadataService] Fallback loaded, has artwork: ${result.artwork != null}',
-            );
-            return result;
-          }
-        }
-      } catch (e) {
-        print(
-          '[MetadataService] Error reading local file metadata fallback: $e',
-        );
+      // Fallback File
+      if (File(filePath).existsSync()) {
+        final fileUri = Uri.file(filePath).toString();
+        final metadataMap = await SafHelper.getMetadataFromUri(fileUri);
+        if (metadataMap != null) return _normalizeMetadataMap(metadataMap);
       }
     }
-    print('[MetadataService] ✗ No metadata loaded');
     return null;
   }
 
-  /// Convierte Map de SAF/MediaStore a SongMetadata
-  SongMetadata _convertMapToMetadata(Map<String, dynamic> map) {
-    return SongMetadata(
-      title: map['title'] as String? ?? 'Unknown',
-      artist: map['artist'] as String? ?? 'Unknown Artist',
-      album: map['album'] as String?,
-      durationMs: map['duration'] is int
+  Map<String, dynamic> _normalizeMetadataMap(Map<String, dynamic> map) {
+    return {
+      'title': map['title'] as String? ?? 'Unknown',
+      'artist': map['artist'] as String? ?? 'Unknown Artist',
+      'album': map['album'] as String?,
+      'durationMs': map['duration'] is int
           ? map['duration'] as int
           : (map['duration'] is String ? int.tryParse(map['duration']) : null),
-      artwork:
-          map['artworkData'] as Uint8List?, // Nativo devuelve 'artworkData'
-      artworkUri: map['artworkUri'] as String?, // MediaStore devuelve URI
-    );
+      'artworkBytes': map['artworkData'] as Uint8List?,
+      'artworkUri': map['artworkUri'] as String?,
+    };
   }
 
   Future<int?> _extractDominantColor(Uint8List artworkBytes) async {
     try {
-      print('[MetadataService] Extracting dominant color (optimized 20px)...');
-
       final codec = await ui.instantiateImageCodec(
         artworkBytes,
         targetWidth: 20,
@@ -308,119 +250,81 @@ class MetadataService {
       final frame = await codec.getNextFrame();
       final image = frame.image;
 
-      // Generar paleta sobre la imagen pequeña
       final paletteGenerator = await PaletteGenerator.fromImage(
         image,
         maximumColorCount: 16,
       );
 
-      // Obtener color dominante
       final dominantColor =
           paletteGenerator.dominantColor?.color ??
           paletteGenerator.vibrantColor?.color;
 
       return dominantColor?.value;
     } catch (e) {
-      print('[MetadataService] Error extracting dominant color: $e');
       return null;
     }
   }
 
-  /// Carga en lote con priorización
-  ///
-  /// Carga múltiples metadatos de forma eficiente:
-  /// - Ordena por prioridad
-  /// - Carga en lotes de 5
-  /// - Añade delays entre lotes para no bloquear UI
-  Future<List<SongMetadata?>> loadBatch(
-    List<MetadataLoadRequest> requests,
-  ) async {
-    // Ordenar por prioridad (high -> normal -> low)
-    requests.sort((a, b) => b.priority.index.compareTo(a.priority.index));
+  Future<void> loadBatch(List<MetadataLoadRequest> requests) async {
+    // Agrupar por prioridad
+    final highPriority = requests
+        .where((r) => r.priority == MetadataPriority.high)
+        .toList();
+    final normalPriority = requests
+        .where((r) => r.priority == MetadataPriority.normal)
+        .toList();
+    final lowPriority = requests
+        .where((r) => r.priority == MetadataPriority.low)
+        .toList();
 
-    final results = <SongMetadata?>[];
-    const batchSize = 5;
+    // Procesar en orden
+    await _processBatch(highPriority);
+    await _processBatch(normalPriority);
+    await _processBatch(lowPriority);
+  }
 
-    for (var i = 0; i < requests.length; i += batchSize) {
-      final end = (i + batchSize < requests.length)
-          ? i + batchSize
-          : requests.length;
-      final batch = requests.sublist(i, end);
-
-      // Cargar lote en paralelo
-      final batchResults = await Future.wait(
-        batch.map(
-          (req) => loadMetadata(
-            id: req.id,
-            filePath: req.filePath,
-            safUri: req.safUri,
-            priority: req.priority,
-          ),
-        ),
+  Future<void> _processBatch(List<MetadataLoadRequest> batch) async {
+    for (final request in batch) {
+      await loadMetadata(
+        id: request.id,
+        filePath: request.filePath,
+        safUri: request.safUri,
+        priority: request.priority,
       );
-
-      results.addAll(batchResults);
-
-      // Notificar progreso
-      final progress = results.length / requests.length;
-      final message = LanguageService().getText('extracting_colors');
-      _notifyProgress('$message ${(progress * 100).toInt()}%', progress);
-
-      // Pequeño delay entre lotes para no saturar
-      if (i + batchSize < requests.length) {
-        await Future.delayed(const Duration(milliseconds: 50));
-      }
     }
+  }
 
-    _notifyProgress(LanguageService().getText('completed'), 1.0);
-    // Ocultar mensaje después de un tiempo
-    Future.delayed(const Duration(seconds: 2), () {
-      _notifyProgress('', null);
-    });
+  /// Limpiar entrada específica del caché
+  Future<void> clearCacheEntry(String id) async {
+    _memoryCache.remove(id);
+    await MusicMetadataCache.delete(id);
+  }
 
-    return results;
+  /// Limpiar todo el caché
+  Future<void> clearAllCaches() async {
+    _memoryCache.clear();
+    await MusicMetadataCache.clearCache();
   }
 
   /// Añade metadatos al caché en memoria
   void _addToMemoryCache(String id, SongMetadata metadata) {
-    // Si el caché está lleno, eliminar el más antiguo (FIFO)
     if (_memoryCache.length >= _maxMemoryCacheSize) {
       final firstKey = _memoryCache.keys.first;
       _memoryCache.remove(firstKey);
     }
-
     _memoryCache[id] = metadata;
   }
 
-  /// Limpia caché en memoria
-  void clearMemoryCache() {
-    _memoryCache.clear();
-    print('[MetadataService] Memory cache cleared');
-  }
-
-  /// Limpia entrada específica del caché
-  void clearCacheEntry(String id) {
-    _memoryCache.remove(id);
-  }
-
-  /// Limpia TODOS los cachés (Memoria + Disco)
-  Future<void> clearAllCaches() async {
-    // 1. Limpiar memoria local
-    clearMemoryCache();
-
-    // 2. Limpiar caché persistente y estático
-    await MusicMetadataCache.clearCache();
-
-    print('[MetadataService] All caches cleared (Memory + Disk)');
-  }
+  // ... clear methods ...
 
   /// Obtiene estadísticas del caché en memoria
   CacheStats getCacheStats() {
     int totalBytes = 0;
 
     for (var metadata in _memoryCache.values) {
-      totalBytes += metadata.artwork?.length ?? 0;
-      totalBytes += metadata.title.length * 2; // UTF-16
+      // Ahora sumamos longitud de strings, mucho menos que bytes de imagen
+      totalBytes += (metadata.artworkPath?.length ?? 0) * 2;
+      totalBytes += metadata.title.length * 2;
       totalBytes += metadata.artist.length * 2;
       totalBytes += (metadata.album?.length ?? 0) * 2;
     }

@@ -148,13 +148,15 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
         if (cached != null) {
           final updatedSong = songs[index].copyWith(
-            title: cached.title ?? songs[index].title,
-            artist: cached.artist ?? songs[index].artist,
+            title: cached.title,
+            artist: cached.artist,
             album: cached.album,
             duration: cached.durationMs != null
                 ? Duration(milliseconds: cached.durationMs!)
                 : null,
-            artworkData: cached.artwork, // Aquí llega el artwork
+            artworkPath: cached.artworkPath,
+            artworkUri: cached.artworkUri,
+            dominantColor: cached.dominantColor,
           );
           _musicState.updateSong(uri, updatedSong);
         }

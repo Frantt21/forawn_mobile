@@ -92,13 +92,14 @@ class MusicLibraryService {
                 if (cached != null) {
                   // Usar datos del caché
                   song = song.copyWith(
-                    title: cached.title ?? song.title,
-                    artist: cached.artist ?? song.artist,
+                    title: cached.title,
+                    artist: cached.artist,
                     album: cached.album,
                     duration: cached.durationMs != null
                         ? Duration(milliseconds: cached.durationMs!)
                         : null,
-                    artworkData: cached.artwork,
+                    artworkPath: cached.artworkPath,
+                    artworkUri: cached.artworkUri,
                     dominantColor: cached.dominantColor,
                   );
                   isCached = true;
@@ -141,19 +142,20 @@ class MusicLibraryService {
               // Yield every 50 updates to prevent freeze during list update
               if (i % 50 == 0) await Future.delayed(Duration.zero);
 
-              if (songs[i].artworkData == null) {
+              if (songs[i].artworkPath == null) {
                 try {
                   final cacheKey = songs[i].filePath.hashCode.toString();
                   final cached = await MusicMetadataCache.get(cacheKey);
                   if (cached != null) {
                     songs[i] = songs[i].copyWith(
-                      title: cached.title ?? songs[i].title,
-                      artist: cached.artist ?? songs[i].artist,
+                      title: cached.title,
+                      artist: cached.artist,
                       album: cached.album,
                       duration: cached.durationMs != null
                           ? Duration(milliseconds: cached.durationMs!)
                           : songs[i].duration,
-                      artworkData: cached.artwork,
+                      artworkPath: cached.artworkPath,
+                      artworkUri: cached.artworkUri,
                       dominantColor: cached.dominantColor,
                     );
                   }

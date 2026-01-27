@@ -19,6 +19,7 @@ import '../services/saf_helper.dart';
 import '../services/music_library_service.dart';
 import '../services/music_metadata_cache.dart';
 import 'dart:typed_data';
+import '../widgets/artwork_widget.dart'; // Added
 
 class MusicPlayerScreen extends StatefulWidget {
   const MusicPlayerScreen({super.key});
@@ -194,86 +195,90 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         padding: const EdgeInsets.all(32.0),
         child: AspectRatio(
           aspectRatio: 1,
-          child: Hero(
-            tag: 'artwork_${song.id}',
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final size = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : 300.0;
+
+              return Hero(
+                tag: 'artwork_${song.id}',
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 350),
-                  transitionBuilder:
-                      (Widget child, Animation<double> animation) {
-                        final offsetRight = const Offset(1.0, 0.0);
-                        final offsetLeft = const Offset(-1.0, 0.0);
-                        final inTween = _isNextDirection
-                            ? Tween<Offset>(
-                                begin: offsetRight,
-                                end: Offset.zero,
-                              )
-                            : Tween<Offset>(
-                                begin: offsetLeft,
-                                end: Offset.zero,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 350),
+                      transitionBuilder:
+                          (Widget child, Animation<double> animation) {
+                            final offsetRight = const Offset(1.0, 0.0);
+                            final offsetLeft = const Offset(-1.0, 0.0);
+                            final inTween = _isNextDirection
+                                ? Tween<Offset>(
+                                    begin: offsetRight,
+                                    end: Offset.zero,
+                                  )
+                                : Tween<Offset>(
+                                    begin: offsetLeft,
+                                    end: Offset.zero,
+                                  );
+                            final outTween = _isNextDirection
+                                ? Tween<Offset>(
+                                    begin: offsetLeft,
+                                    end: Offset.zero,
+                                  )
+                                : Tween<Offset>(
+                                    begin: offsetRight,
+                                    end: Offset.zero,
+                                  );
+                            final inAnimation = inTween.animate(
+                              CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutQuad,
+                              ),
+                            );
+                            final outAnimation = outTween.animate(
+                              CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeInQuad,
+                              ),
+                            );
+                            if (child.key == ValueKey(song.id)) {
+                              return SlideTransition(
+                                position: inAnimation,
+                                child: child,
                               );
-                        final outTween = _isNextDirection
-                            ? Tween<Offset>(begin: offsetLeft, end: Offset.zero)
-                            : Tween<Offset>(
-                                begin: offsetRight,
-                                end: Offset.zero,
+                            } else {
+                              return SlideTransition(
+                                position: outAnimation,
+                                child: child,
                               );
-                        final inAnimation = inTween.animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutQuad,
-                          ),
-                        );
-                        final outAnimation = outTween.animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeInQuad,
-                          ),
-                        );
-                        if (child.key == ValueKey(song.id)) {
-                          return SlideTransition(
-                            position: inAnimation,
-                            child: child,
-                          );
-                        } else {
-                          return SlideTransition(
-                            position: outAnimation,
-                            child: child,
-                          );
-                        }
-                      },
-                  child: song.artworkData != null
-                      ? Image.memory(
-                          song.artworkData!,
-                          key: ValueKey(song.id),
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                        )
-                      : Container(
-                          key: const ValueKey('placeholder'),
-                          color: const Color(0xFF2C2C2C),
-                          child: const Icon(
-                            Icons.music_note,
-                            size: 80,
-                            color: Colors.white24,
-                          ),
-                        ),
+                            }
+                          },
+                      child: ArtworkWidget(
+                        key: ValueKey(song.id),
+                        artworkPath: song.artworkPath,
+                        artworkUri: song.artworkUri,
+                        size: size,
+                        width: size,
+                        height: size,
+                        fit: BoxFit.cover,
+                        dominantColor: song.dominantColor,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -611,24 +616,14 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   children: [
-                    ClipRRect(
+                    ArtworkWidget(
+                      artworkPath: song.artworkPath,
+                      artworkUri: song.artworkUri,
+                      width: 56,
+                      height: 56,
+                      size: 56,
                       borderRadius: BorderRadius.circular(8),
-                      child: song.artworkData != null
-                          ? Image.memory(
-                              song.artworkData!,
-                              width: 56,
-                              height: 56,
-                              fit: BoxFit.cover,
-                            )
-                          : Container(
-                              color: Colors.white10,
-                              width: 56,
-                              height: 56,
-                              child: const Icon(
-                                Icons.music_note,
-                                color: Colors.white54,
-                              ),
-                            ),
+                      dominantColor: song.dominantColor,
                     ),
                     const SizedBox(width: 16),
                     Expanded(

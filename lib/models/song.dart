@@ -1,6 +1,5 @@
 // lib/models/song.dart
 import 'dart:io';
-import 'dart:typed_data';
 
 /// Modelo para una canción
 class Song {
@@ -10,7 +9,9 @@ class Song {
   final String? album;
   final Duration? duration;
   final String filePath; // Ruta completa al archivo MP3
-  final Uint8List? artworkData; // Artwork embebido en bytes
+  final String? artworkPath; // Ruta al archivo de imagen cacheado
+  final String? artworkUri; // URI original (content://)
+
   final int? trackNumber;
   final String? year;
   final String? genre;
@@ -23,7 +24,8 @@ class Song {
     this.album,
     this.duration,
     required this.filePath,
-    this.artworkData,
+    this.artworkPath,
+    this.artworkUri,
     this.trackNumber,
     this.year,
     this.genre,
@@ -64,7 +66,8 @@ class Song {
     'album': album,
     'duration': duration?.inMilliseconds,
     'filePath': filePath,
-    'artworkData': null,
+    'artworkPath': artworkPath,
+    'artworkUri': artworkUri,
     'trackNumber': trackNumber,
     'year': year,
     'genre': genre,
@@ -81,7 +84,8 @@ class Song {
         ? Duration(milliseconds: json['duration'] as int)
         : null,
     filePath: json['filePath'] as String,
-    artworkData: null,
+    artworkPath: json['artworkPath'] as String?,
+    artworkUri: json['artworkUri'] as String?,
     trackNumber: json['trackNumber'] as int?,
     year: json['year'] as String?,
     genre: json['genre'] as String?,
@@ -96,7 +100,8 @@ class Song {
     String? album,
     Duration? duration,
     String? filePath,
-    Uint8List? artworkData,
+    String? artworkPath,
+    String? artworkUri,
     int? trackNumber,
     String? year,
     String? genre,
@@ -108,7 +113,8 @@ class Song {
     album: album ?? this.album,
     duration: duration ?? this.duration,
     filePath: filePath ?? this.filePath,
-    artworkData: artworkData ?? this.artworkData,
+    artworkPath: artworkPath ?? this.artworkPath,
+    artworkUri: artworkUri ?? this.artworkUri,
     trackNumber: trackNumber ?? this.trackNumber,
     year: year ?? this.year,
     genre: genre ?? this.genre,

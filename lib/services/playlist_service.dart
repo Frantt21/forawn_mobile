@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../models/playlist_model.dart';
 import '../models/song.dart';
 import 'database_helper.dart';
+import 'music_library_service.dart';
 
 class PlaylistService extends ChangeNotifier {
   static final PlaylistService _instance = PlaylistService._internal();
@@ -31,7 +32,54 @@ class PlaylistService extends ChangeNotifier {
 
     // Cargar datos desde SQLite
     await _loadData();
+
+    // Escuchar actualizaciones de metadatos en segundo plano
+    MusicLibraryService.onMetadataUpdated.addListener(_onMetadataUpdated);
+
     isInitialized = true;
+  }
+
+  void _onMetadataUpdated() async {
+    final uri = MusicLibraryService.onMetadataUpdated.value;
+    if (uri != null) {
+      bool needNotify = false;
+      final dbHelper = DatabaseHelper();
+
+      // 1. Check Playlists
+      for (int i = 0; i < _playlists.length; i++) {
+        final playlist = _playlists[i];
+        final songIndex = playlist.songs.indexWhere((s) => s.filePath == uri);
+
+        if (songIndex != -1) {
+          // Found song in playlist, hydrate it
+          final cacheKey = uri.hashCode.toString();
+          final metadata = await dbHelper.getMetadata(cacheKey);
+
+          if (metadata != null) {
+            final currentSong = playlist.songs[songIndex];
+            final updatedSong = currentSong.copyWith(
+              title: metadata['title'],
+              artist: metadata['artist'],
+              album: metadata['album'],
+              duration: metadata['duration'] != null
+                  ? Duration(milliseconds: metadata['duration'])
+                  : null,
+              artworkPath: metadata['artwork_path'],
+              artworkUri: metadata['artwork_uri'],
+              dominantColor: metadata['dominant_color'],
+            );
+
+            final updatedSongs = List<Song>.from(playlist.songs);
+            updatedSongs[songIndex] = updatedSong;
+
+            _playlists[i] = playlist.copyWith(songs: updatedSongs);
+            needNotify = true;
+          }
+        }
+      }
+
+      if (needNotify) notifyListeners();
+    }
   }
 
   /// Migración única de SharedPreferences a SQLite
@@ -166,7 +214,8 @@ class PlaylistService extends ChangeNotifier {
                 ? Duration(milliseconds: metadata['duration'])
                 : null,
             filePath: metadata['file_path'], // CRÍTICO: Debe existir
-            artworkData: null, // El artwork se carga bajo demanda usualmente
+            artworkPath: metadata['artwork_path'],
+            artworkUri: metadata['artwork_uri'],
             dominantColor: metadata['dominant_color'],
           ),
         );
