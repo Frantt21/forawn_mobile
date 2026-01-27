@@ -41,8 +41,8 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   int _tabIndex = 0; // 0: Library, 1: Playlists
   bool _isGridView = true; // Playlist view mode
 
-  // Persistent gradient color
-  Color? _lastGradientColor;
+  // Persistent gradient color (static to survive widget rebuilds)
+  static Color? _lastGradientColor;
 
   // Búsqueda
   final TextEditingController _searchController = TextEditingController();
@@ -369,28 +369,19 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
           listenable: LanguageService(),
           builder: (context, _) {
             // Get dominant color for background gradient
-            final dominantColor = currentSong?.dominantColor != null
+            final rawColor = currentSong?.dominantColor != null
                 ? Color(currentSong!.dominantColor!)
-                : _lastGradientColor ??
-                      const Color(
-                        0xFF6A1B9A,
-                      ); // Use last color or purple fallback
+                : _lastGradientColor ?? const Color(0xFF6A1B9A);
 
-            // Create a more visible gradient
-            final gradientColor = HSLColor.fromColor(
-              dominantColor,
-            ).withSaturation(0.6).withLightness(0.15).toColor();
+            // Use color similar to music_player_screen - only darken if too bright
+            final hsl = HSLColor.fromColor(rawColor);
+            final gradientColor = hsl.lightness > 0.5
+                ? hsl.withLightness(0.3).toColor()
+                : rawColor;
 
-            // Update last gradient color if we have a current song
-            if (currentSong?.dominantColor != null &&
-                _lastGradientColor != gradientColor) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  setState(() {
-                    _lastGradientColor = gradientColor;
-                  });
-                }
-              });
+            // Update last gradient color if we have a current song (no setState needed for static)
+            if (currentSong?.dominantColor != null) {
+              _lastGradientColor = gradientColor;
             }
 
             // Only show gradient on Home tab (index 0)
@@ -462,23 +453,33 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                 children: [
                   // 1. Gradient Background Layer
                   Positioned.fill(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 800),
+                    child: TweenAnimationBuilder<Color?>(
+                      duration: const Duration(milliseconds: 600),
                       curve: Curves.easeInOut,
-                      decoration: BoxDecoration(
-                        gradient: showGradient
-                            ? LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  gradientColor.withOpacity(0.7),
-                                  gradientColor.withOpacity(0.4),
-                                  const Color(0xFF1C1C1E).withOpacity(0.0),
-                                ],
-                                stops: const [0.0, 0.15, 0.35],
-                              )
-                            : null,
+                      tween: ColorTween(
+                        begin: gradientColor,
+                        end: gradientColor,
                       ),
+                      builder: (context, animatedColor, child) {
+                        final effectiveColor = animatedColor ?? gradientColor;
+
+                        return Container(
+                          decoration: showGradient
+                              ? BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      effectiveColor.withOpacity(0.7),
+                                      effectiveColor.withOpacity(0.4),
+                                      const Color(0xFF1C1C1E).withOpacity(0.0),
+                                    ],
+                                    stops: const [0.0, 0.15, 0.35],
+                                  ),
+                                )
+                              : null,
+                        );
+                      },
                     ),
                   ),
 
