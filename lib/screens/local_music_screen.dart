@@ -24,7 +24,7 @@ import '../utils/text_utils.dart';
 import 'playlist_detail_screen.dart';
 import 'music_player_screen.dart';
 import '../widgets/local_music_home.dart';
-import '../widgets/ambient_background.dart';
+import '../widgets/ambient_background_static.dart';
 
 class LocalMusicScreen extends StatefulWidget {
   final String searchQuery;
@@ -61,19 +61,13 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   @override
   void initState() {
     super.initState();
-    // Inicializar servicio de música local (solo carga si no se ha hecho antes)
-    _musicState.init();
+    // Los servicios ya están inicializados en SplashScreen, solo agregamos listeners
     _musicState.addListener(_onMusicStateChanged);
 
-    PlaylistService().init();
     PlaylistService().addListener(_onPlaylistServiceChanged);
     MusicLibraryService.onMetadataUpdated.addListener(
       _onMetadataUpdated,
     ); // Escuchar actualizaciones de artwork
-    // Cargar historial y actualizar UI cuando esté listo
-    MusicHistoryService().init().then((_) {
-      if (mounted) setState(() {});
-    });
 
     // Escuchar progreso de metadatos - DESACTIVADO (no necesario)
     /* _progressSubscription = MetadataService().progressStream.listen((data) {
@@ -434,16 +428,16 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
               ),
               body: Stack(
                 children: [
-                  // 1. Ambient Background Layer (History Based)
-                  Positioned.fill(
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 300),
-                      opacity: (_tabIndex == 0 && !_isSearching) ? 1.0 : 0.0,
-                      child: AmbientBackground(
-                        songs: MusicHistoryService().history,
-                      ),
-                    ),
-                  ),
+                  // 1. Ambient Background Layer (History Based) - DESACTIVADO
+                  // Positioned.fill(
+                  //   child: AnimatedOpacity(
+                  //     duration: const Duration(milliseconds: 300),
+                  //     opacity: (_tabIndex == 0 && !_isSearching) ? 1.0 : 0.0,
+                  //     child: AmbientBackgroundStatic(
+                  //       songs: MusicHistoryService().history,
+                  //     ),
+                  //   ),
+                  // ),
 
                   // 2. Main Content Layer
                   SafeArea(
