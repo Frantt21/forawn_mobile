@@ -446,7 +446,6 @@ class _LyricsSheetState extends State<LyricsSheet> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF1C1C1E),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.1)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -552,12 +551,6 @@ class _LyricsSheetState extends State<LyricsSheet> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                color: isNegative
-                    ? Colors.redAccent.withOpacity(0.3)
-                    : Colors.greenAccent.withOpacity(0.3),
-                width: 1,
-              ),
             ),
             elevation: 0,
           ),
@@ -617,7 +610,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
           _results = res;
           _searching = false;
           if (res.isEmpty) {
-            _error = "No se encontraron resultados";
+            _error = LanguageService().getText('no_results');
           }
         });
       }
@@ -625,7 +618,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
       if (mounted) {
         setState(() {
           _searching = false;
-          _error = "Error al buscar";
+          _error = LanguageService().getText('error_searching');
         });
       }
     }
@@ -721,9 +714,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                   padding: const EdgeInsets.all(8.0),
                   child: Center(
                     child: Text(
-                      _error!.contains('No se encontraron')
-                          ? LanguageService().getText('no_results')
-                          : LanguageService().getText('error_searching'),
+                      _error!,
                       style: const TextStyle(color: Colors.white70),
                       textAlign: TextAlign.center,
                     ),
