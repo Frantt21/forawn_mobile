@@ -248,5 +248,12 @@
   "edit_metadata": "Edit metadata",
   "search_lyrics": "Search lyrics",
   "delete_lyrics": "Delete lyrics",
-  "lyrics_not_found_manual": "Lyrics not found (try manual search)"
+  "lyrics_not_found_manual": "Lyrics not found (try manual search)",
+  "sync": "Sync",
+  "synchronization": "Synchronization",
+  "adjust_lyrics_time": "Adjust lyrics timing",
+  "current": "Current",
+  "done": "Done",
+  "title_artist": "Title and artist...",
+  "error_searching": "Error searching"
 }

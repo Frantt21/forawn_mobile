@@ -248,5 +248,12 @@
   "edit_metadata": "Editar metadatos",
   "search_lyrics": "Buscar letra",
   "delete_lyrics": "Borrar letra",
-  "lyrics_not_found_manual": "Letra no encontrada (prueba buscarla manualmente)"
+  "lyrics_not_found_manual": "Letra no encontrada (prueba buscarla manualmente)",
+  "sync": "Sincronizar",
+  "synchronization": "Sincronización",
+  "adjust_lyrics_time": "Ajusta el tiempo de las letras",
+  "current": "Actual",
+  "done": "Listo",
+  "title_artist": "Título y artista...",
+  "error_searching": "Error al buscar"
 }
