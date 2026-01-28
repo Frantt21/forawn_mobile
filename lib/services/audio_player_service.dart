@@ -82,6 +82,11 @@ class AudioPlayerService {
   Stream<app_state.RepeatMode> get repeatModeStream =>
       _playlistSubject.map((p) => p.repeatMode).distinct();
 
+  // Stream para notificar al sistema (AudioHandler) de cualquier cambio relevante
+  // (Seek, Buffering, Play/Pause) sin filtrar por distinct()
+  Stream<void> get playbackRefreshStream =>
+      _audioPlayer.playbackEventStream.map((_) {});
+
   // Initialization
   Future<void> _init() async {
     // Cargar preferencias guardadas
@@ -274,6 +279,9 @@ class AudioPlayerService {
 
   Duration get currentPosition => _audioPlayer.position;
   Duration get bufferedPosition => _audioPlayer.bufferedPosition;
+  Stream<Duration?> get durationStream => _audioPlayer.durationStream;
+  app_state.PlayerState get playerState =>
+      _mapToAppPlayerState(_audioPlayer.playerState);
 
   // --- Gestión de Playlist ---
 

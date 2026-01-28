@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 
 import 'audio_player_service.dart';
+import '../models/song.dart';
 import '../models/playback_state.dart' as app_state;
 
 class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
@@ -11,57 +12,80 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   MyAudioHandler() {
     print('[AudioHandler] Initializing...');
 
-    // Sincronizar estado de reproducción
-    _player.playerStateStream.listen((state) {
-      print('[AudioHandler] Player state changed: $state');
-      final playing = state == app_state.PlayerState.playing;
-      playbackState.add(
-        playbackState.value.copyWith(
-          controls: [
-            MediaControl.skipToPrevious,
-            if (playing) MediaControl.pause else MediaControl.play,
-            MediaControl.skipToNext,
-          ],
-          systemActions: const {MediaAction.seek},
-          androidCompactActionIndices: const [0, 1, 2],
-          playing: playing,
-          processingState: _mapProcessingState(state),
-          // updatePosition es crucial para que la barra de progreso de Android 13+ funcione
-          updatePosition: _player.currentPosition,
-          bufferedPosition: _player.bufferedPosition,
-          speed: 1.0,
-          queueIndex: 0,
-        ),
-      );
-      print('[AudioHandler] Playback state updated: playing=$playing');
+    // Sincronizar estado de reproducción (usando stream de eventos crudos para mayor precisión)
+    _player.playbackRefreshStream.listen((_) {
+      _broadcastState();
+    });
+
+    // Sincronizar cambios de estado explícitos (Play/Pause/Loading)
+    // Esto es crucial porque playbackEventStream puede no emitir inmediatamente el cambio de booleano 'playing'
+    _player.playerStateStream.listen((_) {
+      _broadcastState();
     });
 
     // Sincronizar canción actual (MediaItem)
     _player.currentSongStream.listen((song) async {
-      if (song == null) {
-        mediaItem.add(null);
-        return;
-      }
-
-      Uri? artUri;
-      // Usar artworkPath ya cacheado si existe
-      if (song.artworkPath != null) {
-        artUri = Uri.file(song.artworkPath!);
-      } else if (song.artworkUri != null) {
-        artUri = Uri.parse(song.artworkUri!);
-      }
-
-      mediaItem.add(
-        MediaItem(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          album: song.album ?? '',
-          duration: song.duration,
-          artUri: artUri,
-        ),
-      );
+      _updateMediaItem(song, null);
     });
+
+    // Sincronizar duración real (Importante para que la barra de progreso tenga "fin")
+    _player.durationStream.listen((duration) {
+      final current = _player.currentSong;
+      if (current != null && duration != null) {
+        _updateMediaItem(current, duration);
+      }
+    });
+  }
+
+  void _broadcastState() {
+    final state = _player.playerState;
+    // print('[AudioHandler] Broadcasting state: $state'); // Debug (opcional)
+
+    final playing = state == app_state.PlayerState.playing;
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {MediaAction.seek},
+        androidCompactActionIndices: const [0, 1, 2],
+        playing: playing,
+        processingState: _mapProcessingState(state),
+        // updatePosition must be fresh for the progress bar to sync correctly
+        updatePosition: _player.currentPosition,
+        bufferedPosition: _player.bufferedPosition,
+        speed: 1.0,
+        queueIndex: 0,
+      ),
+    );
+  }
+
+  void _updateMediaItem(Song? song, Duration? duration) {
+    if (song == null) {
+      mediaItem.add(null);
+      return;
+    }
+
+    Uri? artUri;
+    if (song.artworkPath != null) {
+      artUri = Uri.file(song.artworkPath!);
+    } else if (song.artworkUri != null) {
+      artUri = Uri.parse(song.artworkUri!);
+    }
+
+    mediaItem.add(
+      MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album ?? '',
+        // Usar duración reportada por el player si existe, sino la del modelo
+        duration: duration ?? song.duration,
+        artUri: artUri,
+      ),
+    );
   }
 
   AudioProcessingState _mapProcessingState(app_state.PlayerState state) {
@@ -91,6 +115,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> play() => _player.play();
   @override
   Future<void> pause() => _player.pause();
+
   @override
   Future<void> skipToNext() => _player.skipToNext();
   @override
