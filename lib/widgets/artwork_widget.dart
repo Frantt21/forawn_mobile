@@ -13,7 +13,7 @@ class ArtworkWidget extends StatelessWidget {
   final int? dominantColor;
 
   const ArtworkWidget({
-    Key? key,
+    super.key,
     this.artworkPath,
     this.artworkUri,
     this.size = 50,
@@ -23,7 +23,7 @@ class ArtworkWidget extends StatelessWidget {
     this.borderRadius,
     this.placeholder,
     this.dominantColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -63,8 +63,9 @@ class ArtworkWidget extends StatelessWidget {
   }
 
   Widget _buildPlaceholder(double w, double h) {
-    if (placeholder != null)
+    if (placeholder != null) {
       return SizedBox(width: w, height: h, child: placeholder);
+    }
 
     // Default placeholder with dominant color if available
     final color = dominantColor != null

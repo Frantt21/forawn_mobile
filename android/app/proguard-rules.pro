@@ -54,3 +54,11 @@
 -keep class androidx.documentfile.** { *; }
 -dontwarn androidx.documentfile.**
 
+
+# Just Audio, Audio Service, Audio Session
+-keep class com.ryanheise.** { *; }
+-dontwarn com.ryanheise.**
+
+# Audio Players
+-keep class xyz.luan.audioplayers.** { *; }
+-dontwarn xyz.luan.audioplayers.**

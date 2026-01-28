@@ -26,11 +26,11 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           androidCompactActionIndices: const [0, 1, 2],
           playing: playing,
           processingState: _mapProcessingState(state),
-          updatePosition: _player.currentPosition, // Necesitaría exponer esto
+          // updatePosition es crucial para que la barra de progreso de Android 13+ funcione
+          updatePosition: _player.currentPosition,
           bufferedPosition: _player.bufferedPosition,
           speed: 1.0,
-          queueIndex:
-              0, // No gestionamos queue completa en notification por ahora
+          queueIndex: 0,
         ),
       );
       print('[AudioHandler] Playback state updated: playing=$playing');
@@ -67,9 +67,13 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   AudioProcessingState _mapProcessingState(app_state.PlayerState state) {
     switch (state) {
       case app_state.PlayerState.idle:
-        return AudioProcessingState.idle;
+        // Evitar reportar idle si hay canción cargada para no "matar" el servicio de notificación
+        // Esto previene flickering y potenciales crashes en release por reinicio del servicio
+        return _player.currentSong != null
+            ? AudioProcessingState.buffering
+            : AudioProcessingState.idle;
       case app_state.PlayerState.loading:
-        return AudioProcessingState.loading;
+        return AudioProcessingState.buffering;
       case app_state.PlayerState.buffering:
         return AudioProcessingState.buffering;
       case app_state.PlayerState.playing:
