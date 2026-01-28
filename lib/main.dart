@@ -77,7 +77,7 @@ void main() async {
         androidNotificationChannelName: 'Music Playback',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
-        androidNotificationIcon: 'mipmap/ic_launcher', // Icono de la app
+        androidNotificationIcon: 'drawable/ic_stat_logo', // Icono personalizado
       ),
     );
   } catch (e) {
@@ -92,7 +92,11 @@ void main() async {
   }
 
   // Inicializar el gestor global de descargas
-  await GlobalDownloadManager().initialize();
+  try {
+    await GlobalDownloadManager().initialize();
+  } catch (e) {
+    print('[Main] Error initializing GlobalDownloadManager: $e');
+  }
 
   // Verificar actualizaciones en segundo plano (sin bloquear el inicio)
   _checkForUpdatesInBackground();
