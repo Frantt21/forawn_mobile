@@ -42,16 +42,32 @@ class _LyricsSheetState extends State<LyricsSheet> {
 
     // Escuchar cambios de canción para actualizar el sheet
     _playerSubscription = widget.player.currentSongStream.listen((song) {
-      if (song != null && song.id != _currentSong.id) {
-        if (mounted) {
-          setState(() {
-            _currentSong = song;
-            _offset = Duration.zero;
-            _lyrics = null;
-            // El estado de carga lo manejará el stream de isLoading
-          });
-          // El stream de lyrics se actualizará automáticamente
-          // porque AudioPlayerService llama a LyricsService
+      if (song != null) {
+        // Actualizar si cambia el ID O si cambian los metadatos clave (título/artista)
+        bool metaChanged =
+            song.title != _currentSong.title ||
+            song.artist != _currentSong.artist ||
+            song.artworkPath != _currentSong.artworkPath;
+
+        if (song.id != _currentSong.id || metaChanged) {
+          if (mounted) {
+            setState(() {
+              _currentSong = song;
+              // Si cambió la canción (ID diferente), resetear offset. Si es solo metadata, mantenerlo.
+              if (song.id != _currentSong.id) {
+                _offset = Duration.zero;
+                _lyrics = null;
+              } else {
+                // Si es la misma canción pero cambió metadata (ej. corrección título),
+                // tal vez queramos recargar lyrics con el nuevo título
+                if (metaChanged) {
+                  _lyrics = null;
+                  LyricsService().setCurrentSong(song.title, song.artist);
+                }
+              }
+              // El estado de carga lo manejará el stream de isLoading
+            });
+          }
         }
       }
     });
