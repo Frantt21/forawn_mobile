@@ -1386,9 +1386,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       await AudioPlayerService().refreshCurrentSongMetadata();
 
       // Notify Library to update song in list
+      // Hack: Reset to null first to ensure ValueNotifier notifies listeners even if the path is the same
+      MusicLibraryService.onMetadataUpdated.value = null;
       MusicLibraryService.onMetadataUpdated.value = song.filePath;
-      // Force trigger even if same path (hacky but safer for re-edits)
-      // MusicLibraryService.onMetadataUpdated.notifyListeners(); // Not accessible on ValueNotifier easily without extending
 
       if (mounted) {
         // Close Loading

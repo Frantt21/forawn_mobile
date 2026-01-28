@@ -56,7 +56,9 @@ class LocalMusicStateService extends ChangeNotifier {
     try {
       final songs = await MusicLibraryService.scanFolder(
         path,
-        currentSongs: forceReload ? _librarySongs : null,
+        // IMPORTANTE: Si es forceReload, NO pasar currentSongs
+        // Esto fuerza la recarga de metadatos desde el caché
+        currentSongs: forceReload ? null : _librarySongs,
       );
 
       _librarySongs = songs;

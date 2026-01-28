@@ -41,6 +41,10 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   int _tabIndex = 0; // 0: Library, 1: Playlists
   bool _isGridView = true; // Playlist view mode
 
+  // Mapa para trackear versiones de actualización de cada canción
+  // Key: Song ID (hashCode), Value: Version counter
+  final Map<String, int> _songUpdateVersions = {};
+
   // Persistent gradient color (static to survive widget rebuilds)
   static Color? _lastGradientColor;
 
@@ -140,13 +144,61 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   // Cuando llega metadata nueva en background (ej. artwork), actualizar la canción en el servicio
   void _onMetadataUpdated() async {
     final uri = MusicLibraryService.onMetadataUpdated.value;
+    print('[LocalMusicScreen] Metadata updated notification for: $uri');
+
+    // 1. SIEMPRE intentar limpiar el caché de imágenes primero
+    if (uri != null) {
+      try {
+        final cacheKey = uri.hashCode.toString();
+        // Usamos cacheKey para encontrar el path de la imagen, que es lo que importa para el FileImage
+        // Nota: MusicMetadataCache.get podría devolver null si se acaba de escribir y no leer
+        // pero normalmente debería estar porque lo acabamos de escribir en _applyMetadata
+        final cached = await MusicMetadataCache.get(cacheKey);
+
+        if (cached?.artworkPath != null) {
+          final file = File(cached!.artworkPath!);
+          // Intentamos desalojarla aunque no exista el archivo físico por si acaso
+          final fileImage = FileImage(file);
+          fileImage.evict();
+          print(
+            '[LocalMusicScreen] ALWAYS Evicted image from cache: ${cached.artworkPath}',
+          );
+        }
+      } catch (e) {
+        print('[LocalMusicScreen] Error clearing image cache: $e');
+      }
+    }
+
     if (uri != null && mounted) {
       final songs = _musicState.librarySongs;
-      final index = songs.indexWhere((s) => s.filePath == uri);
+
+      // 2. Intentar encontrar con match exacto
+      int index = songs.indexWhere((s) => s.filePath == uri);
+
+      // 3. Si falla, intentar match decodificado (para URIs SAF raras)
+      if (index == -1) {
+        try {
+          final decodedUri = Uri.decodeFull(uri);
+          index = songs.indexWhere(
+            (s) => Uri.decodeFull(s.filePath) == decodedUri,
+          );
+          if (index != -1) {
+            print('[LocalMusicScreen] Song found via decoded URI match');
+          }
+        } catch (e) {
+          print('[LocalMusicScreen] Error decoding URI for match: $e');
+        }
+      }
+
+      print('[LocalMusicScreen] Found song at index: $index');
+
       if (index != -1) {
         // Encontrada! Recargar sus datos del caché
         final cacheKey = uri.hashCode.toString();
         final cached = await MusicMetadataCache.get(cacheKey);
+        print(
+          '[LocalMusicScreen] Cached metadata: ${cached?.title} - ${cached?.artist}',
+        );
 
         if (cached != null) {
           final updatedSong = songs[index].copyWith(
@@ -161,6 +213,16 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
             dominantColor: cached.dominantColor,
           );
           _musicState.updateSong(uri, updatedSong);
+          print('[LocalMusicScreen] Song updated in state');
+
+          // Incrementar versión para forzar rebuild del tile
+          _songUpdateVersions[updatedSong.id] =
+              (_songUpdateVersions[updatedSong.id] ?? 0) + 1;
+
+          // Forzar rebuild del widget
+          if (mounted) {
+            setState(() {});
+          }
         }
       }
     }
@@ -861,8 +923,14 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                   final song = songs[index];
                   final isPlaying = _audioPlayer.currentSong?.id == song.id;
 
+                  // Use a key that includes metadata and VERSION to force rebuild when metadata changes
+                  // _songUpdateVersions[song.id] ensures rebuild even if path/title is same but content changed
+                  final version = _songUpdateVersions[song.id] ?? 0;
+                  final tileKey =
+                      '${song.id}_${song.title}_${song.artist}_${song.artworkPath ?? ""}_v$version';
+
                   return LazyMusicTile(
-                    key: ValueKey(song.id),
+                    key: ValueKey(tileKey),
                     song: song,
                     isPlaying: isPlaying,
                     onTap: () {

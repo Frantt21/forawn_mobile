@@ -1,17 +1,22 @@
 // lib/services/audio_player_service.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:audioplayers/audioplayers.dart' as ap;
 import '../models/song.dart';
 import '../models/playlist.dart';
 import '../models/playback_state.dart'
     as app_state; // Alias para evitar conflicto con just_audio
 import 'music_history_service.dart';
 import 'music_metadata_cache.dart';
+import 'saf_helper.dart';
 
 import 'metadata_service.dart';
 import 'lyrics_service.dart';
@@ -32,6 +37,11 @@ class AudioPlayerService {
 
   // Flag para prevenir skips concurrentes
   bool _isSkipping = false;
+  // Flag para prevenir bucle de recuperacion
+  bool _isRecovering = false;
+  // Reproductor de fallback para archivos problemáticos
+  ap.AudioPlayer? _fallbackPlayer;
+  bool _usingFallback = false;
 
   // Streams
   final _playlistSubject = BehaviorSubject<Playlist>();
@@ -81,11 +91,12 @@ class AudioPlayerService {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
 
-    // Escuchar errores
+    // Escuchar errores y recuperación
     _audioPlayer.playbackEventStream.listen(
       (event) {},
       onError: (Object e, StackTrace stackTrace) {
-        print('[AudioPlayer] Error: $e');
+        print('[AudioPlayer] Playback error stream: $e');
+        _handlePlaybackError(e);
       },
     );
 
@@ -186,6 +197,57 @@ class AudioPlayerService {
       }
     } catch (e) {
       print('[AudioPlayer] Error saving preferences: $e');
+    }
+  }
+
+  Future<void> _handlePlaybackError(Object error) async {
+    if (_isRecovering) return;
+    _isRecovering = true;
+
+    try {
+      final song = _playlist.currentSong;
+      if (song != null && song.filePath.startsWith('content://')) {
+        print(
+          '[AudioPlayer] Playback error detected. Attempting fallback to audioplayers...',
+        );
+
+        // Copiar a temp si no está ya copiado
+        final tempPath = await _copyToTemp(song.filePath);
+        if (tempPath != null) {
+          print('[AudioPlayer] Switching to fallback player (audioplayers)');
+
+          // Detener just_audio
+          await _audioPlayer.stop();
+
+          // Inicializar fallback player si no existe
+          _fallbackPlayer ??= ap.AudioPlayer();
+          _usingFallback = true;
+
+          // Configurar y reproducir con audioplayers
+          await _fallbackPlayer!.play(ap.DeviceFileSource(tempPath));
+
+          // Escuchar eventos del fallback player
+          _fallbackPlayer!.onPlayerComplete.listen((_) {
+            _onSongCompleted();
+          });
+
+          print('[AudioPlayer] Fallback player started successfully');
+          return; // Recuperación exitosa
+        }
+      }
+
+      // Si llegamos aquí, no se pudo recuperar
+      print('[AudioPlayer] Unrecoverable error. Stopping player.');
+      await stop();
+      if (!_playlistSubject.isClosed) {
+        _playlistSubject.add(_playlist);
+      }
+    } catch (e) {
+      print('[AudioPlayer] Error during recovery: $e');
+      await stop();
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 500));
+      _isRecovering = false;
     }
   }
 
@@ -442,15 +504,37 @@ class AudioPlayerService {
       }
 
       // Cargar archivo
-      if (song.filePath.startsWith('content://') ||
-          song.filePath.startsWith('http')) {
-        // Usar AudioSource para URIs (SAF o Web)
+      // Cambio estratégico: En Android modernos, el acceso directo a SAF desde código nativo (ExoPlayer)
+      // puede causar errores de parsing 'Searched too many bytes' debido a streams mal formados.
+      // Solución: Copiar preventivamente a caché local (temp) y reproducir desde archivo físico.
+      if (song.filePath.startsWith('content://')) {
+        print('[AudioPlayer] Pre-caching content URI for stability...');
+        String? playablePath;
+        try {
+          playablePath = await _copyToTemp(song.filePath);
+        } catch (e) {
+          print('[AudioPlayer] Pre-cache failed: $e, trying direct access');
+        }
+
+        if (playablePath != null) {
+          await _audioPlayer.setAudioSource(
+            AudioSource.uri(Uri.file(playablePath)),
+          );
+        } else {
+          // Fallback a acceso directo si la copia falla
+          await _audioPlayer.setAudioSource(
+            AudioSource.uri(Uri.parse(song.filePath)),
+          );
+        }
+      } else if (song.filePath.startsWith('http')) {
         await _audioPlayer.setAudioSource(
           AudioSource.uri(Uri.parse(song.filePath)),
         );
       } else {
         // Archivo local normal
-        await _audioPlayer.setFilePath(song.filePath);
+        await _audioPlayer.setAudioSource(
+          AudioSource.uri(Uri.file(song.filePath)),
+        );
       }
 
       // NO usar await aquí, ya que play() espera hasta que termine la canción
@@ -462,11 +546,36 @@ class AudioPlayerService {
       return true;
     } catch (e) {
       print('[AudioPlayer] Error playing song: $e');
+      await stop();
+      _playlistSubject.add(_playlist);
       return false;
     }
   }
 
-  /// Refrescar metadatos de la canción actual sin detener reproducción
+  // Helper para copiar a temporal si SAF falla
+  Future<String?> _copyToTemp(String uriStr) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final filename = 'safe_play_${uriStr.hashCode}.mp3';
+      final destFile = File('${tempDir.path}/$filename');
+
+      // Limpiar si ya existe
+      if (await destFile.exists()) {
+        await destFile.delete();
+      }
+
+      final success = await SafHelper.copyUriToFile(uriStr, destFile.path);
+      if (success && await destFile.exists()) {
+        print('[AudioPlayer] Copied content URI to temp: ${destFile.path}');
+        return destFile.path;
+      }
+      return null;
+    } catch (e) {
+      print('[AudioPlayer] Error copying to temp: $e');
+      return null;
+    }
+  }
+
   Future<void> refreshCurrentSongMetadata() async {
     final current = _playlist.currentSong;
     if (current == null) return;
@@ -474,6 +583,20 @@ class AudioPlayerService {
     // Forzar carga desde caché (que ya debería estar actualizado al llamar esto)
     final cached = await MusicMetadataCache.get(current.id);
     if (cached != null) {
+      // IMPORTANTE: Limpiar el caché de imágenes de Flutter
+      // para que se recargue el artwork actualizado
+      if (cached.artworkPath != null) {
+        final file = File(cached.artworkPath!);
+        if (file.existsSync()) {
+          // Evict the old image from Flutter's cache
+          final fileImage = FileImage(file);
+          fileImage.evict();
+          print(
+            '[AudioPlayer] Evicted image from cache: ${cached.artworkPath}',
+          );
+        }
+      }
+
       final newSong = current.copyWith(
         title: cached.title ?? current.title,
         artist: cached.artist ?? current.artist,

@@ -126,10 +126,34 @@ class MusicMetadataCache {
 
       // 1. Guardar Imagen en Disco (FileSystem) SIN COMPRESIÓN
       if (artworkData != null && artworkData.isNotEmpty) {
-        final file = await _getCacheFile(key);
+        final dir = await getApplicationCacheDirectory();
+        final safeKey = key.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+
+        // Usar TIMESTAMP en el nombre para evitar problemas de caché de imágenes
+        final fileName = 'art_${safeKey}_$timestamp.jpg';
+        final file = File('${dir.path}/$fileName');
+
         // Escribimos los bytes originales directamente
         await file.writeAsBytes(artworkData);
         savedArtworkPath = file.path;
+
+        // Intentar borrar versiones antiguas de esta imagen para no llenar disco
+        try {
+          final oldPattern = RegExp('art_${safeKey}_.*\\.jpg');
+          final files = dir.listSync();
+          for (var f in files) {
+            if (f is File &&
+                f.path != savedArtworkPath &&
+                f.path
+                    .split(Platform.pathSeparator)
+                    .last
+                    .startsWith('art_${safeKey}_')) {
+              try {
+                await f.delete();
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
       }
 
       // 2. Guardar Texto + Path en SQLite

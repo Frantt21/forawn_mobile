@@ -68,13 +68,42 @@ class DownloadService {
           sendTimeout: Duration.zero,
         ),
       );
+
+      // Validar que el archivo se descargó correctamente
+      final downloadedFile = File(tempPath);
+      if (!await downloadedFile.exists()) {
+        throw Exception('El archivo descargado no existe en: $tempPath');
+      }
+
+      final fileSize = await downloadedFile.length();
+      if (fileSize == 0) {
+        await downloadedFile.delete();
+        throw Exception('El archivo descargado está vacío (0 bytes)');
+      }
+
+      // Validación adicional: archivos MP3 deben tener al menos 1KB
+      if (fileSize < 1024) {
+        await downloadedFile.delete();
+        throw Exception(
+          'El archivo descargado es demasiado pequeño ($fileSize bytes), probablemente corrupto',
+        );
+      }
+
+      print('[DownloadService] Descarga completada: $fileSize bytes');
       return tempPath;
     } catch (e) {
       // Si falla la descarga, intenta borrar el temp file parcial
       try {
         final f = File(tempPath);
-        if (await f.exists()) await f.delete();
-      } catch (_) {}
+        if (await f.exists()) {
+          await f.delete();
+          print('[DownloadService] Archivo temporal corrupto eliminado');
+        }
+      } catch (cleanupError) {
+        print(
+          '[DownloadService] Error al limpiar archivo temporal: $cleanupError',
+        );
+      }
       rethrow;
     }
   }
@@ -226,6 +255,13 @@ class DownloadService {
     try {
       print('[DownloadService] Guardando archivo: $fileName');
 
+      // Validar tamaño del archivo temporal antes de guardar
+      final tempFile = File(tempPath);
+      final tempFileSize = await tempFile.length();
+      print(
+        '[DownloadService] Tamaño del archivo temporal: $tempFileSize bytes',
+      );
+
       if (treeUri != null) {
         final savedUri = await SafHelper.saveFileFromPath(
           treeUri: treeUri,
@@ -237,7 +273,11 @@ class DownloadService {
             'No se pudo guardar el archivo en la carpeta seleccionada',
           );
         }
-        print('[DownloadService] Archivo guardado vía SAF');
+        print('[DownloadService] Archivo guardado vía SAF en: $savedUri');
+
+        // Validar que el archivo guardado existe y tiene el tamaño correcto
+        // Nota: No podemos verificar el tamaño directamente con content:// URIs
+        // pero al menos verificamos que SafHelper retornó una URI válida
       } else {
         // Fallback: copiar a Download folder
         final downloadsDir = Directory('/storage/emulated/0/Download');

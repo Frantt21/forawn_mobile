@@ -272,18 +272,33 @@ class MainActivity : AudioServiceActivity() {
       val newFile = dir.createFile("audio/mpeg", fileName) ?: return null
       
       try {
-          val inputStream = FileInputStream(File(tempFilePath))
+          val sourceFile = File(tempFilePath)
+          val sourceSize = sourceFile.length()
+          android.util.Log.d("MainActivity", "Saving file: $fileName, source size: $sourceSize bytes")
+          
+          val inputStream = FileInputStream(sourceFile)
           val outputStream = contentResolver.openOutputStream(newFile.uri)
           if (outputStream != null) {
+              var bytesCopied = 0L
               inputStream.use { input ->
                   outputStream.use { output ->
-                      input.copyTo(output)
+                      bytesCopied = input.copyTo(output)
                   }
               }
+              
+              // Validar que se copiaron todos los bytes
+              if (bytesCopied != sourceSize) {
+                  android.util.Log.e("MainActivity", "File copy incomplete! Expected: $sourceSize, Copied: $bytesCopied")
+                  newFile.delete()
+                  throw Exception("File copy incomplete: expected $sourceSize bytes, copied $bytesCopied bytes")
+              }
+              
+              android.util.Log.d("MainActivity", "File saved successfully: $bytesCopied bytes")
               return newFile.uri
           }
       } catch (e: Exception) {
           e.printStackTrace()
+          android.util.Log.e("MainActivity", "Error saving file", e)
           newFile.delete()
           throw e
       }
@@ -435,10 +450,39 @@ class MainActivity : AudioServiceActivity() {
   private fun copyUriToFile(uri: Uri, destPath: String): Boolean {
       try {
           val inputStream = contentResolver.openInputStream(uri)
-          val outputStream = File(destPath).outputStream()
           if (inputStream != null) {
               inputStream.use { input ->
-                  outputStream.use { output ->
+                  // Skip ID3v2 tags if present to create a cleaner MP3 file
+                  val buffer = ByteArray(10)
+                  var bytesRead = input.read(buffer)
+                  
+                  var skipBytes = 0L
+                  // Check for ID3v2 header: "ID3"
+                  if (bytesRead >= 10 && 
+                      buffer[0] == 'I'.code.toByte() && 
+                      buffer[1] == 'D'.code.toByte() && 
+                      buffer[2] == '3'.code.toByte()) {
+                      
+                      // ID3v2 size is stored in bytes 6-9 as synchsafe integer
+                      val size = ((buffer[6].toInt() and 0x7F) shl 21) or
+                                 ((buffer[7].toInt() and 0x7F) shl 14) or
+                                 ((buffer[8].toInt() and 0x7F) shl 7) or
+                                 (buffer[9].toInt() and 0x7F)
+                      
+                      skipBytes = size + 10L // +10 for header itself
+                      android.util.Log.d("MainActivity", "Skipping ID3v2 tag: $skipBytes bytes")
+                      
+                      // Skip the tag
+                      input.skip(skipBytes - 10) // -10 because we already read header
+                  }
+                  
+                  // Now copy the actual MP3 data
+                  File(destPath).outputStream().use { output ->
+                      if (skipBytes == 0L) {
+                          // No ID3 tag, write the header we read
+                          output.write(buffer, 0, bytesRead)
+                      }
+                      // Copy the rest
                       input.copyTo(output)
                   }
               }
@@ -446,6 +490,7 @@ class MainActivity : AudioServiceActivity() {
           } 
       } catch (e: Exception) {
           e.printStackTrace()
+          android.util.Log.e("MainActivity", "Error copying URI to file", e)
           throw e
       }
       return false
