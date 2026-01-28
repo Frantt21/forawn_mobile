@@ -16,6 +16,7 @@ import 'screens/splash_screen.dart';
 
 import 'package:audio_service/audio_service.dart';
 import 'services/audio_handler.dart';
+import 'services/widget_service.dart';
 
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 
@@ -96,6 +97,13 @@ void main() async {
     await GlobalDownloadManager().initialize();
   } catch (e) {
     print('[Main] Error initializing GlobalDownloadManager: $e');
+  }
+
+  // Initialize Widget Service
+  try {
+    await WidgetService.initialize();
+  } catch (e) {
+    print('[Main] Error initializing WidgetService: $e');
   }
 
   // Verificar actualizaciones en segundo plano (sin bloquear el inicio)

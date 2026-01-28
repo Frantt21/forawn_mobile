@@ -6,6 +6,8 @@ import 'audio_player_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart' as app_state;
 
+import 'widget_service.dart';
+
 class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayerService _player = AudioPlayerService();
 
@@ -19,13 +21,23 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     // Sincronizar cambios de estado explícitos (Play/Pause/Loading)
     // Esto es crucial porque playbackEventStream puede no emitir inmediatamente el cambio de booleano 'playing'
-    _player.playerStateStream.listen((_) {
+    _player.playerStateStream.listen((state) {
       _broadcastState();
+      // Actualizar Widget
+      WidgetService.updateWidget(
+        song: _player.currentSong,
+        isPlaying: state == app_state.PlayerState.playing,
+      );
     });
 
     // Sincronizar canción actual (MediaItem)
     _player.currentSongStream.listen((song) async {
       _updateMediaItem(song, null);
+      // Actualizar Widget
+      WidgetService.updateWidget(
+        song: song,
+        isPlaying: _player.playerState == app_state.PlayerState.playing,
+      );
     });
 
     // Sincronizar duración real (Importante para que la barra de progreso tenga "fin")
