@@ -112,6 +112,9 @@ class GlobalDownloadManager {
     String? treeUri,
     bool forceYouTubeFallback = false,
   }) async {
+    // Lazy init
+    if (!_isInitialized) await initialize();
+
     final downloadId = const Uuid().v4();
 
     final activeDownload = ActiveDownload(

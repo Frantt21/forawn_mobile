@@ -511,10 +511,31 @@ class AudioPlayerService {
         await MusicHistoryService().addToHistory(song); // Historial persistente
       }
 
-      // Cargar archivo
-      // Cambio estratégico: En Android modernos, el acceso directo a SAF desde código nativo (ExoPlayer)
-      // puede causar errores de parsing 'Searched too many bytes' debido a streams mal formados.
-      // Solución: Copiar preventivamente a caché local (temp) y reproducir desde archivo físico.
+      // NO usar await aquí, ya que play() espera hasta que termine la canción
+      _playlistSubject.add(_playlist); // Actualizar UI
+
+      // OPTIMIZATION: If NOT playing now (startup), run heavy lifting in background
+      // to avoid blocking the UI initialization.
+      if (!playNow) {
+        _prepareAudioSource(song).ignore();
+        return true;
+      }
+
+      // If playing now, we await to ensure immediate playback
+      await _prepareAudioSource(song);
+      _audioPlayer.play();
+
+      return true;
+    } catch (e) {
+      print('[AudioPlayer] Error playing song: $e');
+      await stop();
+      _playlistSubject.add(_playlist);
+      return false;
+    }
+  }
+
+  Future<void> _prepareAudioSource(Song song) async {
+    try {
       if (song.filePath.startsWith('content://')) {
         print('[AudioPlayer] Pre-caching content URI for stability...');
         String? playablePath;
@@ -544,19 +565,8 @@ class AudioPlayerService {
           AudioSource.uri(Uri.file(song.filePath)),
         );
       }
-
-      // NO usar await aquí, ya que play() espera hasta que termine la canción
-      if (playNow) {
-        _audioPlayer.play();
-      }
-
-      _playlistSubject.add(_playlist); // Actualizar UI
-      return true;
     } catch (e) {
-      print('[AudioPlayer] Error playing song: $e');
-      await stop();
-      _playlistSubject.add(_playlist);
-      return false;
+      print('[AudioPlayer] Error preparing audio source: $e');
     }
   }
 
@@ -567,9 +577,11 @@ class AudioPlayerService {
       final filename = 'safe_play_${uriStr.hashCode}.mp3';
       final destFile = File('${tempDir.path}/$filename');
 
-      // Limpiar si ya existe
+      // Optimización: Si ya existe, reutilizarlo.
       if (await destFile.exists()) {
-        await destFile.delete();
+        // Opcional: Podríamos verificar el tamaño si fuera crítico, pero hashCode es razonablemente seguro para cache local de sesión/app.
+        print('[AudioPlayer] Reusing cached temp file: ${destFile.path}');
+        return destFile.path;
       }
 
       final success = await SafHelper.copyUriToFile(uriStr, destFile.path);

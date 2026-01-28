@@ -12,11 +12,7 @@ import 'screens/qr_generator_screen.dart';
 import 'services/global_download_manager.dart';
 import 'services/version_check_service.dart';
 import 'services/language_service.dart';
-import 'screens/splash_screen.dart';
-
-import 'package:audio_service/audio_service.dart';
-import 'services/audio_handler.dart';
-import 'services/widget_service.dart';
+import 'screens/main_wrapper.dart';
 
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 
@@ -24,6 +20,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Optimizar tasa de refresco para pantallas de 90Hz/120Hz/144Hz
+  // Optimize Image Cache
+  PaintingBinding.instance.imageCache.maximumSize = 1000;
+  PaintingBinding.instance.imageCache.maximumSizeBytes =
+      300 * 1024 * 1024; // 300 MB
   try {
     // Obtener todos los modos disponibles
     final List<DisplayMode> modes = await FlutterDisplayMode.supported;
@@ -68,43 +68,6 @@ void main() async {
       systemNavigationBarContrastEnforced: false,
     ),
   );
-
-  // Initialize Audio Service for background playback notification
-  try {
-    await AudioService.init(
-      builder: () => MyAudioHandler(),
-      config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.forawnt.app.audio',
-        androidNotificationChannelName: 'Music Playback',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
-        androidNotificationIcon: 'drawable/ic_stat_logo', // Icono personalizado
-      ),
-    );
-  } catch (e) {
-    print('[Main] Error initializing AudioService: $e');
-  }
-
-  // Inicializar el servicio de idiomas
-  try {
-    await LanguageService().init();
-  } catch (e) {
-    print('[Main] Error initializing LanguageService: $e');
-  }
-
-  // Inicializar el gestor global de descargas
-  try {
-    await GlobalDownloadManager().initialize();
-  } catch (e) {
-    print('[Main] Error initializing GlobalDownloadManager: $e');
-  }
-
-  // Initialize Widget Service
-  try {
-    await WidgetService.initialize();
-  } catch (e) {
-    print('[Main] Error initializing WidgetService: $e');
-  }
 
   // Verificar actualizaciones en segundo plano (sin bloquear el inicio)
   _checkForUpdatesInBackground();
@@ -246,10 +209,10 @@ class _ForawnAppState extends State<ForawnApp> {
       ),
 
       // Routing configuration
-      initialRoute: '/splash',
+      initialRoute: '/',
       routes: {
-        '/splash': (context) => const SplashScreen(),
-        '/': (context) => const HomeScreen(),
+        '/': (context) => const MainWrapper(),
+        '/home': (context) => const HomeScreen(),
         '/local-music': (context) => const LocalMusicScreen(),
         '/notifications': (context) => const NotificationsScreen(),
         '/settings': (context) => const SettingsScreen(),

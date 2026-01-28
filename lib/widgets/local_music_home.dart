@@ -331,6 +331,13 @@ class LocalMusicHome extends StatelessWidget {
                                             return Image.file(
                                               File(playlist.imagePath!),
                                               fit: BoxFit.cover,
+                                              // Optimize RAM: Load resized version (approx 160 width * pixel ratio)
+                                              cacheWidth:
+                                                  (160 *
+                                                          MediaQuery.of(
+                                                            context,
+                                                          ).devicePixelRatio)
+                                                      .toInt(),
                                               errorBuilder: (_, __, ___) =>
                                                   const Center(
                                                     child: Icon(

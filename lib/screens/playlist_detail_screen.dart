@@ -1082,7 +1082,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     ImageProvider? coverImage;
     if (playlist.imagePath != null) {
       if (File(playlist.imagePath!).existsSync()) {
-        coverImage = FileImage(File(playlist.imagePath!));
+        coverImage = ResizeImage(
+          FileImage(File(playlist.imagePath!)),
+          width: 300 * MediaQuery.of(context).devicePixelRatio.toInt(),
+        );
       } else {
         coverImage = NetworkImage(playlist.imagePath!);
       }

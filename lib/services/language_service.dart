@@ -18,6 +18,7 @@ class LanguageService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _currentLanguage = prefs.getString('language') ?? 'en';
     await _loadLanguage(_currentLanguage);
+    notifyListeners();
   }
 
   /// Load language from JSON file

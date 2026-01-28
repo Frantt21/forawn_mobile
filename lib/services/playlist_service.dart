@@ -85,19 +85,26 @@ class PlaylistService extends ChangeNotifier {
   /// Migración única de SharedPreferences a SQLite
   Future<void> _checkAndMigrate() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // OPTIMIZATION: Check explicit flag first to avoid DB queries
+      if (prefs.getBool('playlist_db_migrated') == true) {
+        return;
+      }
+
       final dbHelper = DatabaseHelper();
       final existingPlaylists = await dbHelper.getAllPlaylists();
       final existingFavorites = await dbHelper.getFavoriteSongIds();
 
       // Si ya hay datos en SQLite, asumimos que se ha migrado o se usa SQLite
       if (existingPlaylists.isNotEmpty || existingFavorites.isNotEmpty) {
+        await prefs.setBool('playlist_db_migrated', true);
         return;
       }
 
       print(
         '[PlaylistService] Starting migration from SharedPreferences to SQLite...',
       );
-      final prefs = await SharedPreferences.getInstance();
 
       // 1. Migrar Playlists
       final String? playlistsJson = prefs.getString(_playlistsKey);
@@ -150,6 +157,9 @@ class PlaylistService extends ChangeNotifier {
         }
         print('[PlaylistService] Migrated ${favoritesList.length} favorites');
       }
+
+      // Mark as migrated successfully
+      await prefs.setBool('playlist_db_migrated', true);
     } catch (e) {
       print('[PlaylistService] Error during migration: $e');
     }

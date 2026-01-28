@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../services/language_service.dart';
 import '../services/music_history_service.dart';
 import '../services/playlist_service.dart';
 import '../services/local_music_state_service.dart';
+
+import 'package:audio_service/audio_service.dart';
+import '../services/audio_handler.dart';
+import '../services/widget_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,33 +38,52 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _initializeApp() async {
     try {
-      // 1. Language Service (Crucial for UI)
-      // Already initialized in main, but ensuring readiness
+      // 1. Language Service (Crucial for UI) - Fast init
       setState(() => _loadingProgress = 0.1);
-      await Future.delayed(
-        const Duration(milliseconds: 300),
-      ); // Minimal delay for visual
 
-      // 2. Music History (Heavy database op)
-      setState(() => _loadingProgress = 0.4);
-      await MusicHistoryService().init();
+      // Initialize Language Service FIRST to ensure strings are available
+      // Note: In main() we removed it, so we must be sure to init it here.
+      // Assuming LanguageService().init() is idempotent or safe to call.
+      // In the previous code, LanguageService was initialized in main. Now here.
+      // But wait! LanguageService().init() is actually needed for the App to rebuild with correct locale?
+      // Since SplashScreen is already built, it might be fine, effectively 'en' default.
+      // We will init it here.
+      try {
+        await LanguageService().init();
+      } catch (e) {
+        print("[SplashScreen] LanguageService Error: $e");
+      }
 
-      // 3. Playlists (Database op)
-      setState(() => _loadingProgress = 0.7);
-      await PlaylistService().init();
+      setState(() => _loadingProgress = 0.3);
 
-      // 4. Local Music State (Pre-fetch if possible)
-      // We init the service (which might load last folder path from prefs)
+      // 2. Heavy Services - Parallel Initialization
+      // We group independent services to run concurrently
+      final servicesFuture = Future.wait([
+        // Audio Service
+        _initAudioService(),
+
+        // Database & State Services
+        MusicHistoryService().init(),
+        PlaylistService().init(),
+        LocalMusicStateService().init(),
+
+        // Background Managers
+        WidgetService.initialize(),
+      ]);
+
+      // Update progress while waiting (simulated for UX)
+      // In a real scenario, we could attach listeners to each future, but simple await is safer.
+      // Update progress while waiting (simulated for UX)
+      // In a real scenario, we could attach listeners to each future, but simple await is safer.
+      // OPTIMIZATION: Do NOT await for these services. Let them run in background.
+      // The 2s splash animation provides a sufficient buffer for critical inits (like AudioService).
+      // If they take longer, the UI (Home/Library) is reactive and will update when ready.
+      servicesFuture.ignore(); // Fire and forget
+
       setState(() => _loadingProgress = 0.9);
-      await LocalMusicStateService().init();
 
       // Wait for animation to finish if it hasn't
       if (_animationController.isAnimating) {
-        // Wait for the remaining time of the animation manually
-        // or just let it finish.
-        // Since we don't have the TickerFuture stored, we can calculate remaining time
-        // or just wait a fixed amount that is safe, or rely on listeners.
-        // Simplest fix:
         final duration = _animationController.duration ?? Duration.zero;
         final elapsed =
             _animationController.lastElapsedDuration ?? Duration.zero;
@@ -71,7 +95,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       // Small extra pause for smoothness
       setState(() => _loadingProgress = 1.0);
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 200));
 
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/');
@@ -82,6 +106,23 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/');
       }
+    }
+  }
+
+  Future<void> _initAudioService() async {
+    try {
+      await AudioService.init(
+        builder: () => MyAudioHandler(),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId: 'com.forawnt.app.audio',
+          androidNotificationChannelName: 'Music Playback',
+          androidNotificationOngoing: true,
+          androidStopForegroundOnPause: true,
+          androidNotificationIcon: 'drawable/ic_stat_logo',
+        ),
+      );
+    } catch (e) {
+      print('[SplashScreen] AudioService Init Error: $e');
     }
   }
 

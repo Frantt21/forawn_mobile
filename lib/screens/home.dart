@@ -680,62 +680,70 @@ class _TimeHeaderState extends State<TimeHeader> {
     final theme = Theme.of(context);
     final textColor = theme.colorScheme.onSurface;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 45, 45, 45),
-        borderRadius: BorderRadius.circular(16),
-        // border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Lado izquierdo: Saludo y hora
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return ListenableBuilder(
+      listenable: LanguageService(),
+      builder: (context, _) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color.fromARGB(255, 45, 45, 45),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Saludo con ícono
-              Row(
+              // Lado izquierdo: Saludo y hora
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(_greetingIcon(), size: 20, color: _greetingIconColor()),
-                  const SizedBox(width: 8),
+                  // Saludo con ícono
+                  Row(
+                    children: [
+                      Icon(
+                        _greetingIcon(),
+                        size: 20,
+                        color: _greetingIconColor(),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _greeting(),
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.7),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Hora debajo del saludo
                   Text(
-                    _greeting(),
+                    '${_formatTwoDigits(_now.hour)}:${_formatTwoDigits(_now.minute)}',
                     style: TextStyle(
-                      color: textColor.withOpacity(0.7),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                      color: textColor,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -1,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              // Hora debajo del saludo
+              // Lado derecho: Fecha (centrada verticalmente)
               Text(
-                '${_formatTwoDigits(_now.hour)}:${_formatTwoDigits(_now.minute)}',
+                '${_weekdayName(_now.weekday)}\n${_now.day}/${_now.month}/${_now.year}',
+                textAlign: TextAlign.right,
                 style: TextStyle(
-                  color: textColor,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -1,
+                  color: textColor.withOpacity(0.8),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
                 ),
               ),
             ],
           ),
-          // Lado derecho: Fecha (centrada verticalmente)
-          Text(
-            '${_weekdayName(_now.weekday)}\n${_now.day}/${_now.month}/${_now.year}',
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: textColor.withOpacity(0.8),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              height: 1.3,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

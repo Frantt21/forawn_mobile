@@ -129,41 +129,40 @@ class MusicLibraryService {
             '[MusicLibrary] Found ${songs.length} songs. Metadata missing for: ${songsMissingMetadata.length}',
           );
 
-          // FASE 2: Cargar metadatos faltantes (Ahora esperamos para mostrar progreso)
+          // FASE 2: Cargar metadatos faltantes en SEGUNDO PLANO (Async)
+          // No esperamos a esto para que la UI muestre la lista inmediatamente
           if (songsMissingMetadata.isNotEmpty) {
-            await _loadMetadataInBackground(
-              songsMissingMetadata,
-              startProgress: 0.3,
-            );
+            _loadMetadataInBackground(songsMissingMetadata, startProgress: 0.3);
+          }
 
-            // FASE 3: Actualizar la lista principal con los datos recién cacheados
-            // Esto es crucial para que "Latest Favorites" y la Librería muestren artwork
-            for (int i = 0; i < songs.length; i++) {
-              // Yield every 50 updates to prevent freeze during list update
-              if (i % 50 == 0) await Future.delayed(Duration.zero);
+          // FASE 3: Actualizar la lista principal con los datos recién cacheados
+          // Esto es crucial para que "Latest Favorites" y la Librería muestren artwork
+          for (int i = 0; i < songs.length; i++) {
+            // Yield every 50 updates to prevent freeze during list update
+            if (i % 50 == 0)
+              await Future.delayed(const Duration(milliseconds: 1));
 
-              if (songs[i].artworkPath == null) {
-                try {
-                  final cacheKey = songs[i].filePath.hashCode.toString();
-                  final cached = await MusicMetadataCache.get(cacheKey);
-                  if (cached != null) {
-                    songs[i] = songs[i].copyWith(
-                      title: cached.title,
-                      artist: cached.artist,
-                      album: cached.album,
-                      duration: cached.durationMs != null
-                          ? Duration(milliseconds: cached.durationMs!)
-                          : songs[i].duration,
-                      artworkPath: cached.artworkPath,
-                      artworkUri: cached.artworkUri,
-                      dominantColor: cached.dominantColor,
-                    );
-                  }
-                } catch (e) {
-                  print(
-                    '[MusicLibrary] Re-hydration error for ${songs[i].title}: $e',
+            if (songs[i].artworkPath == null) {
+              try {
+                final cacheKey = songs[i].filePath.hashCode.toString();
+                final cached = await MusicMetadataCache.get(cacheKey);
+                if (cached != null) {
+                  songs[i] = songs[i].copyWith(
+                    title: cached.title,
+                    artist: cached.artist,
+                    album: cached.album,
+                    duration: cached.durationMs != null
+                        ? Duration(milliseconds: cached.durationMs!)
+                        : songs[i].duration,
+                    artworkPath: cached.artworkPath,
+                    artworkUri: cached.artworkUri,
+                    dominantColor: cached.dominantColor,
                   );
                 }
+              } catch (e) {
+                print(
+                  '[MusicLibrary] Re-hydration error for ${songs[i].title}: $e',
+                );
               }
             }
           }

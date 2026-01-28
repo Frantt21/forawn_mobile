@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import 'music_library_service.dart';
+import '../services/music_metadata_cache.dart';
 
 /// Servicio singleton que mantiene el estado de la música local
 /// Persiste los datos aunque el screen se destruya y reconstruya
@@ -37,7 +38,45 @@ class LocalMusicStateService extends ChangeNotifier {
     final lastPath = prefs.getString('last_music_folder');
 
     if (lastPath != null) {
+      // Allow UI to settle before heavy scanning
+      await Future.delayed(const Duration(milliseconds: 500));
       await loadFolder(lastPath);
+    }
+
+    // Escuchar actualizaciones de metadatos en segundo plano
+    MusicLibraryService.onMetadataUpdated.addListener(_onMetadataUpdated);
+  }
+
+  void _onMetadataUpdated() async {
+    final uri = MusicLibraryService.onMetadataUpdated.value;
+    if (uri != null && _librarySongs.isNotEmpty) {
+      final index = _librarySongs.indexWhere((s) => s.filePath == uri);
+      if (index != -1) {
+        try {
+          final cacheKey = uri.hashCode.toString();
+          final cached = await MusicMetadataCache.get(cacheKey);
+
+          if (cached != null) {
+            final currentSong = _librarySongs[index];
+            final updatedSong = currentSong.copyWith(
+              title: cached.title,
+              artist: cached.artist,
+              album: cached.album,
+              duration: cached.durationMs != null
+                  ? Duration(milliseconds: cached.durationMs!)
+                  : null,
+              artworkPath: cached.artworkPath,
+              artworkUri: cached.artworkUri,
+              dominantColor: cached.dominantColor,
+            );
+
+            _librarySongs[index] = updatedSong;
+            notifyListeners();
+          }
+        } catch (e) {
+          print('[LocalMusicState] Error updating song metadata: $e');
+        }
+      }
     }
   }
 
