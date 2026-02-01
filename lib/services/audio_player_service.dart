@@ -506,81 +506,62 @@ class AudioPlayerService {
     bool playNow = true,
     bool addToHistory = true,
   }) async {
-    var rawSong = _playlist.currentSong;
-    if (rawSong == null) return false;
-
-    // Hidratar metadatos desde caché o archivo si es necesario
-    if (rawSong.artworkPath == null && rawSong.artworkUri == null) {
-      try {
-        // 1. Intentar Caché primero
-        final cached = await MusicMetadataCache.get(rawSong.id);
-        if (cached != null) {
-          rawSong = rawSong.copyWith(
-            title: cached.title,
-            artist: cached.artist,
-            album: cached.album ?? rawSong.album,
-            artworkPath: cached.artworkPath,
-            artworkUri: cached.artworkUri,
-            dominantColor: cached.dominantColor ?? rawSong.dominantColor,
-          );
-        } else {
-          // 2. Si no está en caché, usar MetadataService para cargar y guardar
-          // Esto maneja SAF y archivos locales, extrae artwork, guarda en disco y devuelve paths
-          final metadata = await MetadataService().loadMetadata(
-            id: rawSong.id,
-            filePath: rawSong.filePath.startsWith('content://')
-                ? null
-                : rawSong.filePath,
-            safUri: rawSong.filePath.startsWith('content://')
-                ? rawSong.filePath
-                : null,
-          );
-
-          if (metadata != null) {
-            rawSong = rawSong.copyWith(
-              title: metadata.title,
-              artist: metadata.artist,
-              album: metadata.album ?? rawSong.album,
-              artworkPath: metadata.artworkPath,
-              artworkUri: metadata.artworkUri,
-              dominantColor: metadata.dominantColor ?? rawSong.dominantColor,
-            );
-          }
-        }
-        _playlist.updateCurrentSong(rawSong);
-      } catch (e) {
-        print("[AudioPlayer] Error hydrating metadata: $e");
-      }
-    }
-
-    final Song song = rawSong!;
+    var currentSong = _playlist.currentSong;
+    if (currentSong == null) return false;
 
     try {
-      _currentSongSubject.add(song);
+      // 1. UI OPTIMISTA: Notificar inmediatamente con lo que tenemos
+      _currentSongSubject.add(currentSong);
+      _history.add(currentSong.id); // Historial de sesión (ligero)
 
-      // Pre-fetch lyrics for current song
-      // No await, we want this in background
-      LyricsService().setCurrentSong(song.title, song.artist);
+      // 2. TAREAS EN SEGUNDO PLANO (Fire and forget)
 
-      _history.add(song.id); // Historial de sesión (playback)
-
+      // A. Historial persistente (No bloquear reproducción por esto)
       if (addToHistory) {
-        await MusicHistoryService().addToHistory(song); // Historial persistente
+        MusicHistoryService().addToHistory(currentSong).ignore();
       }
 
-      // NO usar await aquí, ya que play() espera hasta que termine la canción
-      _playlistSubject.add(_playlist); // Actualizar UI
+      // B. Letras (Ya estaba optimizado)
+      LyricsService().setCurrentSong(currentSong.title, currentSong.artist);
 
-      // OPTIMIZATION: If NOT playing now (startup), run heavy lifting in background
-      // to avoid blocking the UI initialization.
-      if (!playNow) {
-        _prepareAudioSource(song).ignore();
-        return true;
+      // 3. PREPARACIÓN DE AUDIO (Lo más crítico para playback)
+      // Iniciamos esto ANTES de los metadatos pesados para que suene rápido.
+      Future<void>? audioPreparation;
+      if (playNow) {
+        audioPreparation = _prepareAudioSource(currentSong);
+        // Iniciamos la preparación pero no esperamos todavía,
+        // aprovechamos el tiempo para ver si hay metadatos rápidos.
       }
 
-      // If playing now, we await to ensure immediate playback
-      await _prepareAudioSource(song);
-      _getActivePlayer().play();
+      // 4. METADATOS (Carga diferida)
+      // Si faltan datos, los buscamos, pero actualizamos la UI después.
+      if (currentSong.artworkPath == null && currentSong.artworkUri == null) {
+        _loadMetadataInBackground(currentSong).then((updatedSong) {
+          if (updatedSong != null) {
+            // Si la canción sigue siendo la misma, actualizamos
+            if (_playlist.currentSong?.id == updatedSong.id) {
+              _playlist.updateCurrentSong(updatedSong);
+              _currentSongSubject.add(updatedSong);
+              _playlistSubject.add(_playlist);
+            }
+          }
+        }).ignore();
+      }
+
+      // Notificar cambio de playlist (índice cambió)
+      _playlistSubject.add(_playlist);
+
+      // 5. ESPERAR AUDIO Y REPRODUCIR
+      if (playNow && audioPreparation != null) {
+        await audioPreparation;
+        // Verificar que no hayan cambiado la canción mientras cargábamos
+        if (_playlist.currentSong?.id == currentSong.id) {
+          _getActivePlayer().play();
+        }
+      } else if (!playNow) {
+        // Si es preload, hacerlo en background completamente
+        _prepareAudioSource(currentSong).ignore();
+      }
 
       return true;
     } catch (e) {
@@ -589,6 +570,47 @@ class AudioPlayerService {
       _playlistSubject.add(_playlist);
       return false;
     }
+  }
+
+  // Nuevo helper para cargar metadata sin bloquear
+  Future<Song?> _loadMetadataInBackground(Song song) async {
+    try {
+      // 1. Intentar Caché primero (Rápido)
+      final cached = await MusicMetadataCache.get(song.id);
+      if (cached != null) {
+        return song.copyWith(
+          title: cached.title,
+          artist: cached.artist,
+          album: cached.album ?? song.album,
+          artworkPath: cached.artworkPath,
+          artworkUri: cached.artworkUri,
+          dominantColor: cached.dominantColor ?? song.dominantColor,
+        );
+      } else {
+        // 2. Si no está en caché, usar MetadataService (Lento, I/O)
+        final metadata = await MetadataService().loadMetadata(
+          id: song.id,
+          filePath: song.filePath.startsWith('content://')
+              ? null
+              : song.filePath,
+          safUri: song.filePath.startsWith('content://') ? song.filePath : null,
+        );
+
+        if (metadata != null) {
+          return song.copyWith(
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album ?? song.album,
+            artworkPath: metadata.artworkPath,
+            artworkUri: metadata.artworkUri,
+            dominantColor: metadata.dominantColor ?? song.dominantColor,
+          );
+        }
+      }
+    } catch (e) {
+      print("[AudioPlayer] Error hydrating metadata background: $e");
+    }
+    return null;
   }
 
   Future<void> _prepareAudioSource(Song song) async {
