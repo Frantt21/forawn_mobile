@@ -8,6 +8,7 @@ import '../services/language_service.dart';
 import '../services/metadata_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/groq_assistant_service.dart';
+import '../services/audio_player_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,12 +20,15 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = false;
   String _version = 'Cargando...';
+  double _crossfadeDuration = 0.0;
   static const String _notificationsKey = 'notifications_enabled';
+  static const String _crossfadeKey = 'crossfade_duration';
 
   @override
   void initState() {
     super.initState();
     _loadNotificationPreference();
+    _loadCrossfadeDuration();
     _loadVersion();
   }
 
@@ -59,6 +63,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await prefs.setBool(_notificationsKey, value);
     } catch (e) {
       print('Error saving notification preference: $e');
+    }
+  }
+
+  Future<void> _loadCrossfadeDuration() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _crossfadeDuration = prefs.getDouble(_crossfadeKey) ?? 0.0;
+      });
+    } catch (e) {
+      print('Error loading crossfade duration: $e');
+    }
+  }
+
+  Future<void> _saveCrossfadeDuration(double value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_crossfadeKey, value);
+    } catch (e) {
+      print('Error saving crossfade duration: $e');
     }
   }
 
@@ -265,6 +289,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                     contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildSectionTitle(LanguageService().getText('playback')),
+            const SizedBox(height: 12),
+            _buildSettingCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ListTile(
+                    leading: const Icon(
+                      Icons.graphic_eq,
+                      color: Colors.tealAccent,
+                    ),
+                    title: Text(
+                      LanguageService().getText('crossfade'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('crossfade_desc'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _crossfadeDuration == 0
+                                  ? LanguageService().getText(
+                                      'crossfade_disabled',
+                                    )
+                                  : '${_crossfadeDuration.toInt()} ${LanguageService().getText('crossfade_seconds')}',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: _crossfadeDuration,
+                          min: 0,
+                          max: 12,
+                          divisions: 12,
+                          activeColor: Colors.tealAccent,
+                          inactiveColor: Colors.tealAccent.withOpacity(0.3),
+                          onChanged: (value) {
+                            setState(() {
+                              _crossfadeDuration = value;
+                            });
+                          },
+                          onChangeEnd: (value) async {
+                            await _saveCrossfadeDuration(value);
+                            // Actualizar el servicio de audio
+                            AudioPlayerService().setCrossfadeDuration(value);
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

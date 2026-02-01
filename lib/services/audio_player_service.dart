@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
@@ -26,6 +25,7 @@ class AudioPlayerService {
   factory AudioPlayerService() => _instance;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final AudioPlayer _nextAudioPlayer = AudioPlayer(); // Para crossfade
 
   AudioPlayerService._internal() {
     _init();
@@ -43,6 +43,15 @@ class AudioPlayerService {
   ap.AudioPlayer? _fallbackPlayer;
   bool _usingFallback = false;
 
+  // Crossfade variables
+  bool _isCrossfading = false;
+
+  StreamSubscription? _positionSubscription;
+  double _crossfadeDuration = 0.0; // En segundos
+  bool _usingPrimaryPlayer =
+      true; // true = _audioPlayer, false = _nextAudioPlayer
+  final _activePlayerSubject = BehaviorSubject<bool>.seeded(true);
+
   // Streams
   final _playlistSubject = BehaviorSubject<Playlist>();
   Stream<Playlist> get playlistStream => _playlistSubject.stream;
@@ -53,28 +62,31 @@ class AudioPlayerService {
 
   // Combinar posición y duración para progreso
   Stream<app_state.PlaybackProgress> get progressStream =>
-      Rx.combineLatest3<
-        Duration,
-        Duration,
-        Duration,
-        app_state.PlaybackProgress
-      >(
-        _audioPlayer.positionStream,
-        _audioPlayer.bufferedPositionStream,
-        _audioPlayer.durationStream.map((d) => d ?? Duration.zero),
-        (position, buffered, duration) => app_state.PlaybackProgress(
-          position: position,
-          bufferedPosition: buffered,
-          duration: duration,
-        ),
-      );
+      _activePlayerSubject.switchMap((isPrimary) {
+        final player = isPrimary ? _audioPlayer : _nextAudioPlayer;
+        return Rx.combineLatest3<
+          Duration,
+          Duration,
+          Duration,
+          app_state.PlaybackProgress
+        >(
+          player.positionStream,
+          player.bufferedPositionStream,
+          player.durationStream.map((d) => d ?? Duration.zero),
+          (position, buffered, duration) => app_state.PlaybackProgress(
+            position: position,
+            bufferedPosition: buffered,
+            duration: duration,
+          ),
+        );
+      });
 
   // Estado del reproductor mapeado al nuestro
-  // Estado del reproductor mapeado al nuestro
-  late final Stream<app_state.PlayerState> playerStateStream = _audioPlayer
-      .playerStateStream
-      .map(_mapToAppPlayerState)
-      .distinct();
+  Stream<app_state.PlayerState> get playerStateStream =>
+      _activePlayerSubject.switchMap((isPrimary) {
+        final player = isPrimary ? _audioPlayer : _nextAudioPlayer;
+        return player.playerStateStream.map(_mapToAppPlayerState).distinct();
+      });
 
   Stream<bool> get shuffleModeStream =>
       _playlistSubject.map((p) => p.isShuffle).distinct();
@@ -92,6 +104,10 @@ class AudioPlayerService {
     // Cargar preferencias guardadas
     await _loadPlaybackPreferences();
 
+    // Cargar duración de crossfade
+    final prefs = await SharedPreferences.getInstance();
+    _crossfadeDuration = prefs.getDouble('crossfade_duration') ?? 0.0;
+
     // Configurar sesión de audio
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
@@ -105,16 +121,34 @@ class AudioPlayerService {
       },
     );
 
-    // Escuchar completado para auto-avance
+    // Escuchar completado para auto-avance en ambos reproductores
     _audioPlayer.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
+      if (state.processingState == ProcessingState.completed &&
+          _usingPrimaryPlayer) {
         _onSongCompleted();
       }
     });
 
-    // Guardar estado periódicamente
+    _nextAudioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed &&
+          !_usingPrimaryPlayer) {
+        _onSongCompleted();
+      }
+    });
+
+    // Monitorear posición de ambos reproductores para crossfade
     _audioPlayer.positionStream.listen((position) {
-      _savePlaybackPreferences(); // Guardar posición cada vez que cambia
+      if (_usingPrimaryPlayer) {
+        _savePlaybackPreferences();
+        _checkCrossfadeStart(position);
+      }
+    });
+
+    _nextAudioPlayer.positionStream.listen((position) {
+      if (!_usingPrimaryPlayer) {
+        _savePlaybackPreferences();
+        _checkCrossfadeStart(position);
+      }
     });
 
     // Inicializar streams subjects
@@ -263,25 +297,35 @@ class AudioPlayerService {
       // Si no hay canción actual pero hay playlist, reproducir la primera o la última guardada
       await skipToNext();
     } else {
-      await _audioPlayer.play();
+      await _getActivePlayer().play();
     }
   }
 
-  Future<void> pause() async => await _audioPlayer.pause();
+  Future<void> pause() async => await _getActivePlayer().pause();
 
   Future<void> stop() async {
     await _audioPlayer.stop();
     await _audioPlayer.seek(Duration.zero);
+    await _nextAudioPlayer.stop();
+    await _nextAudioPlayer.seek(Duration.zero);
+    _usingPrimaryPlayer = true; // Reset al primario
+    _activePlayerSubject.add(true);
   }
 
   Future<void> seek(Duration position) async =>
-      await _audioPlayer.seek(position);
+      await _getActivePlayer().seek(position);
 
-  Duration get currentPosition => _audioPlayer.position;
-  Duration get bufferedPosition => _audioPlayer.bufferedPosition;
-  Stream<Duration?> get durationStream => _audioPlayer.durationStream;
+  Duration get currentPosition => _getActivePlayer().position;
+  Duration get bufferedPosition => _getActivePlayer().bufferedPosition;
+  Stream<Duration?> get durationStream => _getActivePlayer().durationStream;
   app_state.PlayerState get playerState =>
-      _mapToAppPlayerState(_audioPlayer.playerState);
+      _mapToAppPlayerState(_getActivePlayer().playerState);
+
+  // Crossfade control
+  void setCrossfadeDuration(double seconds) {
+    _crossfadeDuration = seconds;
+    print('[Crossfade] Duración actualizada a ${seconds}s');
+  }
 
   // --- Gestión de Playlist ---
 
@@ -372,7 +416,14 @@ class AudioPlayerService {
       return;
     }
 
+    // Si el crossfade ya está en progreso, dejarlo terminar
+    if (_isCrossfading) {
+      print('[AudioPlayer] Crossfade in progress, letting it finish');
+      return;
+    }
+
     _isSkipping = true;
+    _cancelCrossfade(); // Cancelar crossfade si está en progreso
     try {
       final nextIndex = _playlist.nextIndex;
       if (nextIndex != null) {
@@ -405,7 +456,14 @@ class AudioPlayerService {
       return;
     }
 
+    // Si el crossfade ya está en progreso, dejarlo terminar
+    if (_isCrossfading) {
+      print('[AudioPlayer] Crossfade in progress, letting it finish');
+      return;
+    }
+
     _isSkipping = true;
+    _cancelCrossfade(); // Cancelar crossfade si está en progreso
     try {
       // Si la canción lleva más de 3 segundos, reiniciar
       if (_audioPlayer.position.inSeconds > 3) {
@@ -523,7 +581,7 @@ class AudioPlayerService {
 
       // If playing now, we await to ensure immediate playback
       await _prepareAudioSource(song);
-      _audioPlayer.play();
+      _getActivePlayer().play();
 
       return true;
     } catch (e) {
@@ -536,6 +594,8 @@ class AudioPlayerService {
 
   Future<void> _prepareAudioSource(Song song) async {
     try {
+      final activePlayer = _getActivePlayer();
+
       if (song.filePath.startsWith('content://')) {
         print('[AudioPlayer] Pre-caching content URI for stability...');
         String? playablePath;
@@ -546,22 +606,22 @@ class AudioPlayerService {
         }
 
         if (playablePath != null) {
-          await _audioPlayer.setAudioSource(
+          await activePlayer.setAudioSource(
             AudioSource.uri(Uri.file(playablePath)),
           );
         } else {
           // Fallback a acceso directo si la copia falla
-          await _audioPlayer.setAudioSource(
+          await activePlayer.setAudioSource(
             AudioSource.uri(Uri.parse(song.filePath)),
           );
         }
       } else if (song.filePath.startsWith('http')) {
-        await _audioPlayer.setAudioSource(
+        await activePlayer.setAudioSource(
           AudioSource.uri(Uri.parse(song.filePath)),
         );
       } else {
         // Archivo local normal
-        await _audioPlayer.setAudioSource(
+        await activePlayer.setAudioSource(
           AudioSource.uri(Uri.file(song.filePath)),
         );
       }
@@ -632,7 +692,195 @@ class AudioPlayerService {
     }
   }
 
+  // --- Crossfade Methods ---
+
+  AudioPlayer _getActivePlayer() {
+    return _usingPrimaryPlayer ? _audioPlayer : _nextAudioPlayer;
+  }
+
+  AudioPlayer _getInactivePlayer() {
+    return _usingPrimaryPlayer ? _nextAudioPlayer : _audioPlayer;
+  }
+
+  void _checkCrossfadeStart(Duration position) {
+    if (_crossfadeDuration <= 0 || _isCrossfading || _isSkipping) return;
+
+    final activePlayer = _getActivePlayer();
+    final duration = activePlayer.duration;
+    if (duration == null) return;
+
+    // Calcular cuándo iniciar el crossfade
+    final crossfadeStartTime =
+        duration - Duration(seconds: _crossfadeDuration.toInt());
+
+    // Log de debug cada 5 segundos
+    if (position.inSeconds % 5 == 0 && position.inMilliseconds % 1000 < 500) {
+      final remaining = duration - position;
+      print(
+        '[Crossfade] Check: pos=${position.inSeconds}s, dur=${duration.inSeconds}s, remaining=${remaining.inSeconds}s, start=${crossfadeStartTime.inSeconds}s, cfDur=${_crossfadeDuration}s',
+      );
+    }
+
+    // Si estamos en el punto de inicio del crossfade
+    if (position >= crossfadeStartTime && position < duration) {
+      print('[Crossfade] ¡Iniciando crossfade ahora!');
+      _startCrossfade();
+    }
+  }
+
+  void _startCrossfade() {
+    if (_isCrossfading || _crossfadeDuration <= 0) return;
+
+    // Obtener la siguiente canción
+    final nextIndex = _playlist.nextIndex;
+    if (nextIndex == null) return; // No hay siguiente canción
+
+    final nextSong = _playlist.songs[nextIndex];
+
+    print('[Crossfade] Iniciando crossfade de ${_crossfadeDuration}s');
+    _isCrossfading = true;
+
+    final activePlayer = _getActivePlayer();
+    final inactivePlayer = _getInactivePlayer();
+
+    // Pre-cargar y reproducir la siguiente canción en segundo plano
+    _preloadNextSong(nextSong, inactivePlayer)
+        .then((_) {
+          print('[Crossfade] Siguiente canción pre-cargada: ${nextSong.title}');
+
+          // Iniciar reproducción de la siguiente canción con volumen 0
+          inactivePlayer.setVolume(0.0);
+          inactivePlayer.play();
+
+          // Duración del crossfade en milisegundos
+          final crossfadeDurationMs = (_crossfadeDuration * 1000).toInt();
+          final steps = 20; // Número de pasos para el fade
+          final stepDuration = crossfadeDurationMs ~/ steps;
+
+          // Ejecutar fade gradual
+          int currentStep = 0;
+          Timer.periodic(Duration(milliseconds: stepDuration), (timer) {
+            if (!_isCrossfading) {
+              timer.cancel();
+              return;
+            }
+
+            currentStep++;
+            final progress = currentStep / steps;
+
+            print(
+              '[Crossfade] Step $currentStep/$steps (${(progress * 100).toStringAsFixed(0)}%)',
+            );
+
+            // Fade out del reproductor actual
+            final currentVolume = 1.0 - progress;
+            activePlayer.setVolume(currentVolume.clamp(0.0, 1.0));
+
+            // Fade in del siguiente reproductor
+            final nextVolume = progress;
+            inactivePlayer.setVolume(nextVolume.clamp(0.0, 1.0));
+
+            if (currentStep >= steps) {
+              timer.cancel();
+              print(
+                '[Crossfade] Timer completado, intercambiando reproductores...',
+              );
+              // Actualizar índice de playlist ANTES de intercambiar
+              _playlist.setCurrentIndex(nextIndex);
+              _currentSongSubject.add(nextSong);
+              _playlistSubject.add(_playlist);
+              // Intercambiar reproductores
+              _swapPlayers();
+              _isCrossfading = false;
+              print(
+                '[Crossfade] Crossfade completado. Nueva canción: ${nextSong.title}',
+              );
+            }
+          });
+        })
+        .catchError((e) {
+          print('[Crossfade] Error durante crossfade: $e');
+          _isCrossfading = false;
+        });
+  }
+
+  Future<void> _preloadNextSong(Song song, AudioPlayer player) async {
+    try {
+      // Preparar la fuente de audio para la siguiente canción
+      if (song.filePath.startsWith('content://')) {
+        String? playablePath;
+        try {
+          playablePath = await _copyToTemp(song.filePath);
+        } catch (e) {
+          print('[Crossfade] Pre-cache failed: $e');
+        }
+
+        if (playablePath != null) {
+          await player.setAudioSource(AudioSource.uri(Uri.file(playablePath)));
+        } else {
+          await player.setAudioSource(
+            AudioSource.uri(Uri.parse(song.filePath)),
+          );
+        }
+      } else if (song.filePath.startsWith('http')) {
+        await player.setAudioSource(AudioSource.uri(Uri.parse(song.filePath)));
+      } else {
+        await player.setAudioSource(AudioSource.uri(Uri.file(song.filePath)));
+      }
+      print('[Crossfade] Siguiente canción pre-cargada: ${song.title}');
+    } catch (e) {
+      print('[Crossfade] Error pre-cargando siguiente canción: $e');
+      rethrow;
+    }
+  }
+
+  void _swapPlayers() {
+    // Alternar el flag de reproductor activo
+    _usingPrimaryPlayer = !_usingPrimaryPlayer;
+    _activePlayerSubject.add(_usingPrimaryPlayer);
+
+    // Detener y restaurar volumen del reproductor que ya no está activo
+    final inactivePlayer = _getInactivePlayer();
+    inactivePlayer.stop();
+    inactivePlayer.setVolume(1.0);
+
+    // Asegurar que el reproductor activo está a volumen completo
+    final activePlayer = _getActivePlayer();
+    activePlayer.setVolume(1.0);
+
+    print(
+      '[Crossfade] Reproductores intercambiados. Activo: ${_usingPrimaryPlayer ? "primary" : "secondary"}',
+    );
+  }
+
+  void _cancelCrossfade() {
+    if (_isCrossfading) {
+      print('[Crossfade] Cancelando crossfade');
+      _isCrossfading = false; // Esto hará que el loop se detenga
+
+      // Restaurar volúmenes de ambos reproductores
+      _audioPlayer.setVolume(1.0);
+      _nextAudioPlayer.setVolume(1.0);
+
+      // Detener el reproductor inactivo
+      _getInactivePlayer().stop();
+    }
+  }
+
   void _onSongCompleted() async {
+    final activePlayer = _getActivePlayer();
+    final position = activePlayer.position;
+    final duration = activePlayer.duration;
+    print(
+      '[AudioPlayer] Canción completada. Pos: ${position.inSeconds}s, Dur: ${duration?.inSeconds}s, Crossfading: $_isCrossfading, Active: ${_usingPrimaryPlayer ? "primary" : "secondary"}',
+    );
+
+    // Si el crossfade ya manejó la transición, no hacer nada
+    if (_isCrossfading) {
+      print('[AudioPlayer] Canción completada durante crossfade, ignorando');
+      return;
+    }
+
     // Lógica automática al terminar canción
     if (_playlist.repeatMode == app_state.RepeatMode.one) {
       await seek(Duration.zero);
@@ -661,7 +909,10 @@ class AudioPlayerService {
   }
 
   void dispose() {
+    _cancelCrossfade();
+    _positionSubscription?.cancel();
     _audioPlayer.dispose();
+    _nextAudioPlayer.dispose();
     _playlistSubject.close();
     _currentSongSubject.close();
   }

@@ -40,12 +40,14 @@ class MainActivity : AudioServiceActivity() {
             result.error("INVALID_ARGS", "treeUri is null", null)
             return@setMethodCallHandler
           }
-          try {
-            val list = listFilesFromTree(Uri.parse(treeUri))
-            result.success(list)
-          } catch (e: Exception) {
-            result.error("LIST_ERROR", e.message, null)
-          }
+          Thread {
+            try {
+              val list = listFilesFromTree(Uri.parse(treeUri))
+              runOnUiThread { result.success(list) }
+            } catch (e: Exception) {
+              runOnUiThread { result.error("LIST_ERROR", e.message, null) }
+            }
+          }.start()
         }
 
         "saveFileFromPath" -> {
@@ -56,12 +58,14 @@ class MainActivity : AudioServiceActivity() {
             result.error("INVALID_ARGS", "missing args", null)
             return@setMethodCallHandler
           }
-          try {
-            val savedUri = saveFileToTree(Uri.parse(treeUri), tempPath, fileName)
-            result.success(savedUri?.toString())
-          } catch (e: Exception) {
-            result.error("SAVE_ERROR", e.message, null)
-          }
+          Thread {
+            try {
+              val savedUri = saveFileToTree(Uri.parse(treeUri), tempPath, fileName)
+              runOnUiThread { result.success(savedUri?.toString()) }
+            } catch (e: Exception) {
+              runOnUiThread { result.error("SAVE_ERROR", e.message, null) }
+            }
+          }.start()
         }
 
         "openSafFile" -> {
@@ -84,12 +88,14 @@ class MainActivity : AudioServiceActivity() {
             result.error("INVALID_ARGS", "uri is null", null)
             return@setMethodCallHandler
           }
-          try {
-            val ok = deleteSafFile(Uri.parse(uriStr))
-            result.success(ok)
-          } catch (e: Exception) {
-            result.error("DELETE_ERROR", e.message, null)
-          }
+          Thread {
+            try {
+              val ok = deleteSafFile(Uri.parse(uriStr))
+              runOnUiThread { result.success(ok) }
+            } catch (e: Exception) {
+              runOnUiThread { result.error("DELETE_ERROR", e.message, null) }
+            }
+          }.start()
         }
 
         "deleteFile" -> {
@@ -98,19 +104,22 @@ class MainActivity : AudioServiceActivity() {
              result.error("INVALID_ARGS", "uri is null", null)
              return@setMethodCallHandler
           }
-          try {
-             // Try deleting as regular file first if not content://
-             val file = File(uriStr)
-             if (file.exists()) {
-                 result.success(file.delete())
-                 return@setMethodCallHandler
-             }
-             // If not regular file or not exists, try SAF
-             val ok = deleteSafFile(Uri.parse(uriStr))
-             result.success(ok)
-          } catch(e: Exception) {
-             result.error("DELETE_ERROR", e.message, null)
-          }
+          Thread {
+            try {
+               // Try deleting as regular file first if not content://
+               val file = File(uriStr)
+               if (file.exists()) {
+                   val deleted = file.delete()
+                   runOnUiThread { result.success(deleted) }
+                   return@Thread
+               }
+               // If not regular file or not exists, try SAF
+               val ok = deleteSafFile(Uri.parse(uriStr))
+               runOnUiThread { result.success(ok) }
+            } catch(e: Exception) {
+               runOnUiThread { result.error("DELETE_ERROR", e.message, null) }
+            }
+          }.start()
         }
 
         "readBytesFromUri" -> {
@@ -120,21 +129,25 @@ class MainActivity : AudioServiceActivity() {
             result.error("INVALID_ARGUMENT", "URI is null", null)
             return@setMethodCallHandler
           }
-          try {
-            val bytes = readBytesFromUri(Uri.parse(uriString), maxBytes)
-            result.success(bytes)
-          } catch (e: Exception) {
-            result.error("READ_ERROR", e.message, null)
-          }
+          Thread {
+            try {
+              val bytes = readBytesFromUri(Uri.parse(uriString), maxBytes)
+              runOnUiThread { result.success(bytes) }
+            } catch (e: Exception) {
+              runOnUiThread { result.error("READ_ERROR", e.message, null) }
+            }
+          }.start()
         }
 
         "getFreeSpace" -> {
-          try {
-            val freeSpace = getFreeSpace()
-            result.success(freeSpace)
-          } catch (e: Exception) {
-            result.error("FREE_SPACE_ERROR", e.message, null)
-          }
+          Thread {
+            try {
+              val freeSpace = getFreeSpace()
+              runOnUiThread { result.success(freeSpace) }
+            } catch (e: Exception) {
+              runOnUiThread { result.error("FREE_SPACE_ERROR", e.message, null) }
+            }
+          }.start()
         }
 
         "shareSafFile" -> {
@@ -159,12 +172,14 @@ class MainActivity : AudioServiceActivity() {
             result.error("INVALID_ARGS", "uri is null", null)
             return@setMethodCallHandler
           }
-          try {
-            val metadata = getMetadataFromUri(Uri.parse(uriStr))
-            result.success(metadata)
-          } catch (e: Exception) {
-            result.error("METADATA_ERROR", e.message, null)
-          }
+          Thread {
+            try {
+              val metadata = getMetadataFromUri(Uri.parse(uriStr))
+              runOnUiThread { result.success(metadata) }
+            } catch (e: Exception) {
+              runOnUiThread { result.error("METADATA_ERROR", e.message, null) }
+            }
+          }.start()
         }
 
         "overwriteFileFromPath" -> {
@@ -174,12 +189,14 @@ class MainActivity : AudioServiceActivity() {
             result.error("INVALID_ARGS", "missing args", null)
             return@setMethodCallHandler
           }
-          try {
-            val ok = overwriteFileFromPath(Uri.parse(uriStr), tempPath)
-            result.success(ok)
-          } catch (e: Exception) {
-            result.error("WRITE_ERROR", e.message, null)
-          }
+          Thread {
+            try {
+              val ok = overwriteFileFromPath(Uri.parse(uriStr), tempPath)
+              runOnUiThread { result.success(ok) }
+            } catch (e: Exception) {
+              runOnUiThread { result.error("WRITE_ERROR", e.message, null) }
+            }
+          }.start()
         }
 
         "copyUriToFile" -> {
@@ -189,12 +206,14 @@ class MainActivity : AudioServiceActivity() {
               result.error("INVALID_ARGS", "missing args", null)
               return@setMethodCallHandler
           }
-          try {
-              val ok = copyUriToFile(Uri.parse(uriStr), destPath)
-              result.success(ok)
-          } catch(e: Exception) {
-              result.error("COPY_ERROR", e.message, null)
-          }
+          Thread {
+              try {
+                  val ok = copyUriToFile(Uri.parse(uriStr), destPath)
+                  runOnUiThread { result.success(ok) }
+              } catch(e: Exception) {
+                  runOnUiThread { result.error("COPY_ERROR", e.message, null) }
+              }
+          }.start()
         }
 
   // Nuevo: Obtener metadatos desde MediaStore (más rápido y robusto para artworks)
@@ -204,12 +223,14 @@ class MainActivity : AudioServiceActivity() {
       result.error("INVALID_ARGS", "filePath is null", null)
       return@setMethodCallHandler
     }
-    try {
-      val metadata = getMetadataFromMediaStore(filePath)
-      result.success(metadata)
-    } catch (e: Exception) {
-      result.error("MEDIASTORE_ERROR", e.message, null)
-    }
+    Thread {
+      try {
+        val metadata = getMetadataFromMediaStore(filePath)
+        runOnUiThread { result.success(metadata) }
+      } catch (e: Exception) {
+        runOnUiThread { result.error("MEDIASTORE_ERROR", e.message, null) }
+      }
+    }.start()
   }
 
         else -> {

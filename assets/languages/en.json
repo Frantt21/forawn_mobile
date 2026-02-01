@@ -255,5 +255,10 @@
   "current": "Current",
   "done": "Done",
   "title_artist": "Title and artist...",
-  "error_searching": "Error searching"
+  "error_searching": "Error searching",
+  "playback": "Playback",
+  "crossfade": "Crossfade",
+  "crossfade_desc": "Smooth transition between songs",
+  "crossfade_seconds": "seconds",
+  "crossfade_disabled": "Disabled"
 }
