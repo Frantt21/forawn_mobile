@@ -467,23 +467,24 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 actions: [
-                  // Search button
-                  IconButton(
-                    icon: Icon(_isSearching ? Icons.close : Icons.search),
-                    onPressed: () {
-                      setState(() {
-                        _isSearching = !_isSearching;
-                        if (_isSearching) {
-                          _animationController.forward();
-                        } else {
-                          _animationController.reverse();
-                          _searchController.clear();
-                          _searchQuery = '';
-                        }
-                      });
-                    },
-                    tooltip: _isSearching ? 'Cerrar búsqueda' : 'Buscar',
-                  ),
+                  // Search button (Solo visible en Librería)
+                  if (_tabIndex == 1)
+                    IconButton(
+                      icon: Icon(_isSearching ? Icons.close : Icons.search),
+                      onPressed: () {
+                        setState(() {
+                          _isSearching = !_isSearching;
+                          if (_isSearching) {
+                            _animationController.forward();
+                          } else {
+                            _animationController.reverse();
+                            _searchController.clear();
+                            _searchQuery = '';
+                          }
+                        });
+                      },
+                      tooltip: _isSearching ? 'Cerrar búsqueda' : 'Buscar',
+                    ),
                   // AI Assistant button
                   IconButton(
                     icon: Container(
