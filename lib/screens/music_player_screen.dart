@@ -1093,19 +1093,19 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                             controller: titleController,
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
-                              labelText: LanguageService().getText('song'),
-                              labelStyle: const TextStyle(
-                                color: Colors.white70,
+                              hintText: LanguageService().getText('song'),
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Colors.white.withOpacity(0.3),
-                                ),
+                              filled: true,
+                              fillColor: Colors.white.withOpacity(0.05),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
                               ),
-                              focusedBorder: const OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Colors.purpleAccent,
-                                ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
                               ),
                             ),
                           ),
@@ -1114,25 +1114,24 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                             controller: artistController,
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
-                              labelText: LanguageService()
+                              hintText: LanguageService()
                                   .getText('playlist_desc')
                                   .replaceAll(
                                     'Descripción',
                                     'Artista',
                                   ), // Fallback
-                              hintText: 'Artista',
-                              labelStyle: const TextStyle(
-                                color: Colors.white70,
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Colors.white.withOpacity(0.3),
-                                ),
+                              filled: true,
+                              fillColor: Colors.white.withOpacity(0.05),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
                               ),
-                              focusedBorder: const OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Colors.purpleAccent,
-                                ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
                               ),
                             ),
                           ),

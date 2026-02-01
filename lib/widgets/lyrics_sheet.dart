@@ -696,9 +696,9 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
               // Search Input
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E),
+                  color: Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  // border: Border.all(color: Colors.white.withOpacity(0.1)), // Eliminado borde
                 ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -707,10 +707,17 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                 child: TextField(
                   controller: _controller,
                   style: const TextStyle(color: Colors.white),
+                  textAlignVertical:
+                      TextAlignVertical.center, // Centrado vertical
                   decoration: InputDecoration(
                     hintText: LanguageService().getText('title_artist'),
                     hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                     border: InputBorder.none,
+                    isCollapsed: true, // Importante para centrado preciso
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
                     suffixIcon: IconButton(
                       icon: const Icon(
                         Icons.search,
@@ -768,9 +775,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.05),
-                            ),
+                            // border: Border.all(color: Colors.white.withOpacity(0.05)), // Eliminado borde
                           ),
                           child: Row(
                             children: [

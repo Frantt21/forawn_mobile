@@ -1864,9 +1864,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                           const SizedBox(height: 24),
 
                           // Input de nombre estilo Card
-                          Card(
-                            color: const Color(0xFF1C1C1E),
-                            shape: RoundedRectangleBorder(
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Padding(
@@ -1907,9 +1907,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                           const SizedBox(height: 16),
 
                           // Input de descripción estilo Card
-                          Card(
-                            color: const Color(0xFF1C1C1E),
-                            shape: RoundedRectangleBorder(
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Padding(
@@ -2112,9 +2112,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                           const SizedBox(height: 24),
 
                           // Input de nombre estilo Card
-                          Card(
-                            color: const Color(0xFF1C1C1E),
-                            shape: RoundedRectangleBorder(
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Padding(
@@ -2155,9 +2155,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                           const SizedBox(height: 16),
 
                           // Input de descripción estilo Card
-                          Card(
-                            color: const Color(0xFF1C1C1E),
-                            shape: RoundedRectangleBorder(
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Padding(
