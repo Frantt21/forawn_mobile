@@ -1,7 +1,6 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:home_widget/home_widget.dart';
 import '../models/song.dart';
-import '../services/audio_player_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> backgroundCallback(Uri? data) async {

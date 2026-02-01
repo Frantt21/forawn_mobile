@@ -139,8 +139,9 @@ class MusicLibraryService {
           // Esto es crucial para que "Latest Favorites" y la Librería muestren artwork
           for (int i = 0; i < songs.length; i++) {
             // Yield every 50 updates to prevent freeze during list update
-            if (i % 50 == 0)
+            if (i % 50 == 0) {
               await Future.delayed(const Duration(milliseconds: 1));
+            }
 
             if (songs[i].artworkPath == null) {
               try {
