@@ -202,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ListTile(
                     leading: const Icon(
                       Icons.language,
-                      color: Colors.blueAccent,
+                      color: Colors.green,
                     ),
                     title: Text(
                       LanguageService().getText('language'),
@@ -281,12 +281,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       LanguageService().getText('receive_alerts'),
                       style: const TextStyle(fontSize: 14, color: Colors.grey),
                     ),
-                    activeThumbColor: Theme.of(context).colorScheme.primary,
+                    activeThumbColor: Colors.blueAccent,
                     secondary: Icon(
                       _notificationsEnabled
                           ? Icons.notifications_active
                           : Icons.notifications_off_outlined,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: Colors.blueAccent,
                     ),
                     contentPadding: EdgeInsets.zero,
                   ),

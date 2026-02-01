@@ -24,6 +24,7 @@ import '../utils/text_utils.dart';
 import 'playlist_detail_screen.dart';
 import 'music_player_screen.dart';
 import '../widgets/local_music_home.dart';
+import 'home.dart';
 
 class LocalMusicScreen extends StatefulWidget {
   final String searchQuery;
@@ -69,6 +70,13 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     super.initState();
     // Los servicios ya están inicializados en SplashScreen, solo agregamos listeners
     _musicState.addListener(_onMusicStateChanged);
+
+    RecentScreensService().addScreen(
+      LanguageService().getText('local_music'),
+      '/local_music',
+      Icons.library_music,
+      Colors.purpleAccent,
+    );
 
     PlaylistService().addListener(_onPlaylistServiceChanged);
     MusicLibraryService.onMetadataUpdated.addListener(

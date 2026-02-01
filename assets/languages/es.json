@@ -260,5 +260,6 @@
   "crossfade": "Crossfade",
   "crossfade_desc": "Transición suave entre canciones",
   "crossfade_seconds": "segundos",
-  "crossfade_disabled": "Deshabilitado"
+  "crossfade_disabled": "Deshabilitado",
+  "view_all": "Ver todo"
 }

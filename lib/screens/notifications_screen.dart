@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/notification_history_service.dart';
 import '../services/language_service.dart';
+import 'home.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -17,6 +18,12 @@ class NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _loadNotifications();
+    RecentScreensService().addScreen(
+      LanguageService().getText('notifications'),
+      '/notifications',
+      Icons.notifications,
+      Colors.blueAccent,
+    );
   }
 
   // Getter público para saber si hay notificaciones
