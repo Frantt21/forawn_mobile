@@ -324,6 +324,7 @@ class LocalMusicHome extends StatelessWidget {
                                       // Background image logic with fallback
                                       Builder(
                                         builder: (context) {
+                                          // 1. Imagen Personalizada
                                           if (playlist.imagePath != null &&
                                               File(
                                                 playlist.imagePath!,
@@ -331,52 +332,84 @@ class LocalMusicHome extends StatelessWidget {
                                             return Image.file(
                                               File(playlist.imagePath!),
                                               fit: BoxFit.cover,
-                                              // Optimize RAM: Load resized version (approx 160 width * pixel ratio)
-                                              cacheWidth:
-                                                  (160 *
-                                                          MediaQuery.of(
-                                                            context,
-                                                          ).devicePixelRatio)
-                                                      .toInt(),
                                               errorBuilder: (_, __, ___) =>
-                                                  const Center(
-                                                    child: Icon(
+                                                  Container(
+                                                    color: Colors.grey[850],
+                                                    child: const Icon(
                                                       Icons.music_note,
                                                       color: Colors.white24,
-                                                      size: 40,
                                                     ),
                                                   ),
                                             );
-                                          } else if (playlist
-                                              .songs
-                                              .isNotEmpty) {
-                                            // Fallback to first song's artwork from cache
-                                            final firstSong =
-                                                playlist.songs.first;
-                                            return FutureBuilder<dynamic>(
-                                              future: MusicMetadataCache.get(
-                                                firstSong.filePath.hashCode
-                                                    .toString(),
-                                              ),
-                                              builder: (context, snapshot) {
-                                                if (snapshot.hasData &&
-                                                    snapshot.data?.artwork !=
-                                                        null) {
-                                                  return Image.memory(
-                                                    snapshot.data!.artwork!,
-                                                    fit: BoxFit.cover,
-                                                  );
-                                                }
-                                                return const Center(
-                                                  child: Icon(
-                                                    Icons.music_note,
-                                                    color: Colors.white24,
-                                                    size: 40,
+                                          }
+
+                                          // 2. Collage de 4 imágenes
+                                          // Recolectar hasta 4 artworks únicos
+                                          final artworks = <String>[];
+                                          for (var song in playlist.songs) {
+                                            if (song.artworkPath != null &&
+                                                File(
+                                                  song.artworkPath!,
+                                                ).existsSync() &&
+                                                !artworks.contains(
+                                                  song.artworkPath,
+                                                )) {
+                                              artworks.add(song.artworkPath!);
+                                              if (artworks.length >= 4) break;
+                                            }
+                                          }
+
+                                          if (artworks.length >= 4) {
+                                            return Column(
+                                              children: [
+                                                Expanded(
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Image.file(
+                                                          File(artworks[0]),
+                                                          fit: BoxFit.cover,
+                                                        ),
+                                                      ),
+                                                      Expanded(
+                                                        child: Image.file(
+                                                          File(artworks[1]),
+                                                          fit: BoxFit.cover,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                );
-                                              },
+                                                ),
+                                                Expanded(
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Image.file(
+                                                          File(artworks[2]),
+                                                          fit: BoxFit.cover,
+                                                        ),
+                                                      ),
+                                                      Expanded(
+                                                        child: Image.file(
+                                                          File(artworks[3]),
+                                                          fit: BoxFit.cover,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             );
                                           }
+
+                                          // 3. Fallback: Primera canción o Icono
+                                          if (artworks.isNotEmpty) {
+                                            return Image.file(
+                                              File(artworks.first),
+                                              fit: BoxFit.cover,
+                                            );
+                                          }
+
                                           return const Center(
                                             child: Icon(
                                               Icons.music_note,
@@ -460,13 +493,65 @@ class LocalMusicHome extends StatelessWidget {
                   if (favoriteSongs.isNotEmpty) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                      child: Text(
-                        LanguageService().getText('favorite_songs'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            LanguageService().getText('favorite_songs'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              final favPlaylist = Playlist(
+                                id: 'favorites_virtual',
+                                name: LanguageService().getText('my_favorites'),
+                                description: LanguageService().getText(
+                                  'favorite_songs_desc',
+                                ),
+                                createdAt: DateTime.now(),
+                                isPinned: true,
+                                songs: favoriteSongs,
+                              );
+                              onPlaylistTap(favPlaylist);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.1),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    LanguageService().getText('view_all'),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.arrow_forward_ios,
+                                    color: Colors.white,
+                                    size: 10,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     Padding(

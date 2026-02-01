@@ -1031,11 +1031,6 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
         decoration: BoxDecoration(
           color: Colors.grey[900], // Fondo oscuro sutil
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.1),
-            width: 1,
-            style: BorderStyle.solid,
-          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1161,49 +1156,127 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
             fit: StackFit.expand,
             children: [
               // 1. Background (Image or Gradient)
+              // 1. Background Layer (Collage, Image, or Gradient)
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[900],
-                  image: playlist.getImageProvider() != null
-                      ? DecorationImage(
-                          image: playlist.getImageProvider()!,
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                  gradient: isFavorite
-                      ? const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Colors.purple, Colors.deepPurple],
-                        )
-                      : null,
-                ),
-                child: playlist.imagePath == null
-                    ? Center(
+                color: Colors.grey[900], // Fondo base
+                child: Builder(
+                  builder: (context) {
+                    // 1. Imagen Personalizada (Prioridad máxima)
+                    // 0. Favoritas (Simplificado: Gris oscuro y sin collage)
+                    if (isFavorite) {
+                      return const Center(
                         child: Icon(
-                          isFavorite ? Icons.favorite : Icons.music_note,
-                          color: Colors.white24,
+                          Icons.favorite,
+                          color: Colors.purpleAccent,
                           size: 48,
                         ),
-                      )
-                    : null,
-              ),
+                      );
+                    }
 
-              // 2. Gradient Overlay for Text Readability
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.2),
-                      Colors.black.withOpacity(0.8),
-                    ],
-                    stops: const [0.5, 0.7, 1.0],
-                  ),
+                    if (playlist.imagePath != null) {
+                      final file = File(playlist.imagePath!);
+                      if (file.existsSync()) {
+                        return Image.file(file, fit: BoxFit.cover);
+                      } else if (playlist.imagePath!.startsWith('http')) {
+                        return Image.network(
+                          playlist.imagePath!,
+                          fit: BoxFit.cover,
+                        );
+                      }
+                    }
+
+                    // 2. Collage de 4 imágenes (Si hay suficientes artworks únicos)
+                    final artworks = <String>[];
+                    for (var song in playlist.songs) {
+                      if (song.artworkPath != null &&
+                          File(song.artworkPath!).existsSync() &&
+                          !artworks.contains(song.artworkPath)) {
+                        artworks.add(song.artworkPath!);
+                        if (artworks.length >= 4) break;
+                      }
+                    }
+
+                    if (artworks.length >= 4) {
+                      return Column(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Image.file(
+                                    File(artworks[0]),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Image.file(
+                                    File(artworks[1]),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Image.file(
+                                    File(artworks[2]),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Image.file(
+                                    File(artworks[3]),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    // 3. Imagen de primera canción (Fallback si hay < 4)
+                    if (artworks.isNotEmpty) {
+                      return Image.file(
+                        File(artworks.first),
+                        fit: BoxFit.cover,
+                      );
+                    }
+
+                    // (Bloque de favoritos eliminado)
+
+                    // 5. Placeholder por defecto
+                    return const Center(
+                      child: Icon(
+                        Icons.music_note,
+                        color: Colors.white24,
+                        size: 48,
+                      ),
+                    );
+                  },
                 ),
               ),
+
+              // 2. Gradient Overlay for Text Readability (Solo si NO es favoritos o tiene imagen)
+              if (!isFavorite || playlist.imagePath != null)
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.2),
+                        Colors.black.withOpacity(0.8),
+                      ],
+                      stops: const [0.5, 0.7, 1.0],
+                    ),
+                  ),
+                ),
 
               // 3. Pinned Icon (Top Right)
               if (isPinned && !isFavorite)

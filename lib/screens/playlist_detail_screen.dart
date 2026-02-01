@@ -1142,7 +1142,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
       body: Stack(
         children: [
           // Background con color plano - máximo rendimiento
-          Container(color: backgroundColor),
+          // Background oscuro con gradiente (estilo Player)
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  (_dominantColor ?? Colors.grey[900]!).withOpacity(0.6),
+                  Colors.black,
+                ],
+              ),
+            ),
+          ),
 
           // Content
           CustomScrollView(
@@ -1178,26 +1190,106 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
-                              child: coverImage != null
-                                  ? Image(image: coverImage, fit: BoxFit.cover)
-                                  : Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            backgroundColor,
-                                            backgroundColor.withOpacity(0.7),
-                                          ],
+                              child: Builder(
+                                builder: (context) {
+                                  // 0. Favoritas (Gris y morado)
+                                  if (widget.playlist.id ==
+                                      'favorites_virtual') {
+                                    return Container(
+                                      color: Colors.grey[900],
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.favorite,
+                                          color: Colors.purpleAccent,
+                                          size: 120,
                                         ),
                                       ),
+                                    );
+                                  }
+
+                                  // 1. Imagen Personalizada
+                                  if (coverImage != null) {
+                                    return Image(
+                                      image: coverImage,
+                                      fit: BoxFit.cover,
+                                    );
+                                  }
+
+                                  // 2. Collage (4 imágenes)
+                                  final artworks = <String>[];
+                                  for (var song in songs) {
+                                    if (song.artworkPath != null &&
+                                        File(song.artworkPath!).existsSync() &&
+                                        !artworks.contains(song.artworkPath)) {
+                                      artworks.add(song.artworkPath!);
+                                      if (artworks.length >= 4) break;
+                                    }
+                                  }
+
+                                  if (artworks.length >= 4) {
+                                    return Column(
+                                      children: [
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Image.file(
+                                                  File(artworks[0]),
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: Image.file(
+                                                  File(artworks[1]),
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Image.file(
+                                                  File(artworks[2]),
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: Image.file(
+                                                  File(artworks[3]),
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+
+                                  // 3. Fallback (Primera imagen)
+                                  if (artworks.isNotEmpty) {
+                                    return Image.file(
+                                      File(artworks.first),
+                                      fit: BoxFit.cover,
+                                    );
+                                  }
+
+                                  // 4. Default Placeholder
+                                  return Container(
+                                    color: Colors.grey[900],
+                                    child: Center(
                                       child: Icon(
-                                        widget.playlist.id ==
-                                                'favorites_virtual'
-                                            ? Icons.favorite
-                                            : Icons.music_note,
-                                        size: 300 * _imageScale * 0.5,
-                                        color: Colors.white.withOpacity(0.5),
+                                        Icons.music_note,
+                                        size: 120,
+                                        color: Colors.white.withOpacity(0.1),
                                       ),
                                     ),
+                                  );
+                                },
+                              ),
                             ),
                           ),
                         ),
