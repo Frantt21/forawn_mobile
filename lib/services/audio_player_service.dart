@@ -231,7 +231,7 @@ class AudioPlayerService {
         await prefs.setInt('playback_current_index', _playlist.currentIndex);
 
         // Guardar posición actual
-        final position = _audioPlayer.position.inMilliseconds;
+        final position = _getActivePlayer().position.inMilliseconds;
         await prefs.setInt('playback_position', position);
       }
     } catch (e) {
@@ -326,7 +326,6 @@ class AudioPlayerService {
     _crossfadeDuration = seconds;
     print('[Crossfade] Duración actualizada a ${seconds}s');
   }
-
   // --- Gestión de Playlist ---
 
   /// Cargar una lista de canciones y empezar a reproducir
@@ -466,7 +465,7 @@ class AudioPlayerService {
     _cancelCrossfade(); // Cancelar crossfade si está en progreso
     try {
       // Si la canción lleva más de 3 segundos, reiniciar
-      if (_audioPlayer.position.inSeconds > 3) {
+      if (_getActivePlayer().position.inSeconds > 3) {
         await seek(Duration.zero);
         return;
       }
@@ -787,6 +786,12 @@ class AudioPlayerService {
               );
               // Actualizar índice de playlist ANTES de intercambiar
               _playlist.setCurrentIndex(nextIndex);
+
+              // Actualizar historial y servicios auxiliares
+              _history.add(nextSong.id);
+              MusicHistoryService().addToHistory(nextSong);
+              LyricsService().setCurrentSong(nextSong.title, nextSong.artist);
+
               _currentSongSubject.add(nextSong);
               _playlistSubject.add(_playlist);
               // Intercambiar reproductores

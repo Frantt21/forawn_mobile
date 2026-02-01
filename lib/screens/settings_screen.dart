@@ -373,12 +373,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               overlayShape: const RoundSliderOverlayShape(
                                 overlayRadius: 12.0,
                               ),
+                              tickMarkShape: SliderTickMarkShape.noTickMark,
                             ),
                             child: Slider(
                               value: _crossfadeDuration,
                               min: 0,
                               max: 12,
-                              // Sin divisiones para movimiento suave
+                              divisions: 12,
                               onChanged: (value) {
                                 setState(() {
                                   _crossfadeDuration = value;
