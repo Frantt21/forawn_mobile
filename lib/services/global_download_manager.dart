@@ -318,36 +318,46 @@ class GlobalDownloadManager {
         _activeDownloads[downloadId]!.progress = 1.0;
         _notifyListeners();
 
-        // Guardar en historial
-        final historyItem = DownloadHistoryItem(
-          id: downloadId,
-          name: trackName,
-          artists: artistName,
-          imageUrl: pinterestImageUrl,
-          downloadUrl: downloadUrl ?? '',
-          downloadedAt: DateTime.now(),
-          source: downloadUrl != null ? 'spotify' : 'youtube',
-          durationMs: null,
-        );
-        await DownloadHistoryService.addToHistory(historyItem);
-
-        // Cancelar notificación de progreso existente para evitar conflictos
-        await _notificationsPlugin.cancel(downloadId.hashCode);
-
-        // Mostrar notificación de completado
-        await _showCompletedNotification(downloadId, track.title);
-
-        // Guardar en historial de notificaciones
-        await NotificationHistoryService.addNotification(
-          DownloadNotification(
+        // 🛡️ Safe Block: Ejecutar acciones post-descarga con manejo de errores independiente
+        // para asegurar que si falla una notificación o historial, NO se marque la descarga como fallida
+        try {
+          // Guardar en historial
+          final historyItem = DownloadHistoryItem(
             id: downloadId,
-            title: 'Descarga completada',
-            message: track.title,
-            timestamp: DateTime.now(),
-            type: NotificationType.success,
+            name: trackName,
+            artists: artistName,
             imageUrl: pinterestImageUrl,
-          ),
-        );
+            downloadUrl: downloadUrl ?? '',
+            downloadedAt: DateTime.now(),
+            source: downloadUrl != null ? 'spotify' : 'youtube',
+            durationMs: null,
+          );
+          await DownloadHistoryService.addToHistory(historyItem);
+        } catch (e) {
+          print('[GlobalDownloadManager] Error guardando historial: $e');
+        }
+
+        try {
+          // Cancelar notificación de progreso
+          await _notificationsPlugin.cancel(downloadId.hashCode);
+
+          // Mostrar notificación de completado
+          await _showCompletedNotification(downloadId, track.title);
+
+          // Guardar en historial de notificaciones
+          await NotificationHistoryService.addNotification(
+            DownloadNotification(
+              id: downloadId,
+              title: 'Descarga completada',
+              message: track.title,
+              timestamp: DateTime.now(),
+              type: NotificationType.success,
+              imageUrl: pinterestImageUrl,
+            ),
+          );
+        } catch (e) {
+          print('[GlobalDownloadManager] Error en notificaciones finales: $e');
+        }
 
         // Remover de activas después de 3 segundos
         Future.delayed(const Duration(seconds: 3), () {

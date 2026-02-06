@@ -383,6 +383,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                             ),
                             delayBefore: const Duration(seconds: 3),
                             pauseBetween: const Duration(seconds: 3),
+                            intervalSpaces: 3,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 24,
@@ -401,7 +402,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                               pixelsPerSecond: Offset(30, 0),
                             ),
                             delayBefore: const Duration(seconds: 3),
-                            pauseBetween: const Duration(seconds: 3),
+                            pauseBetween: const Duration(seconds: 1),
+                            intervalSpaces: 10,
                             style: const TextStyle(
                               color: Colors.white60,
                               fontSize: 16,

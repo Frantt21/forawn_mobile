@@ -24,6 +24,19 @@ class MiniPlayer extends StatelessWidget {
 
         // Siempre mostrar el contenedor con estilo del Nav
         return GestureDetector(
+          // Detectar arrastre horizontal para cambiar de canción
+          onHorizontalDragEnd: song != null
+              ? (details) {
+                  // Deslizamiento rápido (fling)
+                  if (details.primaryVelocity! > 0) {
+                    // Deslizar a derecha -> Anterior
+                    player.skipToPrevious();
+                  } else if (details.primaryVelocity! < 0) {
+                    // Deslizar a izquierda -> Siguiente
+                    player.skipToNext();
+                  }
+                }
+              : null,
           // Detectar arrastre vertical
           onVerticalDragUpdate: song != null
               ? (details) {
