@@ -154,7 +154,7 @@ class _LyricsViewState extends State<LyricsView> {
               currentIndex > 0 ? currentIndex : 0,
             ),
 
-            itemCount: widget.lyrics!.syncedLyrics.length,
+            itemCount: widget.lyrics!.syncedLyrics.length + 1,
             itemScrollController: _itemScrollController,
             itemPositionsListener: _itemPositionsListener,
             padding: EdgeInsets.only(
@@ -162,6 +162,23 @@ class _LyricsViewState extends State<LyricsView> {
               bottom: MediaQuery.of(context).size.height / 2.5,
             ),
             itemBuilder: (context, index) {
+              // Item final: Créditos
+              if (index == widget.lyrics!.syncedLyrics.length) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 40, bottom: 80),
+                  child: Center(
+                    child: Text(
+                      'Lyrics provided by LRCLIB',
+                      style: TextStyle(
+                        color: widget.textColor.withOpacity(0.5),
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
               final line = widget.lyrics!.syncedLyrics[index];
               final isCurrent = index == currentIndex;
 

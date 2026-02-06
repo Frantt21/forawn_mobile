@@ -20,7 +20,13 @@ class ForanlyService {
 
     for (final baseUrl in backends) {
       try {
-        final url = await _tryGetUrlDirect(baseUrl, youtubeUrl, query);
+        final url = await _tryGetUrlDirect(
+          baseUrl,
+          youtubeUrl,
+          query,
+          trackTitle: trackTitle,
+          artistName: artistName,
+        );
         if (url != null) return url;
       } catch (e) {
         print('[ForanlyService] Error en backend ($baseUrl): $e');
@@ -79,15 +85,29 @@ class ForanlyService {
   Future<String?> _tryGetUrlDirect(
     String baseUrl,
     String youtubeUrl,
-    String query,
-  ) async {
+    String query, {
+    String? trackTitle,
+    String? artistName,
+  }) async {
     print('[ForanlyService] 🎵 Processing direct YouTube URL (NO SEARCH)');
     print('[ForanlyService]    URL: $youtubeUrl');
 
-    // Iniciar Trabajo de Conversión/Descarga directamente
-    final downloadEndpoint = query.isNotEmpty
-        ? '$baseUrl/download?url=${Uri.encodeComponent(youtubeUrl)}&format=audio&enrich=true&query=${Uri.encodeComponent(query)}'
-        : '$baseUrl/download?url=${Uri.encodeComponent(youtubeUrl)}&format=audio&enrich=true';
+    // Construir parámetros de la URL
+    String params =
+        'url=${Uri.encodeComponent(youtubeUrl)}&format=audio&enrich=true';
+
+    if (trackTitle != null && trackTitle.isNotEmpty) {
+      params += '&title=${Uri.encodeComponent(trackTitle)}';
+    }
+    if (artistName != null && artistName.isNotEmpty) {
+      params += '&artist=${Uri.encodeComponent(artistName)}';
+    }
+    // Mantener query como fallback si es necesario
+    if (query.isNotEmpty) {
+      params += '&query=${Uri.encodeComponent(query)}';
+    }
+
+    final downloadEndpoint = '$baseUrl/download?$params';
 
     print('[ForanlyService] Iniciando job: $downloadEndpoint');
 

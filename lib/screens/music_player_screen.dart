@@ -212,8 +212,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       padding: const EdgeInsets.only(
         left: 24.0,
         right: 24.0,
-        top: 0.0,
-        bottom: 32.0,
+        top: 18.0,
+        bottom: 24.0,
       ),
       child: AspectRatio(
         aspectRatio: 1,

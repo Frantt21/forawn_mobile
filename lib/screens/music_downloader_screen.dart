@@ -597,14 +597,16 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
                                     ),
                                   ),
                                   title: Text(
-                                    video.displayTitle,
+                                    video.parsedSong.isNotEmpty
+                                        ? video.parsedSong
+                                        : video.title,
                                     style: TextStyle(
                                       color: textColor,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   subtitle: Text(
-                                    '${video.displayArtist} • ${video.durationText}',
+                                    '${video.parsedArtist.isNotEmpty ? video.parsedArtist : video.author} • ${video.durationText}',
                                     style: TextStyle(
                                       color: textColor.withOpacity(0.6),
                                     ),
