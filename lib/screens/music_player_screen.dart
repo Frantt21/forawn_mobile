@@ -32,6 +32,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   final AudioPlayerService _player = AudioPlayerService();
   String? _lastSongId;
   bool _isNextDirection = true;
+  bool _showHeartAnimation = false;
+  bool _isDragging = false;
+  double _dragValue = 0.0;
 
   void _skipToNext() {
     setState(() {
@@ -90,6 +93,19 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                             Navigator.of(context).pop();
                           }
                         },
+                        onDoubleTap: () {
+                          PlaylistService().toggleLike(song.id);
+                          setState(() {
+                            _showHeartAnimation = true;
+                          });
+                          Future.delayed(const Duration(milliseconds: 800), () {
+                            if (mounted) {
+                              setState(() {
+                                _showHeartAnimation = false;
+                              });
+                            }
+                          });
+                        },
                         child: _buildArtwork(song),
                       ),
                     ),
@@ -99,11 +115,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
               // Draggable Lyrics Sheet
               DraggableScrollableSheet(
-                initialChildSize: 0.08,
-                minChildSize: 0.08,
+                initialChildSize: 0.13,
+                minChildSize: 0.13,
                 maxChildSize: 0.9,
                 snap: true,
-                snapSizes: const [0.08, 0.9],
+                snapSizes: const [0.13, 0.9],
                 builder: (context, scrollController) {
                   return SingleChildScrollView(
                     controller: scrollController,
@@ -192,7 +208,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   Widget _buildArtwork(Song song) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
         child: AspectRatio(
           aspectRatio: 1,
           child: LayoutBuilder(
@@ -214,67 +230,103 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       ),
                     ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 350),
-                      transitionBuilder:
-                          (Widget child, Animation<double> animation) {
-                            final offsetRight = const Offset(1.0, 0.0);
-                            final offsetLeft = const Offset(-1.0, 0.0);
-                            final inTween = _isNextDirection
-                                ? Tween<Offset>(
-                                    begin: offsetRight,
-                                    end: Offset.zero,
-                                  )
-                                : Tween<Offset>(
-                                    begin: offsetLeft,
-                                    end: Offset.zero,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 350),
+                          transitionBuilder:
+                              (Widget child, Animation<double> animation) {
+                                final offsetRight = const Offset(1.0, 0.0);
+                                final offsetLeft = const Offset(-1.0, 0.0);
+                                final inTween = _isNextDirection
+                                    ? Tween<Offset>(
+                                        begin: offsetRight,
+                                        end: Offset.zero,
+                                      )
+                                    : Tween<Offset>(
+                                        begin: offsetLeft,
+                                        end: Offset.zero,
+                                      );
+                                final outTween = _isNextDirection
+                                    ? Tween<Offset>(
+                                        begin: offsetLeft,
+                                        end: Offset.zero,
+                                      )
+                                    : Tween<Offset>(
+                                        begin: offsetRight,
+                                        end: Offset.zero,
+                                      );
+                                final inAnimation = inTween.animate(
+                                  CurvedAnimation(
+                                    parent: animation,
+                                    curve: Curves.easeOutQuad,
+                                  ),
+                                );
+                                final outAnimation = outTween.animate(
+                                  CurvedAnimation(
+                                    parent: animation,
+                                    curve: Curves.easeInQuad,
+                                  ),
+                                );
+                                if (child.key == ValueKey(song.id)) {
+                                  return SlideTransition(
+                                    position: inAnimation,
+                                    child: child,
                                   );
-                            final outTween = _isNextDirection
-                                ? Tween<Offset>(
-                                    begin: offsetLeft,
-                                    end: Offset.zero,
-                                  )
-                                : Tween<Offset>(
-                                    begin: offsetRight,
-                                    end: Offset.zero,
+                                } else {
+                                  return SlideTransition(
+                                    position: outAnimation,
+                                    child: child,
                                   );
-                            final inAnimation = inTween.animate(
-                              CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeOutQuad,
-                              ),
-                            );
-                            final outAnimation = outTween.animate(
-                              CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeInQuad,
-                              ),
-                            );
-                            if (child.key == ValueKey(song.id)) {
-                              return SlideTransition(
-                                position: inAnimation,
-                                child: child,
-                              );
-                            } else {
-                              return SlideTransition(
-                                position: outAnimation,
-                                child: child,
-                              );
-                            }
-                          },
-                      child: ArtworkWidget(
-                        key: ValueKey(song.id),
-                        artworkPath: song.artworkPath,
-                        artworkUri: song.artworkUri,
-                        size: size,
-                        width: size,
-                        height: size,
-                        fit: BoxFit.cover,
-                        dominantColor: song.dominantColor,
+                                }
+                              },
+                          child: ArtworkWidget(
+                            key: ValueKey(song.id),
+                            artworkPath: song.artworkPath,
+                            artworkUri: song.artworkUri,
+                            size: size,
+                            width: size,
+                            height: size,
+                            fit: BoxFit.cover,
+                            dominantColor: song.dominantColor,
+                          ),
+                        ),
                       ),
-                    ),
+                      IgnorePointer(
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: _showHeartAnimation ? 1.0 : 0.0,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(
+                              begin: 0.5,
+                              end: _showHeartAnimation ? 1.2 : 0.5,
+                            ),
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.elasticOut,
+                            builder: (context, scale, child) {
+                              return Transform.scale(
+                                scale: scale,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.4),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  padding: const EdgeInsets.all(16),
+                                  child: const Icon(
+                                    Icons.favorite_rounded,
+                                    color: Colors.white,
+                                    size: 64,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -360,6 +412,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                         icon: Icon(
                           Icons.playlist_add,
                           color: effectiveColor,
@@ -379,6 +433,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                         builder: (context, child) {
                           final isLiked = PlaylistService().isLiked(song.id);
                           return IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
                             icon: Icon(
                               isLiked ? Icons.favorite : Icons.favorite_border,
                               color: isLiked ? effectiveColor : Colors.white,
@@ -407,36 +463,53 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                     children: [
                       SliderTheme(
                         data: SliderTheme.of(context).copyWith(
-                          trackHeight: 2,
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 6,
-                          ),
+                          trackHeight: 4,
+                          trackShape: CustomTrackShape(),
+                          thumbShape: TransparentThumbShape(),
                           overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 14,
+                            overlayRadius: 0,
                           ),
                           activeTrackColor: effectiveColor,
-                          inactiveTrackColor: Colors.white24,
-                          thumbColor: effectiveColor,
-                          overlayColor: effectiveColor.withOpacity(0.2),
+                          inactiveTrackColor: effectiveColor.withOpacity(0.3),
+                          thumbColor: Colors.transparent,
+                          overlayColor: Colors.transparent,
                         ),
                         child: Slider(
-                          value: progress.position.inMilliseconds
-                              .toDouble()
-                              .clamp(
-                                0.0,
-                                progress.duration.inMilliseconds.toDouble(),
-                              ),
+                          value:
+                              (_isDragging
+                                      ? _dragValue
+                                      : progress.position.inMilliseconds
+                                            .toDouble())
+                                  .clamp(
+                                    0.0,
+                                    progress.duration.inMilliseconds.toDouble(),
+                                  ),
                           min: 0.0,
                           max: progress.duration.inMilliseconds.toDouble() > 0
                               ? progress.duration.inMilliseconds.toDouble()
                               : 1.0,
+                          onChangeStart: (value) {
+                            setState(() {
+                              _isDragging = true;
+                              _dragValue = value;
+                            });
+                          },
                           onChanged: (value) {
+                            setState(() {
+                              _dragValue = value;
+                            });
+                          },
+                          onChangeEnd: (value) {
                             _player.seek(Duration(milliseconds: value.toInt()));
+                            setState(() {
+                              _isDragging = false;
+                            });
                           },
                         ),
                       ),
+                      const SizedBox(height: 12),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        padding: EdgeInsets.zero,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -466,7 +539,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
 
               // Botones de Control
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Shuffle Toggle
                   StreamBuilder<bool>(
@@ -1417,5 +1490,48 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       }
       print('Metadata update error: $e');
     }
+  }
+}
+
+class CustomTrackShape extends RoundedRectSliderTrackShape {
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final double trackHeight = sliderTheme.trackHeight!;
+    final double trackLeft = offset.dx;
+    final double trackTop =
+        offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+}
+
+class TransparentThumbShape extends SliderComponentShape {
+  @override
+  Size getPreferredSize(bool isEnabled, bool isDiscrete) {
+    return const Size(24, 24); // Large touch target
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required Animation<double> activationAnimation,
+    required Animation<double> enableAnimation,
+    required bool isDiscrete,
+    required TextPainter labelPainter,
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required TextDirection textDirection,
+    required double value,
+    required double textScaleFactor,
+    required Size sizeWithOverflow,
+  }) {
+    // Paint nothing
   }
 }

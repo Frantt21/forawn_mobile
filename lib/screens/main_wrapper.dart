@@ -103,11 +103,11 @@ class _MainWrapperState extends State<MainWrapper>
     try {
       await AudioService.init(
         builder: () => MyAudioHandler(),
-        config: const AudioServiceConfig(
+        config: AudioServiceConfig(
           androidNotificationChannelId: 'com.forawnt.app.audio',
           androidNotificationChannelName: 'Music Playback',
           androidNotificationOngoing: true,
-          androidStopForegroundOnPause: true,
+          androidStopForegroundOnPause: false, // Keep alive even when paused
           androidNotificationIcon: 'drawable/ic_stat_logo',
         ),
       );

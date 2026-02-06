@@ -145,7 +145,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> onTaskRemoved() async {
-    await stop();
+    // await stop();
   }
 
   @override
