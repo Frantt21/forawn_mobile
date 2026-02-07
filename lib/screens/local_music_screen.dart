@@ -25,6 +25,7 @@ import 'playlist_detail_screen.dart';
 import 'music_player_screen.dart';
 import '../widgets/local_music_home.dart';
 import 'home.dart';
+import '../utils/id_generator.dart';
 
 class LocalMusicScreen extends StatefulWidget {
   final String searchQuery;
@@ -157,7 +158,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     // 1. SIEMPRE intentar limpiar el caché de imágenes primero
     if (uri != null) {
       try {
-        final cacheKey = uri.hashCode.toString();
+        final cacheKey = IdGenerator.generateSongId(uri);
         // Usamos cacheKey para encontrar el path de la imagen, que es lo que importa para el FileImage
         // Nota: MusicMetadataCache.get podría devolver null si se acaba de escribir y no leer
         // pero normalmente debería estar porque lo acabamos de escribir en _applyMetadata
@@ -202,7 +203,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
       if (index != -1) {
         // Encontrada! Recargar sus datos del caché
-        final cacheKey = uri.hashCode.toString();
+        final cacheKey = IdGenerator.generateSongId(uri);
         final cached = await MusicMetadataCache.get(cacheKey);
         print(
           '[LocalMusicScreen] Cached metadata: ${cached?.title} - ${cached?.artist}',
@@ -220,7 +221,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
             artworkUri: cached.artworkUri,
             dominantColor: cached.dominantColor,
           );
-          _musicState.updateSong(uri, updatedSong);
+          // CRITICAL FIX: Use the ACTUAL file path of the found song, not the notification URI.
+          // The notification URI might be encoded/different, but we found the correct song index above.
+          _musicState.updateSong(songs[index].filePath, updatedSong);
           print('[LocalMusicScreen] Song updated in state');
 
           // Incrementar versión para forzar rebuild del tile

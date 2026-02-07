@@ -154,18 +154,23 @@ class MusicHistoryService extends ChangeNotifier {
       final dbHelper = DatabaseHelper();
 
       // Ensure metadata exists
-      await dbHelper.insertMetadata({
-        'id': song.id,
-        'title': song.title,
-        'artist': song.artist,
-        'album': song.album,
-        'duration': song.duration?.inMilliseconds,
-        'file_path': song.filePath,
-        'artwork_path': song.artworkPath,
-        'artwork_uri': song.artworkUri,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'dominant_color': song.dominantColor,
-      });
+      // Ensure metadata exists WITHOUT overwriting potentially fresher data from Library scan
+      // Solo insertamos si no existe.
+      final existing = await dbHelper.getMetadata(song.id);
+      if (existing == null) {
+        await dbHelper.insertMetadata({
+          'id': song.id,
+          'title': song.title,
+          'artist': song.artist,
+          'album': song.album,
+          'duration': song.duration?.inMilliseconds,
+          'file_path': song.filePath,
+          'artwork_path': song.artworkPath,
+          'artwork_uri': song.artworkUri,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'dominant_color': song.dominantColor,
+        });
+      }
 
       await dbHelper.addToPlaybackHistory(song.id);
     } catch (e) {

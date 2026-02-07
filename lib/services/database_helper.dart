@@ -409,4 +409,78 @@ class DatabaseHelper {
     );
     return results.isNotEmpty;
   }
+
+  /// Migrar ID de canción de legacy (random) a estable
+  Future<void> migrateLegacySongId(String oldId, String newId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // 1. Verificar si el nuevo ID ya existe
+      final existingNew = await txn.query(
+        'songs_metadata',
+        where: 'id = ?',
+        whereArgs: [newId],
+      );
+
+      if (existingNew.isNotEmpty) {
+        // El nuevo ID ya existe (ej. escaneado recientemente).
+        // Solo actualizamos las referencias en otras tablas y borramos el viejo metadata
+
+        // Actualizar Playlist Songs
+        await txn.update(
+          'playlist_songs',
+          {'song_id': newId},
+          where: 'song_id = ?',
+          whereArgs: [oldId],
+        );
+
+        // Actualizar Favoritos
+        await txn.update(
+          'user_favorites',
+          {'song_id': newId},
+          where: 'song_id = ?',
+          whereArgs: [oldId],
+        );
+
+        // Borrar metadata viejo (ya tenemos el nuevo)
+        await txn.delete('songs_metadata', where: 'id = ?', whereArgs: [oldId]);
+      } else {
+        // El nuevo ID no existe. Podemos simplemente actualizar el ID en la tabla metadata
+        // (Cascading update sería ideal pero SQFLite support varía, hacemos manual)
+
+        // Update Metadata ID (esto podría fallar si hay constraints, pero id es PK)
+        // Insertamos copia con nuevo ID y borramos viejo para evitar problemas de PK update
+        final oldRows = await txn.query(
+          'songs_metadata',
+          where: 'id = ?',
+          whereArgs: [oldId],
+        );
+        if (oldRows.isNotEmpty) {
+          final row = Map<String, dynamic>.from(oldRows.first);
+          row['id'] = newId;
+          await txn.insert('songs_metadata', row);
+
+          // Actualizar referencias
+          await txn.update(
+            'playlist_songs',
+            {'song_id': newId},
+            where: 'song_id = ?',
+            whereArgs: [oldId],
+          );
+          await txn.update(
+            'user_favorites',
+            {'song_id': newId},
+            where: 'song_id = ?',
+            whereArgs: [oldId],
+          );
+
+          // Borrar viejo
+          await txn.delete(
+            'songs_metadata',
+            where: 'id = ?',
+            whereArgs: [oldId],
+          );
+        }
+      }
+    });
+  }
 }

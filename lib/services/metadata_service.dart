@@ -86,6 +86,7 @@ class MetadataService {
     String? safUri,
     MetadataPriority priority = MetadataPriority.normal,
     bool forceReload = false,
+    bool preserveColor = false,
   }) async {
     // 1. Verificar caché en memoria
     if (!forceReload && _memoryCache.containsKey(id)) {
@@ -108,6 +109,7 @@ class MetadataService {
       safUri: safUri,
       priority: priority,
       skipMediaStore: forceReload,
+      preserveColor: preserveColor,
     );
   }
 
@@ -121,6 +123,7 @@ class MetadataService {
     MetadataPriority priority = MetadataPriority.normal,
     int maxRetries = 3,
     bool skipMediaStore = false,
+    bool preserveColor = false,
   }) async {
     for (int attempt = 0; attempt < maxRetries; attempt++) {
       try {
@@ -134,10 +137,20 @@ class MetadataService {
           // Extraer color dominante del artwork (si existe)
           int? dominantColor;
 
+          // Optimization: Check existing cache for color if requested
+          if (preserveColor) {
+            final existing = await MusicMetadataCache.get(id);
+            if (existing?.dominantColor != null) {
+              dominantColor = existing!.dominantColor;
+            }
+          }
+
           // Guardar artwork en disco si viene como bytes crudos
           Uint8List? artworkBytes = rawMetadata['artworkBytes'];
 
-          if (artworkBytes != null && artworkBytes.isNotEmpty) {
+          if (dominantColor == null &&
+              artworkBytes != null &&
+              artworkBytes.isNotEmpty) {
             dominantColor = await _extractDominantColor(artworkBytes);
           }
 

@@ -1,5 +1,6 @@
 // lib/models/song.dart
 import 'dart:io';
+import '../utils/id_generator.dart';
 
 /// Modelo para una canción
 class Song {
@@ -49,7 +50,7 @@ class Song {
         }
       }
 
-      final id = file.path.hashCode.toString();
+      final id = IdGenerator.generateSongId(file.path);
 
       return Song(id: id, title: title, artist: artist, filePath: file.path);
     } catch (e) {
@@ -75,22 +76,29 @@ class Song {
   };
 
   /// Deserializar desde JSON
-  factory Song.fromJson(Map<String, dynamic> json) => Song(
-    id: json['id'] as String,
-    title: json['title'] as String,
-    artist: json['artist'] as String,
-    album: json['album'] as String?,
-    duration: json['duration'] != null
-        ? Duration(milliseconds: json['duration'] as int)
-        : null,
-    filePath: json['filePath'] as String,
-    artworkPath: json['artworkPath'] as String?,
-    artworkUri: json['artworkUri'] as String?,
-    trackNumber: json['trackNumber'] as int?,
-    year: json['year'] as String?,
-    genre: json['genre'] as String?,
-    dominantColor: json['dominantColor'] as int?,
-  );
+  factory Song.fromJson(Map<String, dynamic> json) {
+    // Migración automática: Regenerar ID determinístico basado en filePath
+    // ignorando el ID aleatorio/viejo guardado en el JSON
+    final filePath = json['filePath'] as String;
+    final id = IdGenerator.generateSongId(filePath);
+
+    return Song(
+      id: id,
+      title: json['title'] as String,
+      artist: json['artist'] as String,
+      album: json['album'] as String?,
+      duration: json['duration'] != null
+          ? Duration(milliseconds: json['duration'] as int)
+          : null,
+      filePath: filePath,
+      artworkPath: json['artworkPath'] as String?,
+      artworkUri: json['artworkUri'] as String?,
+      trackNumber: json['trackNumber'] as int?,
+      year: json['year'] as String?,
+      genre: json['genre'] as String?,
+      dominantColor: json['dominantColor'] as int?,
+    );
+  }
 
   /// Copiar con modificaciones
   Song copyWith({

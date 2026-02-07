@@ -160,6 +160,14 @@ class Playlist {
     }
   }
 
+  /// Obtener la siguiente canción sin cambiar el índice actual (para precaching)
+  Song? peekNext() {
+    final idx = nextIndex;
+    return (idx != null && idx >= 0 && idx < _songs.length)
+        ? _songs[idx]
+        : null;
+  }
+
   // Lógica Interna
   void updateCurrentSong(Song updatedSong) {
     if (_currentIndex >= 0 && _currentIndex < _songs.length) {

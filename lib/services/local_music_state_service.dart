@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import 'music_library_service.dart';
 import '../services/music_metadata_cache.dart';
+import '../utils/id_generator.dart';
 
 /// Servicio singleton que mantiene el estado de la música local
 /// Persiste los datos aunque el screen se destruya y reconstruya
@@ -50,10 +51,23 @@ class LocalMusicStateService extends ChangeNotifier {
   void _onMetadataUpdated() async {
     final uri = MusicLibraryService.onMetadataUpdated.value;
     if (uri != null && _librarySongs.isNotEmpty) {
-      final index = _librarySongs.indexWhere((s) => s.filePath == uri);
+      int index = _librarySongs.indexWhere((s) => s.filePath == uri);
+
+      // Fallback: Try matching decoded URI if exact match fails
+      if (index == -1) {
+        try {
+          final decodedUri = Uri.decodeFull(uri);
+          index = _librarySongs.indexWhere(
+            (s) => Uri.decodeFull(s.filePath) == decodedUri,
+          );
+        } catch (e) {
+          print('[LocalMusicState] Error decoding URI: $e');
+        }
+      }
+
       if (index != -1) {
         try {
-          final cacheKey = uri.hashCode.toString();
+          final cacheKey = IdGenerator.generateSongId(uri);
           final cached = await MusicMetadataCache.get(cacheKey);
 
           if (cached != null) {
@@ -98,6 +112,7 @@ class LocalMusicStateService extends ChangeNotifier {
         // IMPORTANTE: Si es forceReload, NO pasar currentSongs
         // Esto fuerza la recarga de metadatos desde el caché
         currentSongs: forceReload ? null : _librarySongs,
+        forceRefetchMetadata: forceReload,
       );
 
       _librarySongs = songs;

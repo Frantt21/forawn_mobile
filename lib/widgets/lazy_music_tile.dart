@@ -3,6 +3,7 @@ import '../models/song.dart';
 import '../services/metadata_service.dart';
 import '../widgets/artwork_widget.dart';
 import 'animated_playing_indicator.dart';
+import '../utils/id_generator.dart';
 
 /// Widget que carga metadatos de forma lazy (solo cuando es visible)
 class LazyMusicTile extends StatefulWidget {
@@ -91,7 +92,7 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
 
     try {
       final uri = widget.song.filePath;
-      final cacheKey = uri.hashCode.toString();
+      final cacheKey = IdGenerator.generateSongId(uri);
 
       final isSaf = uri.startsWith('content://');
 

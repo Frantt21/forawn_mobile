@@ -19,6 +19,7 @@ import 'saf_helper.dart';
 
 import 'metadata_service.dart';
 import 'lyrics_service.dart';
+import 'music_library_service.dart';
 
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
@@ -154,6 +155,26 @@ class AudioPlayerService {
     // Inicializar streams subjects
     if (!_playlistSubject.hasValue) _playlistSubject.add(_playlist);
     if (!_currentSongSubject.hasValue) _currentSongSubject.add(null);
+
+    // Escuchar actualizaciones de metadatos globales
+    MusicLibraryService.onMetadataUpdated.addListener(_onMetadataUpdated);
+  }
+
+  void _onMetadataUpdated() {
+    final uri = MusicLibraryService.onMetadataUpdated.value;
+    if (uri != null) {
+      // 1. Verificar si es la canción actual
+      final current = _playlist.currentSong;
+      if (current != null && current.filePath == uri) {
+        print(
+          '[AudioPlayer] Metadata update received for current song. Refreshing...',
+        );
+        refreshCurrentSongMetadata();
+      }
+
+      // 2. (Opcional) Podríamos actualizar también otras canciones en la playlist
+      // pero por ahora priorizamos la actual para rendimiento.
+    }
   }
 
   Future<void> _loadPlaybackPreferences() async {
@@ -618,23 +639,32 @@ class AudioPlayerService {
       final activePlayer = _getActivePlayer();
 
       if (song.filePath.startsWith('content://')) {
-        print('[AudioPlayer] Pre-caching content URI for stability...');
-        String? playablePath;
+        // Optimización: Intentar acceso directo primero (más rápido)
+        // Solo copiar a temp si falla
         try {
-          playablePath = await _copyToTemp(song.filePath);
-        } catch (e) {
-          print('[AudioPlayer] Pre-cache failed: $e, trying direct access');
-        }
-
-        if (playablePath != null) {
-          await activePlayer.setAudioSource(
-            AudioSource.uri(Uri.file(playablePath)),
-          );
-        } else {
-          // Fallback a acceso directo si la copia falla
           await activePlayer.setAudioSource(
             AudioSource.uri(Uri.parse(song.filePath)),
           );
+          print('[AudioPlayer] Using direct SAF access (fast path)');
+
+          // Precachear en background para próximas reproducciones
+          _copyToTemp(song.filePath).then((path) {
+            if (path != null) {
+              print('[AudioPlayer] Background cache created for next time');
+            }
+          }).ignore();
+        } catch (e) {
+          // Si falla acceso directo, usar temp file
+          print('[AudioPlayer] Direct access failed: $e, using temp file...');
+          String? playablePath = await _copyToTemp(song.filePath);
+
+          if (playablePath != null) {
+            await activePlayer.setAudioSource(
+              AudioSource.uri(Uri.file(playablePath)),
+            );
+          } else {
+            throw Exception('Failed to prepare audio source');
+          }
         }
       } else if (song.filePath.startsWith('http')) {
         await activePlayer.setAudioSource(
@@ -646,8 +676,24 @@ class AudioPlayerService {
           AudioSource.uri(Uri.file(song.filePath)),
         );
       }
+
+      // Precachear la SIGUIENTE canción en background
+      _precacheNextSong();
     } catch (e) {
       print('[AudioPlayer] Error preparing audio source: $e');
+      rethrow;
+    }
+  }
+
+  // Precachear la siguiente canción para transiciones más fluidas
+  void _precacheNextSong() {
+    final nextSong = _playlist.peekNext();
+    if (nextSong != null && nextSong.filePath.startsWith('content://')) {
+      _copyToTemp(nextSong.filePath).then((path) {
+        if (path != null) {
+          print('[AudioPlayer] Next song precached: ${nextSong.title}');
+        }
+      }).ignore();
     }
   }
 
@@ -660,9 +706,15 @@ class AudioPlayerService {
 
       // Optimización: Si ya existe, reutilizarlo.
       if (await destFile.exists()) {
-        // Opcional: Podríamos verificar el tamaño si fuera crítico, pero hashCode es razonablemente seguro para cache local de sesión/app.
-        print('[AudioPlayer] Reusing cached temp file: ${destFile.path}');
-        return destFile.path;
+        final stats = await destFile.stat();
+        // Verificar que no esté vacío o corrupto
+        if (stats.size > 1024) {
+          // Al menos 1KB
+          return destFile.path;
+        } else {
+          // Archivo corrupto, eliminarlo
+          await destFile.delete();
+        }
       }
 
       final success = await SafHelper.copyUriToFile(uriStr, destFile.path);

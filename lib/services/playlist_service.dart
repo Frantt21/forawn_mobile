@@ -6,6 +6,7 @@ import '../models/playlist_model.dart';
 import '../models/song.dart';
 import 'database_helper.dart';
 import 'music_library_service.dart';
+import '../utils/id_generator.dart';
 
 class PlaylistService extends ChangeNotifier {
   static final PlaylistService _instance = PlaylistService._internal();
@@ -52,7 +53,7 @@ class PlaylistService extends ChangeNotifier {
 
         if (songIndex != -1) {
           // Found song in playlist, hydrate it
-          final cacheKey = uri.hashCode.toString();
+          final cacheKey = IdGenerator.generateSongId(uri);
           final metadata = await dbHelper.getMetadata(cacheKey);
 
           if (metadata != null) {
@@ -199,7 +200,11 @@ class PlaylistService extends ChangeNotifier {
     // 2. Cargar Favoritos
     final favoriteIds = await dbHelper.getFavoriteSongIds();
     _likedSongIds.clear();
-    _likedSongIds.addAll(favoriteIds);
+
+    // Usamos _hydrateSongs para convertir IDs viejos a nuevos (migración) y obtener IDs estables
+    final favoriteSongs = await _hydrateSongs(favoriteIds);
+    _likedSongIds.addAll(favoriteSongs.map((s) => s.id));
+
     favoritesNotifier.value = List.from(_likedSongIds);
 
     notifyListeners();
@@ -213,17 +218,34 @@ class PlaylistService extends ChangeNotifier {
     for (final id in songIds) {
       final metadata = await dbHelper.getMetadata(id);
       if (metadata != null && metadata['file_path'] != null) {
-        // Reconstruimos la canción
+        final filePath = metadata['file_path'];
+        final stableId = IdGenerator.generateSongId(filePath);
+
+        // MIGRACIÓN: Si el ID en base de datos difiere del estable, arreglarlo
+        if (id != stableId) {
+          print('[PlaylistService] Migrating song ID $id -> $stableId');
+          // No esperaremos la migración para UI instantánea, pero la lanzamos
+          dbHelper
+              .migrateLegacySongId(id, stableId)
+              .then((_) {
+                print('[PlaylistService] Migration finished for $stableId');
+              })
+              .catchError((e) {
+                print('[PlaylistService] Migration failed for $stableId: $e');
+              });
+        }
+
+        // Reconstruimos la canción usando SIEMPRE el ID estable
         songs.add(
           Song(
-            id: metadata['id'],
+            id: stableId,
             title: metadata['title'] ?? 'Unknown',
             artist: metadata['artist'] ?? 'Unknown Artist',
             album: metadata['album'],
             duration: metadata['duration'] != null
                 ? Duration(milliseconds: metadata['duration'])
                 : null,
-            filePath: metadata['file_path'], // CRÍTICO: Debe existir
+            filePath: filePath, // CRÍTICO: Debe existir
             artworkPath: metadata['artwork_path'],
             artworkUri: metadata['artwork_uri'],
             dominantColor: metadata['dominant_color'],
@@ -380,18 +402,19 @@ class PlaylistService extends ChangeNotifier {
         _sortPlaylists();
         notifyListeners();
 
-        // 1. Guardar metadatos (incluyendo filePath) para asegurar persistencia
-        await DatabaseHelper().insertMetadata({
-          'id': song.id,
-          'title': song.title,
-          'artist': song.artist,
-          'album': song.album,
-          'duration': song.duration?.inMilliseconds,
-          'file_path': song.filePath,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          // No sobrescribimos artwork path/uri aquí para no borrarlo si ya existe
-          // Idealmente usaríamos un insert parcial o check existence
-        });
+        // 1. Guardar metadatos (incluyendo filePath) SOLO si no existen
+        final existingMeta = await DatabaseHelper().getMetadata(song.id);
+        if (existingMeta == null) {
+          await DatabaseHelper().insertMetadata({
+            'id': song.id,
+            'title': song.title,
+            'artist': song.artist,
+            'album': song.album,
+            'duration': song.duration?.inMilliseconds,
+            'file_path': song.filePath,
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          });
+        }
 
         // 2. Relacionar
         await DatabaseHelper().addSongToPlaylist(playlistId, song.id);

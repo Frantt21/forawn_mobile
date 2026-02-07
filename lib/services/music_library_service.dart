@@ -7,6 +7,7 @@ import '../models/song.dart';
 import '../services/saf_helper.dart';
 import '../services/music_metadata_cache.dart';
 import '../services/metadata_service.dart';
+import '../utils/id_generator.dart';
 
 class LibraryLoadingStatus {
   final String message;
@@ -24,14 +25,12 @@ class MusicLibraryService {
 
   /// Escanea una carpeta en busca de canciones
   /// Soporta rutas normales y URIs de SAF (content://)
-  /// Escanea una carpeta en busca de canciones
-  /// Soporta rutas normales y URIs de SAF (content://)
   static Future<List<Song>> scanFolder(
     String pathOrUri, {
     List<Song>? currentSongs,
+    bool forceRefetchMetadata = false,
   }) async {
     final List<Song> songs = [];
-    final List<Song> songsMissingMetadata = [];
     final Map<String, Song> existingMap = {};
 
     // Crear mapa de canciones existentes para búsqueda rápida O(1)
@@ -61,7 +60,7 @@ class MusicLibraryService {
         print('[MusicLibrary] Scanning SAF tree: $pathOrUri');
         loadingStatus.value = const LibraryLoadingStatus(
           'Leyendo archivos...',
-          0.1,
+          0.3,
         );
 
         final files = await SafHelper.listFilesFromTree(pathOrUri);
@@ -70,27 +69,26 @@ class MusicLibraryService {
           int processed = 0;
           final total = files.length;
 
-          // FASE 1: Reutilizar existentes o Crear canciones CON caché (RÁPIDO)
+          // FASE 1: Crear canciones básicas y cargar desde caché (RÁPIDO)
           for (final file in files) {
             final name = file['name'] ?? '';
             final uri = file['uri'] ?? '';
 
-            if (uri.isNotEmpty && existingMap.containsKey(uri)) {
-              // CASO 1: Canción ya existe y cargada -> REUTILIZAR
-              // Esto salta la lectura de caché y creación de objetos
+            if (uri.isNotEmpty &&
+                existingMap.containsKey(uri) &&
+                !forceRefetchMetadata) {
+              // CASO 1: Canción ya existe -> REUTILIZAR
               songs.add(existingMap[uri]!);
             } else if (_isAudioFile(name) && uri.isNotEmpty) {
-              // CASO 2: Canción NUEVA o no cargada -> PROCESAR
+              // CASO 2: Canción NUEVA o REFRESH -> Crear con datos del caché
               var song = _createSongFromSaf(name, uri);
-              bool isCached = false;
 
-              // Intentar cargar desde caché (rápido)
+              // SIEMPRE intentar cargar desde caché (incluso en refresh)
               try {
-                final cacheKey = uri.hashCode.toString();
+                final cacheKey = IdGenerator.generateSongId(uri);
                 final cached = await MusicMetadataCache.get(cacheKey);
 
                 if (cached != null) {
-                  // Usar datos del caché
                   song = song.copyWith(
                     title: cached.title,
                     artist: cached.artist,
@@ -102,70 +100,33 @@ class MusicLibraryService {
                     artworkUri: cached.artworkUri,
                     dominantColor: cached.dominantColor,
                   );
-                  isCached = true;
                 }
               } catch (e) {
                 print('[MusicLibrary] Cache read error: $e');
               }
 
               songs.add(song);
-              if (!isCached) {
-                songsMissingMetadata.add(song);
-              }
             }
 
             processed++;
-            if (processed % 10 == 0) {
+            if (processed % 20 == 0) {
               loadingStatus.value = LibraryLoadingStatus(
-                'Analizando archivos ($processed/$total)...',
-                0.1 + (0.2 * (processed / total)), // 10% a 30%
+                'Cargando ($processed/$total)...',
+                0.3 + (0.4 * (processed / total)), // 30% a 70%
               );
-              // Ceder control a la UI para evitar congelamiento
               await Future.delayed(Duration.zero);
             }
           }
 
-          print(
-            '[MusicLibrary] Found ${songs.length} songs. Metadata missing for: ${songsMissingMetadata.length}',
-          );
+          print('[MusicLibrary] Loaded ${songs.length} songs from cache/basic');
 
-          // FASE 2: Cargar metadatos faltantes en SEGUNDO PLANO (Async)
-          // No esperamos a esto para que la UI muestre la lista inmediatamente
-          if (songsMissingMetadata.isNotEmpty) {
-            _loadMetadataInBackground(songsMissingMetadata, startProgress: 0.3);
-          }
-
-          // FASE 3: Actualizar la lista principal con los datos recién cacheados
-          // Esto es crucial para que "Latest Favorites" y la Librería muestren artwork
-          for (int i = 0; i < songs.length; i++) {
-            // Yield every 50 updates to prevent freeze during list update
-            if (i % 50 == 0) {
-              await Future.delayed(const Duration(milliseconds: 1));
-            }
-
-            if (songs[i].artworkPath == null) {
-              try {
-                final cacheKey = songs[i].filePath.hashCode.toString();
-                final cached = await MusicMetadataCache.get(cacheKey);
-                if (cached != null) {
-                  songs[i] = songs[i].copyWith(
-                    title: cached.title,
-                    artist: cached.artist,
-                    album: cached.album,
-                    duration: cached.durationMs != null
-                        ? Duration(milliseconds: cached.durationMs!)
-                        : songs[i].duration,
-                    artworkPath: cached.artworkPath,
-                    artworkUri: cached.artworkUri,
-                    dominantColor: cached.dominantColor,
-                  );
-                }
-              } catch (e) {
-                print(
-                  '[MusicLibrary] Re-hydration error for ${songs[i].title}: $e',
-                );
-              }
-            }
+          // FASE 2: Si es force reload, simplemente asegurar que todo tenga datos del caché
+          // NO volvemos a extraer metadatos - eso ya se hizo en la carga inicial
+          if (forceRefetchMetadata && songs.isNotEmpty) {
+            loadingStatus.value = const LibraryLoadingStatus(
+              'Finalizando...',
+              0.9,
+            );
           }
         }
       } else {
@@ -193,8 +154,27 @@ class MusicLibraryService {
               if (_isAudioFile(name)) {
                 var song = await Song.fromFile(entity);
                 if (song != null) {
-                  // Cargar metadatos (artwork, tags reales)
-                  song = await song.loadMetadata();
+                  // Cargar metadatos reales
+                  final metadata = await MetadataService().loadMetadata(
+                    id: song.id,
+                    filePath: song.filePath,
+                    forceReload: forceRefetchMetadata,
+                    preserveColor: forceRefetchMetadata,
+                  );
+
+                  if (metadata != null) {
+                    song = song.copyWith(
+                      title: metadata.title,
+                      artist: metadata.artist,
+                      album: metadata.album,
+                      duration: metadata.durationMs != null
+                          ? Duration(milliseconds: metadata.durationMs!)
+                          : null,
+                      artworkPath: metadata.artworkPath,
+                      artworkUri: metadata.artworkUri,
+                      dominantColor: metadata.dominantColor,
+                    );
+                  }
                   songs.add(song);
                 }
               }
@@ -206,8 +186,7 @@ class MusicLibraryService {
         }
       }
 
-      print('[MusicLibrary] Found ${songs.length} songs');
-      // Ordenar alfabéticamente por título por defecto
+      print('[MusicLibrary] Scan complete: ${songs.length} songs');
       loadingStatus.value = const LibraryLoadingStatus('Finalizando...', 1.0);
       songs.sort((a, b) => a.title.compareTo(b.title));
 
@@ -228,11 +207,7 @@ class MusicLibraryService {
   }
 
   static Song _createSongFromSaf(String fileName, String uri) {
-    // Parseo básico del nombre de archivo (similar a Song.fromFile)
-    String title = fileName.replaceAll(
-      RegExp(r'\.[a-zA-Z0-9]+$'),
-      '',
-    ); // Quitar extensión
+    String title = fileName.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '');
     String artist = 'Unknown Artist';
 
     if (fileName.contains(' - ')) {
@@ -244,76 +219,11 @@ class MusicLibraryService {
     }
 
     return Song(
-      id: uri.hashCode.toString(), // ID basado en URI hash
+      id: IdGenerator.generateSongId(uri),
       title: title,
       artist: artist,
-      filePath: uri, // Guardamos la Content URI como path
+      filePath: uri,
     );
-  }
-
-  /// Carga metadatos y espera a que termine (para mostrar diálogo de progreso)
-  static Future<void> _loadMetadataInBackground(
-    List<Song> songs, {
-    double startProgress = 0.3,
-  }) async {
-    // Cargar en lotes de 5 para no saturar
-    const batchSize = 5;
-    final total = songs.length;
-    int processed = 0;
-
-    for (var i = 0; i < songs.length; i += batchSize) {
-      final end = (i + batchSize < songs.length) ? i + batchSize : songs.length;
-      final batch = songs.sublist(i, end);
-
-      // Cargar lote en paralelo usando MetadataService
-      await Future.wait(
-        batch.map((song) async {
-          try {
-            final uri = song.filePath;
-            final cacheKey = uri.hashCode.toString();
-            final isSaf = uri.startsWith('content://');
-
-            // Usar MetadataService que maneja MediaStore + caché automáticamente
-            final metadata = await MetadataService().loadMetadata(
-              id: cacheKey,
-              safUri: isSaf ? uri : null,
-              filePath: isSaf ? null : uri,
-              priority: MetadataPriority
-                  .high, // Alta prioridad ya que el usuario espera en el diálogo
-            );
-
-            if (metadata != null) {
-              // 🔔 Notificar a la UI que esta canción tiene datos nuevos (artwork)
-              onMetadataUpdated.value = uri;
-
-              /* print(
-                '[MusicLibrary] ✓ Cached metadata for: ${metadata.title} - ${metadata.artist}',
-              ); */
-            }
-          } catch (e) {
-            print('[MusicLibrary] Background metadata error: $e');
-          }
-        }),
-      );
-
-      processed += batch.length;
-
-      // Actualizar progreso (de startProgress a 1.0)
-      final currentBatchProgress = processed / total; // 0.0 a 1.0
-      // Escalar al rango restante (1.0 - startProgress)
-      final globalProgress =
-          startProgress + (currentBatchProgress * (1.0 - startProgress));
-
-      loadingStatus.value = LibraryLoadingStatus(
-        'Procesando metadatos ($processed/$total)...',
-        globalProgress,
-      );
-
-      // Pequeña pausa entre lotes para dar respiro a la UI
-      await Future.delayed(const Duration(milliseconds: 10));
-    }
-
-    print('[MusicLibrary] ✓ All metadata loaded');
   }
 
   static Future<bool> _requestPermissions() async {
