@@ -1,31 +1,27 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:flutter/material.dart';
 import '../models/song.dart';
 
 @pragma('vm:entry-point')
 Future<void> backgroundCallback(Uri? data) async {
   if (data?.host == 'play') {
-    print('Widget: Play');
-    // We can't easily access the existing AudioPlayerService instance here freely
-    // because this is a background isolate.
-    // However, AudioService (the plugin) sends messages to the Android Service.
-    // This assumes the Android Service is running.
     await AudioService.play();
   } else if (data?.host == 'pause') {
-    print('Widget: Pause');
     await AudioService.pause();
   } else if (data?.host == 'next') {
-    print('Widget: Next');
     await AudioService.skipToNext();
   } else if (data?.host == 'prev') {
-    print('Widget: Prev');
     await AudioService.skipToPrevious();
+  } else if (data?.host == 'favorite') {
+    print('Widget: Favorite Toggle');
+    // Send custom action to handler
+    await AudioService.customAction('toggleFavorite', {});
   }
 }
 
 class WidgetService {
   static const String _widgetName = 'MusicWidgetProvider';
-  // static const String _groupId = 'group.music_widget';
 
   static Future<void> initialize() async {
     await HomeWidget.registerBackgroundCallback(backgroundCallback);
@@ -34,6 +30,7 @@ class WidgetService {
   static Future<void> updateWidget({
     required Song? song,
     required bool isPlaying,
+    required bool isFavorite,
   }) async {
     // Save Data
     await HomeWidget.saveWidgetData<String>(
@@ -45,24 +42,26 @@ class WidgetService {
       song?.artist ?? 'Tap to play',
     );
     await HomeWidget.saveWidgetData<bool>('isPlaying', isPlaying);
+    await HomeWidget.saveWidgetData<bool>('isFavorite', isFavorite);
+
+    // Color Calculation
+    final dominantColorValue = song?.dominantColor ?? 0xFF212121;
+    final dominantColor = Color(dominantColorValue);
+    final brightness = ThemeData.estimateBrightnessForColor(dominantColor);
+    final isDark = brightness == Brightness.dark;
+
+    await HomeWidget.saveWidgetData<bool>('isDark', isDark);
+    await HomeWidget.saveWidgetData<int>('dominantColor', dominantColorValue);
 
     // Save Artwork Path
-    // Ensure we passed a valid file path that the widget can read
     if (song?.artworkPath != null) {
       await HomeWidget.saveWidgetData<String>(
         'artwork_path',
         song!.artworkPath,
       );
     } else {
-      // Clear specific key or handle in Kotlin
       await HomeWidget.saveWidgetData<String>('artwork_path', null);
     }
-
-    // Save Dominant Color
-    await HomeWidget.saveWidgetData<int>(
-      'dominantColor',
-      song?.dominantColor ?? 0xFF212121,
-    );
 
     // Trigger Update
     await HomeWidget.updateWidget(name: _widgetName, androidName: _widgetName);

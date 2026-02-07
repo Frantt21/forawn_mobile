@@ -946,9 +946,24 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                     song: song,
                     isPlaying: isPlaying,
                     onTap: () {
+                      // Fix: If searching, play from full library context instead of just search results
+                      List<Song> playlistToLoad = songs;
+                      int indexToLoad = index;
+
+                      if (_searchQuery.isNotEmpty) {
+                        final fullLibrary = _musicState.librarySongs;
+                        final foundIndex = fullLibrary.indexWhere(
+                          (s) => s.id == song.id,
+                        );
+                        if (foundIndex != -1) {
+                          playlistToLoad = fullLibrary;
+                          indexToLoad = foundIndex;
+                        }
+                      }
+
                       _audioPlayer.loadPlaylist(
-                        songs,
-                        initialIndex: index,
+                        playlistToLoad,
+                        initialIndex: indexToLoad,
                         autoPlay: true,
                       );
                       Navigator.of(context).push(

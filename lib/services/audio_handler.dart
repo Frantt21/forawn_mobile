@@ -7,6 +7,7 @@ import '../models/song.dart';
 import '../models/playback_state.dart' as app_state;
 
 import 'widget_service.dart';
+import 'playlist_service.dart';
 
 class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayerService _player = AudioPlayerService();
@@ -24,9 +25,11 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _player.playerStateStream.listen((state) {
       _broadcastState();
       // Actualizar Widget
+      final song = _player.currentSong;
       WidgetService.updateWidget(
-        song: _player.currentSong,
+        song: song,
         isPlaying: state == app_state.PlayerState.playing,
+        isFavorite: song != null ? PlaylistService().isLiked(song.id) : false,
       );
     });
 
@@ -37,6 +40,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       WidgetService.updateWidget(
         song: song,
         isPlaying: _player.playerState == app_state.PlayerState.playing,
+        isFavorite: song != null ? PlaylistService().isLiked(song.id) : false,
       );
     });
 
@@ -45,6 +49,18 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final current = _player.currentSong;
       if (current != null && duration != null) {
         _updateMediaItem(current, duration);
+      }
+    });
+
+    // Escuchar cambios en favoritos para actualizar el widget
+    PlaylistService().favoritesNotifier.addListener(() {
+      final song = _player.currentSong;
+      if (song != null) {
+        WidgetService.updateWidget(
+          song: song,
+          isPlaying: _player.playerState == app_state.PlayerState.playing,
+          isFavorite: PlaylistService().isLiked(song.id),
+        );
       }
     });
   }
@@ -150,4 +166,15 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
+
+  @override
+  Future<void> customAction(String name, [Map<String, dynamic>? extras]) async {
+    if (name == 'toggleFavorite') {
+      final song = _player.currentSong;
+      if (song != null) {
+        await PlaylistService().toggleLike(song.id);
+        // La actualización del widget ocurrirá automáticamente gracias al listener de favoritesNotifier
+      }
+    }
+  }
 }

@@ -61,6 +61,26 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                     setImageViewResource(R.id.widget_artwork, R.mipmap.ic_launcher)
                 }
                 
+                // Action for Favorite
+                val favoriteIntent = Intent(context, MusicWidgetProvider::class.java).apply {
+                    action = "es.antonborri.home_widget.action.BACKGROUND_UPDATE"
+                    data = android.net.Uri.parse("homeWidget://favorite")
+                }
+                val favoritePendingIntent = PendingIntent.getBroadcast(context, 0, favoriteIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                setOnClickPendingIntent(R.id.widget_favorite, favoritePendingIntent)
+
+                val isFavorite = widgetData.getBoolean("isFavorite", false)
+                if (isFavorite) {
+                     setImageViewResource(R.id.widget_favorite, R.drawable.ic_favorite)
+                     setInt(R.id.widget_favorite, "setColorFilter", android.graphics.Color.RED)
+                } else {
+                     setImageViewResource(R.id.widget_favorite, R.drawable.ic_favorite_border)
+                     // Reset tint to white (or based on brightness)
+                     val isDark = widgetData.getBoolean("isDark", true)
+                     val tintColor = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+                     setInt(R.id.widget_favorite, "setColorFilter", tintColor)
+                }
+
                 // Update Play/Pause icon
                 if (isPlaying) {
                     setImageViewResource(R.id.widget_play, R.drawable.ic_pause)
