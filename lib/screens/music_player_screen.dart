@@ -117,11 +117,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               ),
               // Draggable Lyrics Sheet
               DraggableScrollableSheet(
-                initialChildSize: 0.13,
-                minChildSize: 0.13,
+                initialChildSize: 0.11,
+                minChildSize: 0.11,
                 maxChildSize: 0.9,
                 snap: true,
-                snapSizes: const [0.13, 0.9],
+                snapSizes: const [0.11, 0.9],
                 builder: (context, scrollController) {
                   return SingleChildScrollView(
                     controller: scrollController,
