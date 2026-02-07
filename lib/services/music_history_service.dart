@@ -112,6 +112,9 @@ class MusicHistoryService extends ChangeNotifier {
     try {
       final dbHelper = DatabaseHelper();
       final songIds = await dbHelper.getPlaybackHistory(limit: _maxHistory);
+      print(
+        '[MusicHistory] DEBUG: Loaded ${songIds.length} RAW IDs from DB playback_history',
+      );
 
       final List<Song> loadedSongs = [];
       final Set<String> processedIds = {};
@@ -119,8 +122,40 @@ class MusicHistoryService extends ChangeNotifier {
       for (final id in songIds) {
         final metadata = await dbHelper.getMetadata(id);
 
-        // Si no hay metadatos, ignoramos esta entrada (podríamos borrarla del historial)
-        if (metadata == null || metadata['file_path'] == null) continue;
+        // Debugging detailed state
+        if (metadata != null) {
+          print(
+            '[MusicHistory] DEBUG: ID $id found. Path: ${metadata['file_path']}',
+          );
+        } else {
+          print('[MusicHistory] DEBUG: ID $id metadata is NULL');
+        }
+
+        if (metadata == null) {
+          print(
+            '[MusicHistory] Metadata COMPLETELY MISSING for ID: $id. Auto-cleaning.',
+          );
+          await dbHelper.deleteFromPlaybackHistory(id);
+          continue;
+        }
+
+        // If metadata exists but path is missing, we try to survive if we have at least a title
+        // But without path we can't play it.
+        // Let's NOT delete it immediately if we think we can recover it later,
+        // OR we just hide it from the list but keep ID in DB?
+        // For now, let's just Log and Skip adding to list, but NOT delete from DB yet?
+        // NO, if we lack path, the UI will crash or be useless.
+        // Let's delete for now but ONLY if file_path is indeed null.
+
+        if (metadata['file_path'] == null) {
+          print(
+            '[MusicHistory] Metadata CORRUPT (Missing Path) for ID: $id. Cleaning.',
+          );
+          await dbHelper.deleteFromPlaybackHistory(id);
+          // Also clean corrupt metadata row so it can be re-inserted cleanly later
+          await dbHelper.deleteMetadata(id);
+          continue;
+        }
 
         final filePath = metadata['file_path'];
         final storedId = metadata['id'];
@@ -137,9 +172,15 @@ class MusicHistoryService extends ChangeNotifier {
           finalId = stableId;
         }
 
-        // Evitar duplicados visuales (si migramos y ya existía el nuevo, o si el historial tenía basura)
-        if (processedIds.contains(finalId)) continue;
+        if (processedIds.contains(finalId)) {
+          print('[MusicHistory] Duplicate ID skipped: $finalId');
+          continue;
+        }
         processedIds.add(finalId);
+
+        // print(
+        //   '[MusicHistory] Loaded history item: $finalId (${metadata['title']})',
+        // );
 
         loadedSongs.add(
           Song(
@@ -177,26 +218,23 @@ class MusicHistoryService extends ChangeNotifier {
     try {
       final dbHelper = DatabaseHelper();
 
-      // Ensure metadata exists
-      // Ensure metadata exists WITHOUT overwriting potentially fresher data from Library scan
-      // Solo insertamos si no existe.
-      final existing = await dbHelper.getMetadata(song.id);
-      if (existing == null) {
-        await dbHelper.insertMetadata({
-          'id': song.id,
-          'title': song.title,
-          'artist': song.artist,
-          'album': song.album,
-          'duration': song.duration?.inMilliseconds,
-          'file_path': song.filePath,
-          'artwork_path': song.artworkPath,
-          'artwork_uri': song.artworkUri,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'dominant_color': song.dominantColor,
-        });
-      }
+      // ALWAYS update metadata on playback to Fix corrupt entries (missing paths)
+      // This heals the DB automatically as user plays songs
+      await dbHelper.insertMetadata({
+        'id': song.id,
+        'title': song.title,
+        'artist': song.artist,
+        'album': song.album,
+        'duration': song.duration?.inMilliseconds,
+        'file_path': song.filePath, // Critical field
+        'artwork_path': song.artworkPath,
+        'artwork_uri': song.artworkUri,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'dominant_color': song.dominantColor,
+      });
 
       await dbHelper.addToPlaybackHistory(song.id);
+      print('[MusicHistory] Saved to history DB: ${song.id} - ${song.title}');
     } catch (e) {
       print('[MusicHistory] Error saving history: $e');
     }

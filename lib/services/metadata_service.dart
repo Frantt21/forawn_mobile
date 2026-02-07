@@ -166,6 +166,9 @@ class MetadataService {
             artworkUri: rawMetadata['artworkUri'],
             dominantColor: dominantColor,
           );
+          print(
+            '[MetadataService] Success! Helper saved metadata for $id to DB/File',
+          );
 
           // Cargar desde caché para obtener la RUTA del archivo, no los bytes
           final cachedMetadata = await MusicMetadataCache.get(id);

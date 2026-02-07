@@ -20,6 +20,7 @@ import 'saf_helper.dart';
 import 'metadata_service.dart';
 import 'lyrics_service.dart';
 import 'music_library_service.dart';
+import '../utils/id_generator.dart';
 
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
@@ -704,7 +705,7 @@ class AudioPlayerService {
   Future<String?> _copyToTemp(String uriStr) async {
     try {
       final tempDir = await getTemporaryDirectory();
-      final filename = 'safe_play_${uriStr.hashCode}.mp3';
+      final filename = 'safe_play_${IdGenerator.generateSongId(uriStr)}.mp3';
       final destFile = File('${tempDir.path}/$filename');
 
       // Optimización: Si ya existe, reutilizarlo.

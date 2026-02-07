@@ -19,6 +19,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/metadata_service.dart';
 import '../services/local_music_state_service.dart';
 import '../services/music_library_service.dart';
+import '../utils/id_generator.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -76,7 +77,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     final count = _virtualSongs.length > 50 ? 50 : _virtualSongs.length;
     final requests = _virtualSongs.take(count).map((song) {
       return MetadataLoadRequest(
-        id: song.filePath.hashCode.toString(),
+        id: IdGenerator.generateSongId(song.filePath),
         filePath: song.filePath.startsWith('content://') ? null : song.filePath,
         safUri: song.filePath.startsWith('content://') ? song.filePath : null,
         priority: MetadataPriority

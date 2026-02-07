@@ -144,6 +144,15 @@ class DatabaseHelper {
     return results.map((r) => r['song_id'] as String).toList();
   }
 
+  Future<void> deleteFromPlaybackHistory(String songId) async {
+    final db = await database;
+    await db.delete(
+      'playback_history',
+      where: 'song_id = ?',
+      whereArgs: [songId],
+    );
+  }
+
   Future<void> clearPlaybackHistory() async {
     final db = await database;
     await db.delete('playback_history');
@@ -433,9 +442,17 @@ class DatabaseHelper {
           whereArgs: [oldId],
         );
 
-        // Actualizar Favoritos
+        // Actualizar Favoritos (Corregido nombre de tabla)
         await txn.update(
-          'user_favorites',
+          'favorites',
+          {'song_id': newId},
+          where: 'song_id = ?',
+          whereArgs: [oldId],
+        );
+
+        // Actualizar Historial de Reproducción (NUEVO)
+        await txn.update(
+          'playback_history',
           {'song_id': newId},
           where: 'song_id = ?',
           whereArgs: [oldId],
@@ -467,7 +484,13 @@ class DatabaseHelper {
             whereArgs: [oldId],
           );
           await txn.update(
-            'user_favorites',
+            'favorites',
+            {'song_id': newId},
+            where: 'song_id = ?',
+            whereArgs: [oldId],
+          );
+          await txn.update(
+            'playback_history',
             {'song_id': newId},
             where: 'song_id = ?',
             whereArgs: [oldId],

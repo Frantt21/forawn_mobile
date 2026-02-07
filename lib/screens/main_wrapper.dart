@@ -75,7 +75,7 @@ class _MainWrapperState extends State<MainWrapper>
       ]);
 
       // OPTIMIZATION: Do NOT await for these services. Let them run in background.
-      servicesFuture.ignore(); // Fire and forget
+      await servicesFuture; // Wait for services to be ready to avoid empty UI
 
       setState(() => _loadingProgress = 0.9);
 
