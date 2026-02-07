@@ -8,6 +8,7 @@ import '../services/language_service.dart';
 import 'lyrics_view.dart';
 import 'dart:ui';
 import 'artwork_widget.dart';
+import '../models/playback_state.dart';
 
 class LyricsSheet extends StatefulWidget {
   final Song song;
@@ -387,6 +388,19 @@ class _LyricsSheetState extends State<LyricsSheet> {
     );
   }
 
+  int _getLyricIndex(Duration position) {
+    if (_lyrics == null || _lyrics!.syncedLyrics.isEmpty) return -1;
+    final lyrics = _lyrics!.syncedLyrics;
+    final targetTime = position - _offset;
+
+    for (int i = 0; i < lyrics.length; i++) {
+      if (lyrics[i].timestamp > targetTime) {
+        return i > 0 ? i - 1 : -1;
+      }
+    }
+    return lyrics.length - 1;
+  }
+
   void _showSyncDialog() {
     showDialog(
       context: context,
@@ -411,123 +425,185 @@ class _LyricsSheetState extends State<LyricsSheet> {
                     ),
                   ),
                   padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Header
-                      Row(
+                  child: StreamBuilder<PlaybackProgress>(
+                    stream: widget.player.progressStream,
+                    builder: (context, snapshot) {
+                      final position = snapshot.data?.position ?? Duration.zero;
+                      final currentIndex = _getLyricIndex(position);
+                      final lyricsList = _lyrics?.syncedLyrics ?? [];
+
+                      final currentText =
+                          (currentIndex >= 0 &&
+                              currentIndex < lyricsList.length)
+                          ? lyricsList[currentIndex].text
+                          : '';
+                      final nextText = (currentIndex + 1 < lyricsList.length)
+                          ? lyricsList[currentIndex + 1].text
+                          : '';
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
+                          // Header
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.purpleAccent.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.timer,
+                                  color: Colors.purpleAccent,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      LanguageService().getText(
+                                        'synchronization',
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      LanguageService().getText(
+                                        'adjust_lyrics_time',
+                                      ),
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.6),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Lyrics Preview
                           Container(
-                            padding: const EdgeInsets.all(10),
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.purpleAccent.withOpacity(0.2),
+                              color: Colors.black26,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
-                              Icons.timer,
-                              color: Colors.purpleAccent,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  LanguageService().getText('synchronization'),
+                                  currentText.isEmpty ? '...' : currentText,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 20,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.bold,
+                                    height: 1.3,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  LanguageService().getText(
-                                    'adjust_lyrics_time',
+                                if (nextText.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    nextText,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5),
+                                      fontSize: 14,
+                                    ),
                                   ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Current Offset Display
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1C1C1E),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '${LanguageService().getText('current')}: ',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.6),
-                                    fontSize: 13,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  '${_offset.inMilliseconds}ms',
+                                  style: const TextStyle(
+                                    color: Colors.purpleAccent,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
+                          const SizedBox(height: 24),
 
-                      // Current Offset Display
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1C1C1E),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${LanguageService().getText('current')}: ',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 14,
+                          // Sync Buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildSyncButton('-500ms', -500, setDialogState),
+                              _buildSyncButton('-100ms', -100, setDialogState),
+                              _buildSyncButton('+100ms', 100, setDialogState),
+                              _buildSyncButton('+500ms', 500, setDialogState),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Done Button
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.purpleAccent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: Text(
+                                LanguageService().getText('done'),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                            Text(
-                              '${_offset.inMilliseconds}ms',
-                              style: const TextStyle(
-                                color: Colors.purpleAccent,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Sync Buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildSyncButton('-500ms', -500, setDialogState),
-                          _buildSyncButton('-100ms', -100, setDialogState),
-                          _buildSyncButton('+100ms', 100, setDialogState),
-                          _buildSyncButton('+500ms', 500, setDialogState),
+                          ),
                         ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Done Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.purpleAccent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            LanguageService().getText('done'),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
               ),
