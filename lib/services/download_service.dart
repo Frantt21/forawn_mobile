@@ -121,7 +121,11 @@ class DownloadService {
       );
 
       final query = '$trackTitle - $artistName';
-      final downloadUrl = await _foranlyService.getDownloadUrlWait(query);
+      final downloadUrl = await _foranlyService.getDownloadUrlWait(
+        query,
+        title: trackTitle,
+        artist: artistName,
+      );
 
       if (downloadUrl != null) {
         print('[DownloadService] URL obtenida de Foranly: $downloadUrl');

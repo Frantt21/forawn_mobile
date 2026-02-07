@@ -38,12 +38,21 @@ class ForanlyService {
 
   /// Obtener URL de descarga buscando por Query (Título - Artista)
   /// Retorna la URL de descarga directa o null si falla
-  Future<String?> getDownloadUrlWait(String query) async {
+  Future<String?> getDownloadUrlWait(
+    String query, {
+    String? title,
+    String? artist,
+  }) async {
     final backends = ApiConfig.getRotatedBackends();
 
     for (final baseUrl in backends) {
       try {
-        final url = await _tryGetUrl(baseUrl, query);
+        final url = await _tryGetUrl(
+          baseUrl,
+          query,
+          title: title,
+          artist: artist,
+        );
         if (url != null) return url;
       } catch (e) {
         print('[ForanlyService] Error en backend ($baseUrl): $e');
@@ -134,9 +143,14 @@ class ForanlyService {
     return await _waitForJobCompletion(baseUrl, jobId);
   }
 
-  /// Método auxiliar privado para intentar obtener la URL
-  Future<String?> _tryGetUrl(String baseUrl, String query) async {
-    // 1. Buscar Video ID
+  /// Método auxiliar privado para  /// Buscar y descargar desde YouTube
+  Future<String?> _tryGetUrl(
+    String baseUrl,
+    String query, {
+    String? title,
+    String? artist,
+  }) async {
+    // 1. Buscar en YouTube
     final searchUrl =
         '$baseUrl/youtube/search?q=${Uri.encodeComponent(query)}&limit=1';
     print('[ForanlyService] Buscando en: $searchUrl');
@@ -160,9 +174,21 @@ class ForanlyService {
     final String? videoId = searchData['results'][0]['id'];
     if (videoId == null) return null;
 
-    // 2. Iniciar Trabajo de Conversión/Descarga
-    final downloadEndpoint =
-        '$baseUrl/download?url=https://youtube.com/watch?v=$videoId&format=audio&enrich=true&query=${Uri.encodeComponent(query)}';
+    // 2. Iniciar Trabajo de Conversión/Descarga con title y artist
+    String downloadEndpoint =
+        '$baseUrl/download?url=https://youtube.com/watch?v=$videoId&format=audio&enrich=true';
+
+    // Agregar title y artist si están disponibles (para metadata correcta)
+    if (title != null && title.isNotEmpty) {
+      downloadEndpoint += '&title=${Uri.encodeComponent(title)}';
+    }
+    if (artist != null && artist.isNotEmpty) {
+      downloadEndpoint += '&artist=${Uri.encodeComponent(artist)}';
+    }
+
+    // Agregar query como fallback
+    downloadEndpoint += '&query=${Uri.encodeComponent(query)}';
+
     print('[ForanlyService] Iniciando job: $downloadEndpoint');
 
     final jobResponse = await http

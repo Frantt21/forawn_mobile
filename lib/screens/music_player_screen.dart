@@ -1445,7 +1445,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
 
       // 4. Update Cache & UI
       // CRITICAL: Delete ALL cache layers for this song FIRST
-      final cacheKey = song.filePath.hashCode.toString();
+      // FIX: Use stable ID (song.id) instead of unstable hashCode
+      final cacheKey = song.id;
 
       // Delete from persistent cache
       await MusicMetadataCache.delete(cacheKey);
@@ -1468,6 +1469,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       // Hack: Reset to null first to ensure ValueNotifier notifies listeners even if the path is the same
       MusicLibraryService.onMetadataUpdated.value = null;
       MusicLibraryService.onMetadataUpdated.value = song.filePath;
+
+      // Force UI refresh in this screen
+      if (mounted) {
+        setState(() {});
+      }
 
       if (mounted) {
         // Close Loading

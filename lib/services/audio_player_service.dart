@@ -559,6 +559,9 @@ class AudioPlayerService {
       if (currentSong.artworkPath == null && currentSong.artworkUri == null) {
         _loadMetadataInBackground(currentSong).then((updatedSong) {
           if (updatedSong != null) {
+            // Update History with new metadata
+            MusicHistoryService().updateHistoryItem(updatedSong);
+
             // Si la canción sigue siendo la misma, actualizamos
             if (_playlist.currentSong?.id == updatedSong.id) {
               _playlist.updateCurrentSong(updatedSong);

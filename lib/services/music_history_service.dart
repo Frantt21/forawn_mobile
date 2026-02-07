@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import '../services/database_helper.dart';
 import '../services/music_library_service.dart';
+import '../utils/id_generator.dart';
 
 class MusicHistoryService extends ChangeNotifier {
   static final MusicHistoryService _instance = MusicHistoryService._internal();
@@ -37,7 +38,8 @@ class MusicHistoryService extends ChangeNotifier {
       if (index != -1) {
         // Hydrate from cache
         final dbHelper = DatabaseHelper();
-        final cacheKey = uri.hashCode.toString();
+        // FIX: Use stable ID generator instead of random hashCode
+        final cacheKey = IdGenerator.generateSongId(uri);
         final metadata = await dbHelper.getMetadata(cacheKey);
 
         if (metadata != null) {
@@ -112,26 +114,48 @@ class MusicHistoryService extends ChangeNotifier {
       final songIds = await dbHelper.getPlaybackHistory(limit: _maxHistory);
 
       final List<Song> loadedSongs = [];
+      final Set<String> processedIds = {};
 
       for (final id in songIds) {
         final metadata = await dbHelper.getMetadata(id);
-        if (metadata != null && metadata['file_path'] != null) {
-          loadedSongs.add(
-            Song(
-              id: metadata['id'],
-              title: metadata['title'] ?? 'Unknown',
-              artist: metadata['artist'] ?? 'Unknown Artist',
-              album: metadata['album'],
-              duration: metadata['duration'] != null
-                  ? Duration(milliseconds: metadata['duration'])
-                  : null,
-              filePath: metadata['file_path'],
-              artworkPath: metadata['artwork_path'],
-              artworkUri: metadata['artwork_uri'],
-              dominantColor: metadata['dominant_color'],
-            ),
-          );
+
+        // Si no hay metadatos, ignoramos esta entrada (podríamos borrarla del historial)
+        if (metadata == null || metadata['file_path'] == null) continue;
+
+        final filePath = metadata['file_path'];
+        final storedId = metadata['id'];
+
+        // Verificar si el ID almacenado coincide con el generador estable
+        final stableId = IdGenerator.generateSongId(filePath);
+
+        String finalId = storedId;
+
+        // Migración on-the-fly: Si detectamos un ID antiguo/aleatorio
+        if (storedId != stableId) {
+          print('[MusicHistory] Migrating legacy ID $storedId to $stableId');
+          await dbHelper.migrateLegacySongId(storedId, stableId);
+          finalId = stableId;
         }
+
+        // Evitar duplicados visuales (si migramos y ya existía el nuevo, o si el historial tenía basura)
+        if (processedIds.contains(finalId)) continue;
+        processedIds.add(finalId);
+
+        loadedSongs.add(
+          Song(
+            id: finalId,
+            title: metadata['title'] ?? 'Unknown',
+            artist: metadata['artist'] ?? 'Unknown Artist',
+            album: metadata['album'],
+            duration: metadata['duration'] != null
+                ? Duration(milliseconds: metadata['duration'])
+                : null,
+            filePath: filePath,
+            artworkPath: metadata['artwork_path'],
+            artworkUri: metadata['artwork_uri'],
+            dominantColor: metadata['dominant_color'],
+          ),
+        );
       }
 
       _history = loadedSongs;
@@ -186,5 +210,14 @@ class MusicHistoryService extends ChangeNotifier {
     // Also clear prefs just in case
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
+  }
+
+  /// Actualizar un item específico del historial con metadata fresca
+  void updateHistoryItem(Song updatedSong) {
+    final index = _history.indexWhere((s) => s.id == updatedSong.id);
+    if (index != -1) {
+      _history[index] = updatedSong;
+      notifyListeners();
+    }
   }
 }

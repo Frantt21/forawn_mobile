@@ -1,5 +1,7 @@
 // lib/services/local_music_state_service.dart
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import 'music_library_service.dart';
@@ -71,6 +73,22 @@ class LocalMusicStateService extends ChangeNotifier {
           final cached = await MusicMetadataCache.get(cacheKey);
 
           if (cached != null) {
+            // IMPORTANT: Evict old image from Flutter's cache
+            if (cached.artworkPath != null) {
+              try {
+                final file = File(cached.artworkPath!);
+                if (file.existsSync()) {
+                  final fileImage = FileImage(file);
+                  fileImage.evict();
+                  print(
+                    '[LocalMusicState] Evicted image cache for updated song',
+                  );
+                }
+              } catch (e) {
+                print('[LocalMusicState] Error evicting image: $e');
+              }
+            }
+
             final currentSong = _librarySongs[index];
             final updatedSong = currentSong.copyWith(
               title: cached.title,
@@ -86,6 +104,9 @@ class LocalMusicStateService extends ChangeNotifier {
 
             _librarySongs[index] = updatedSong;
             notifyListeners();
+            print(
+              '[LocalMusicState] Song metadata updated: ${updatedSong.title}',
+            );
           }
         } catch (e) {
           print('[LocalMusicState] Error updating song metadata: $e');
