@@ -8,7 +8,6 @@ import '../services/audio_player_service.dart';
 
 import 'dart:io';
 
-import '../services/music_metadata_cache.dart';
 import '../widgets/artwork_widget.dart';
 import 'animated_playing_indicator.dart';
 
@@ -332,7 +331,7 @@ class LocalMusicHome extends StatelessWidget {
                                             return Image.file(
                                               File(playlist.imagePath!),
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
+                                              errorBuilder: (_, _, _) =>
                                                   Container(
                                                     color: Colors.grey[850],
                                                     child: const Icon(
