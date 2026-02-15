@@ -218,23 +218,69 @@ class MusicHistoryService extends ChangeNotifier {
     try {
       final dbHelper = DatabaseHelper();
 
-      // ALWAYS update metadata on playback to Fix corrupt entries (missing paths)
-      // This heals the DB automatically as user plays songs
-      await dbHelper.insertMetadata({
-        'id': song.id,
-        'title': song.title,
-        'artist': song.artist,
-        'album': song.album,
-        'duration': song.duration?.inMilliseconds,
-        'file_path': song.filePath, // Critical field
-        'artwork_path': song.artworkPath,
-        'artwork_uri': song.artworkUri,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'dominant_color': song.dominantColor,
-      });
+      // Check existing metadata to avoid overwriting valid data with "Unknown"
+      final existingMap = await dbHelper.getMetadata(song.id);
+      Map<String, dynamic> metadataToSave;
 
+      if (existingMap != null) {
+        // Merge strategy: Keep existing if new is "Unknown", but update if new is valid
+        // Always update file_path to ensure playability
+        metadataToSave = Map<String, dynamic>.from(existingMap);
+
+        // Update fields if the new song has better data
+        if (song.title != 'Unknown' && song.title.isNotEmpty) {
+          metadataToSave['title'] = song.title;
+        }
+        if (song.artist != 'Unknown Artist' &&
+            song.artist != 'Unknown' &&
+            song.artist.isNotEmpty) {
+          metadataToSave['artist'] = song.artist;
+        }
+        if (song.album != null &&
+            song.album != 'Unknown' &&
+            song.album!.isNotEmpty) {
+          metadataToSave['album'] = song.album;
+        }
+        if (song.duration != null) {
+          metadataToSave['duration'] = song.duration!.inMilliseconds;
+        }
+        // Always update path and uri if available
+        if (song.filePath.isNotEmpty) {
+          metadataToSave['file_path'] = song.filePath;
+        }
+        if (song.artworkUri != null) {
+          metadataToSave['artwork_uri'] = song.artworkUri;
+        }
+        if (song.artworkPath != null) {
+          metadataToSave['artwork_path'] = song.artworkPath;
+        }
+        if (song.dominantColor != null) {
+          metadataToSave['dominant_color'] = song.dominantColor;
+        }
+
+        metadataToSave['timestamp'] = DateTime.now().millisecondsSinceEpoch;
+      } else {
+        // New entry
+        metadataToSave = {
+          'id': song.id,
+          'title': song.title,
+          'artist': song.artist,
+          'album': song.album,
+          'duration': song.duration?.inMilliseconds,
+          'file_path': song.filePath,
+          'artwork_path': song.artworkPath,
+          'artwork_uri': song.artworkUri,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'dominant_color': song.dominantColor,
+        };
+      }
+
+      await dbHelper.insertMetadata(metadataToSave);
       await dbHelper.addToPlaybackHistory(song.id);
-      print('[MusicHistory] Saved to history DB: ${song.id} - ${song.title}');
+
+      print(
+        '[MusicHistory] Saved to history DB: ${song.id} - ${metadataToSave['title']}',
+      );
     } catch (e) {
       print('[MusicHistory] Error saving history: $e');
     }
@@ -251,11 +297,33 @@ class MusicHistoryService extends ChangeNotifier {
   }
 
   /// Actualizar un item específico del historial con metadata fresca
-  void updateHistoryItem(Song updatedSong) {
+  Future<void> updateHistoryItem(Song updatedSong) async {
     final index = _history.indexWhere((s) => s.id == updatedSong.id);
     if (index != -1) {
       _history[index] = updatedSong;
       notifyListeners();
+
+      // Also ensure this fresh metadata is persisted to DB
+      try {
+        final dbHelper = DatabaseHelper();
+        await dbHelper.insertMetadata({
+          'id': updatedSong.id,
+          'title': updatedSong.title,
+          'artist': updatedSong.artist,
+          'album': updatedSong.album,
+          'duration': updatedSong.duration?.inMilliseconds,
+          'file_path': updatedSong.filePath,
+          'artwork_path': updatedSong.artworkPath,
+          'artwork_uri': updatedSong.artworkUri,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'dominant_color': updatedSong.dominantColor,
+        });
+        print(
+          '[MusicHistory] Updated metadata in DB for: ${updatedSong.title}',
+        );
+      } catch (e) {
+        print('[MusicHistory] Error updating metadata in DB: $e');
+      }
     }
   }
 }
