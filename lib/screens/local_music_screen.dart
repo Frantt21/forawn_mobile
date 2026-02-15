@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -121,6 +122,40 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
       parent: _animationController,
       curve: Curves.easeInOut,
     );
+
+    // Trigger lazy load of default folder
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDefaultFolderIfNeeded();
+    });
+  }
+
+  Future<void> _loadDefaultFolderIfNeeded() async {
+    if (_musicState.hasLoadedOnce) return;
+
+    // Obtener ruta guardada o default
+    // Nota: Esto duplica un poco la lógica que estaba en el servicio, pero ahora
+    // el control está en la UI, lo que es mejor para los permisos.
+    final prefs =
+        await SharedPreferences.getInstance(); // No es ideal instanciar aquí pero es seguro
+    final lastPath = prefs.getString('last_music_folder');
+
+    String? targetPath = lastPath;
+    if (targetPath == null && Platform.isAndroid) {
+      targetPath = '/storage/emulated/0/Music';
+    }
+
+    if (targetPath != null) {
+      print('[LocalMusicScreen] Lazy loading folder: $targetPath');
+      // Esto disparará el requestPermissions dentro del servicio
+      try {
+        await _musicState.loadFolder(targetPath);
+      } catch (e) {
+        print('[LocalMusicScreen] Error loading default folder: $e');
+        if (mounted) {
+          // Opcional: Mostrar botón para reintentar o seleccionar carpeta
+        }
+      }
+    }
   }
 
   @override

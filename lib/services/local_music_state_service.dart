@@ -29,28 +29,16 @@ class LocalMusicStateService extends ChangeNotifier {
   bool get hasLoadedOnce => _hasLoadedOnce;
   String? get currentFolderPath => _currentFolderPath;
 
-  /// Inicializa el servicio - solo carga si no se ha cargado antes
+  /// Inicializa el servicio
   Future<void> init() async {
     if (_hasLoadedOnce) {
       print('[LocalMusicState] Already initialized, skipping...');
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final lastPath = prefs.getString('last_music_folder');
-    String? pathToLoad = lastPath;
-
-    if (pathToLoad == null && Platform.isAndroid) {
-      // Default to standard Music directory on local storage if not set
-      // The user requested to use "local://primary/" which maps to external storage
-      pathToLoad = '/storage/emulated/0/Music';
-    }
-
-    if (pathToLoad != null) {
-      // Allow UI to settle before heavy scanning
-      await Future.delayed(const Duration(milliseconds: 500));
-      await loadFolder(pathToLoad);
-    }
+    // Solo configurar listeners. NO cargar carpetas automáticamente aquí.
+    // La carga se debe disparar desde la UI (LocalMusicScreen) para asegurar
+    // que el contexto esté listo para pedir permisos si es necesario.
 
     // Escuchar actualizaciones de metadatos en segundo plano
     MusicLibraryService.onMetadataUpdated.addListener(_onMetadataUpdated);
