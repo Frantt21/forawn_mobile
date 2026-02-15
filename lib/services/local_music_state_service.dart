@@ -1,6 +1,5 @@
 // lib/services/local_music_state_service.dart
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
@@ -39,11 +38,18 @@ class LocalMusicStateService extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     final lastPath = prefs.getString('last_music_folder');
+    String? pathToLoad = lastPath;
 
-    if (lastPath != null) {
+    if (pathToLoad == null && Platform.isAndroid) {
+      // Default to standard Music directory on local storage if not set
+      // The user requested to use "local://primary/" which maps to external storage
+      pathToLoad = '/storage/emulated/0/Music';
+    }
+
+    if (pathToLoad != null) {
       // Allow UI to settle before heavy scanning
       await Future.delayed(const Duration(milliseconds: 500));
-      await loadFolder(lastPath);
+      await loadFolder(pathToLoad);
     }
 
     // Escuchar actualizaciones de metadatos en segundo plano

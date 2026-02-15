@@ -242,6 +242,18 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
   Future<void> _pickFolder() async {
     final uri = await SafHelper.pickDirectory();
     if (uri != null) {
+      // Intentar convertir a ruta local para optimización (mismo método que la carga por defecto)
+      final localPath = SafHelper.uriToLocalPath(uri);
+      final targetPath = localPath ?? uri;
+
+      if (localPath != null) {
+        print(
+          '[LocalMusicScreen] Optimized: Loading folder via local path: $localPath',
+        );
+      } else {
+        print('[LocalMusicScreen] Loading folder via SAF URI: $uri');
+      }
+
       // Mostrar diálogo de progreso
       if (!mounted) return;
 
@@ -259,7 +271,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
         // Pequeña pausa para que el diálogo se renderice
         await Future.delayed(const Duration(milliseconds: 100));
 
-        await _musicState.loadFolder(uri, forceReload: true);
+        await _musicState.loadFolder(targetPath, forceReload: true);
 
         // Cargar playlist en el reproductor si está vacío
         final songs = _musicState.librarySongs;

@@ -139,45 +139,42 @@ class MusicLibraryService {
 
         final dir = Directory(pathOrUri);
         if (await dir.exists()) {
-          final entities = dir.listSync(recursive: false);
+          // Use a robust recursive scanner
+          final files = _listAudioFilesSafe(dir);
+          final total = files.length;
           int processed = 0;
-          final total = entities.length;
 
-          for (final entity in entities) {
+          for (final entity in files) {
             loadingStatus.value = LibraryLoadingStatus(
               'Leyendo archivo ${processed + 1}/$total...',
               0.1 + (0.8 * (processed / total)),
             );
 
-            if (entity is File) {
-              final name = entity.path.split(Platform.pathSeparator).last;
-              if (_isAudioFile(name)) {
-                var song = await Song.fromFile(entity);
-                if (song != null) {
-                  // Cargar metadatos reales
-                  final metadata = await MetadataService().loadMetadata(
-                    id: song.id,
-                    filePath: song.filePath,
-                    forceReload: forceRefetchMetadata,
-                    preserveColor: forceRefetchMetadata,
-                  );
+            // _listAudioFilesSafe returns files, so we can cast directly
+            var song = await Song.fromFile(entity);
+            if (song != null) {
+              // Cargar metadatos reales
+              final metadata = await MetadataService().loadMetadata(
+                id: song.id,
+                filePath: song.filePath,
+                forceReload: forceRefetchMetadata,
+                preserveColor: forceRefetchMetadata,
+              );
 
-                  if (metadata != null) {
-                    song = song.copyWith(
-                      title: metadata.title,
-                      artist: metadata.artist,
-                      album: metadata.album,
-                      duration: metadata.durationMs != null
-                          ? Duration(milliseconds: metadata.durationMs!)
-                          : null,
-                      artworkPath: metadata.artworkPath,
-                      artworkUri: metadata.artworkUri,
-                      dominantColor: metadata.dominantColor,
-                    );
-                  }
-                  songs.add(song);
-                }
+              if (metadata != null) {
+                song = song.copyWith(
+                  title: metadata.title,
+                  artist: metadata.artist,
+                  album: metadata.album,
+                  duration: metadata.durationMs != null
+                      ? Duration(milliseconds: metadata.durationMs!)
+                      : null,
+                  artworkPath: metadata.artworkPath,
+                  artworkUri: metadata.artworkUri,
+                  dominantColor: metadata.dominantColor,
+                );
               }
+              songs.add(song);
             }
             processed++;
           }
@@ -224,6 +221,31 @@ class MusicLibraryService {
       artist: artist,
       filePath: uri,
     );
+  }
+
+  static List<File> _listAudioFilesSafe(Directory dir) {
+    List<File> files = [];
+    try {
+      final entities = dir.listSync(recursive: false, followLinks: false);
+      for (final entity in entities) {
+        if (entity is File) {
+          final name = entity.path.split(Platform.pathSeparator).last;
+          if (_isAudioFile(name)) {
+            files.add(entity);
+          }
+        } else if (entity is Directory) {
+          // Skip Android/data and hidden folders to avoid permission issues and slowness
+          final name = entity.path.split(Platform.pathSeparator).last;
+          if (!name.startsWith('.') && name != 'Android') {
+            files.addAll(_listAudioFilesSafe(entity));
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore permission errors for specific folders
+      // print('Error scanning directory ${dir.path}: $e');
+    }
+    return files;
   }
 
   static Future<bool> _requestPermissions() async {

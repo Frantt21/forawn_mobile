@@ -145,4 +145,31 @@ class SafHelper {
       return false;
     }
   }
+
+  /// Intenta convertir una URI de SAF (tree) a una ruta local absoluta.
+  /// Esto solo funciona de forma fiable para el volumen "primary" (almacenamiento interno).
+  /// Retorna null si no se puede convertir.
+  static String? uriToLocalPath(String uriStr) {
+    try {
+      final uri = Uri.parse(uriStr);
+      if (uri.authority == 'com.android.externalstorage.documents') {
+        final path = uri.path; // /tree/primary:Music/Rock
+        // Decodificar para manejar %3A %2F etc
+        final decodedPath = Uri.decodeFull(path);
+        
+        // Verificar si es el volumen primario
+        if (decodedPath.contains('/tree/primary:')) {
+          final parts = decodedPath.split('/tree/primary:');
+          if (parts.length > 1) {
+            final relativePath = parts[1];
+            // Construir ruta absoluta estándar
+            return '/storage/emulated/0/$relativePath';
+          }
+        }
+      }
+    } catch (e) {
+      print('uriToLocalPath error: $e');
+    }
+    return null;
+  }
 }

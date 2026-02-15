@@ -651,12 +651,8 @@ class AudioPlayerService {
           );
           print('[AudioPlayer] Using direct SAF access (fast path)');
 
-          // Precachear en background para próximas reproducciones
-          _copyToTemp(song.filePath).then((path) {
-            if (path != null) {
-              print('[AudioPlayer] Background cache created for next time');
-            }
-          }).ignore();
+          // Previously we cached in background here, but user requested to stop creating temp copies.
+          // Removed background _copyToTemp call.
         } catch (e) {
           // Si falla acceso directo, usar temp file
           print('[AudioPlayer] Direct access failed: $e, using temp file...');
@@ -691,6 +687,8 @@ class AudioPlayerService {
 
   // Precachear la siguiente canción para transiciones más fluidas
   void _precacheNextSong() {
+    // Disabled precaching to avoid creating temporary files as requested
+    /*
     final nextSong = _playlist.peekNext();
     if (nextSong != null && nextSong.filePath.startsWith('content://')) {
       _copyToTemp(nextSong.filePath).then((path) {
@@ -699,6 +697,7 @@ class AudioPlayerService {
         }
       }).ignore();
     }
+    */
   }
 
   // Helper para copiar a temporal si SAF falla
