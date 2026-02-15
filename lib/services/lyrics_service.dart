@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'lyrics_adjuster.dart';
@@ -100,6 +100,8 @@ class LyricsService {
   LyricsService._internal();
 
   static const String _cachePrefix = 'lyrics_cache_';
+  final Dio _dio = Dio();
+  CancelToken? _currentSongCancelToken;
 
   // State Management
   final BehaviorSubject<Lyrics?> _currentLyricsSubject =
@@ -118,17 +120,37 @@ class LyricsService {
     final trackingId = '$title-$artist';
     if (_currentTrackingId == trackingId) return; // Already tracking
 
+    // 1. CANCELAR petición anterior para liberar recursos inmediatamente
+    if (_currentSongCancelToken != null) {
+      _currentSongCancelToken!.cancel('Song changed');
+      print('[LyricsService] Cancelled previous fetch due to song change');
+    }
+    _currentSongCancelToken = CancelToken();
+
     _currentTrackingId = trackingId;
     _currentLyricsSubject.add(null);
     _isLoadingSubject.add(true); // Start loading
 
-    // Fetch in background
-    fetchLyrics(title, artist).then((lyrics) {
-      if (_currentTrackingId == trackingId) {
-        _currentLyricsSubject.add(lyrics);
-        _isLoadingSubject.add(false); // Stop loading
-      }
-    });
+    // Fetch in background con el token de cancelación
+    fetchLyrics(title, artist, cancelToken: _currentSongCancelToken)
+        .then((lyrics) {
+          // Verificar si sigue siendo la canción actual antes de actualizar
+          if (_currentTrackingId == trackingId) {
+            _currentLyricsSubject.add(lyrics);
+            _isLoadingSubject.add(false); // Stop loading
+          }
+        })
+        .catchError((e) {
+          // Si fue cancelado, no hacer nada (no actualizar loading a false si ya cambiamos de canción)
+          if (e is DioException && CancelToken.isCancel(e)) {
+            print('[LyricsService] Fetch cancelled silently');
+          } else {
+            print('[LyricsService] Error in background fetch: $e');
+            if (_currentTrackingId == trackingId) {
+              _isLoadingSubject.add(false);
+            }
+          }
+        });
   }
 
   /// Manually updates the current lyrics (e.g. from manual search selection)
@@ -138,6 +160,10 @@ class LyricsService {
   }
 
   void clearCurrentLyrics() {
+    // Cancelar cualquier carga pendiente
+    _currentSongCancelToken?.cancel('Cleared lyrics');
+    _currentSongCancelToken = null;
+
     _currentLyricsSubject.add(null);
     _isLoadingSubject.add(false);
     _currentTrackingId = null;
@@ -148,6 +174,7 @@ class LyricsService {
     String trackName,
     String artistName, {
     int? durationSeconds,
+    CancelToken? cancelToken,
   }) async {
     try {
       // Crear clave de caché
@@ -179,19 +206,31 @@ class LyricsService {
       // Usar endpoint de búsqueda para mejor matching
       final params = {'q': '$cleanArtist $cleanTrack'};
 
-      final uri = Uri.parse(
+      // Dio maneja los query params automáticamente
+      final response = await _dio.get(
         '${ApiConfig.lyricsBaseUrl}/search',
-      ).replace(queryParameters: params);
-      print('[LyricsService] LRCLIB URL: $uri');
-
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+        queryParameters: params,
+        cancelToken: cancelToken,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 10),
+          sendTimeout: const Duration(seconds: 5),
+        ),
+      );
 
       if (response.statusCode == 200) {
-        final results = jsonDecode(response.body) as List;
+        final results = response.data as List;
 
         if (results.isNotEmpty) {
           // Buscar el mejor match en los resultados
           for (final item in results) {
+            // Verificar cancelación durante el procesamiento si la lista es muy larga
+            if (cancelToken?.isCancelled ?? false) {
+              throw DioException(
+                requestOptions: response.requestOptions,
+                type: DioExceptionType.cancel,
+              );
+            }
+
             final data = item as Map<String, dynamic>;
 
             final syncedLyricsRaw = data['syncedLyrics'] as String?;
@@ -225,11 +264,11 @@ class LyricsService {
 
             // Rechazar si NO coinciden AMBOS
             if (!trackMatches || !artistMatches) {
-              print(
-                '[LyricsService] Rejected: "$resultTrackName" by "$resultArtistName" '
-                '(track: ${(trackSimilarity * 100).toStringAsFixed(0)}%, '
-                'artist: ${(artistSimilarity * 100).toStringAsFixed(0)}%)',
-              );
+              //   print(
+              //     '[LyricsService] Rejected: "$resultTrackName" by "$resultArtistName" '
+              //     '(track: ${(trackSimilarity * 100).toStringAsFixed(0)}%, '
+              //     'artist: ${(artistSimilarity * 100).toStringAsFixed(0)}%)',
+              //   );
               continue; // Probar siguiente resultado
             }
 
@@ -282,14 +321,15 @@ class LyricsService {
           '[LyricsService] No exact match (track & artist) found in LRCLIB',
         );
         return null;
-      } else if (response.statusCode == 404) {
-        print('[LyricsService] No lyrics found in LRCLIB for: $trackName');
-        return null;
       } else {
         print('[LyricsService] LRCLIB API error: ${response.statusCode}');
         return null;
       }
     } catch (e) {
+      if (e is DioException && CancelToken.isCancel(e)) {
+        // Relanzar cancelación para que quien llame sepa que fue cancelado
+        throw e;
+      }
       print('[LyricsService] Error fetching lyrics: $e');
       return null;
     }
@@ -298,14 +338,17 @@ class LyricsService {
   /// Busca lyrics manualmente sin filtrado estricto
   Future<List<Lyrics>> searchLyrics(String query) async {
     try {
-      final uri = Uri.parse(
+      final response = await _dio.get(
         '${ApiConfig.lyricsBaseUrl}/search',
-      ).replace(queryParameters: {'q': query});
-
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+        queryParameters: {'q': query},
+        options: Options(
+          receiveTimeout: const Duration(seconds: 10),
+          sendTimeout: const Duration(seconds: 5),
+        ),
+      );
 
       if (response.statusCode == 200) {
-        final List results = jsonDecode(response.body);
+        final List results = response.data;
         return results.map((item) {
           final data = item as Map<String, dynamic>;
           final syncedLyricsRaw = data['syncedLyrics'] as String?;
