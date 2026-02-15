@@ -314,19 +314,21 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           duration: const Duration(milliseconds: 400),
                           curve: Curves.elasticOut,
                           builder: (context, scale, child) {
+                            // Use the same color logic as controls
+                            final rawColor = _getDominantColor(song);
+                            final heartColor =
+                                HSLColor.fromColor(rawColor).lightness < 0.3
+                                ? HSLColor.fromColor(
+                                    rawColor,
+                                  ).withLightness(0.6).toColor()
+                                : rawColor;
+
                             return Transform.scale(
                               scale: scale,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.4),
-                                  shape: BoxShape.circle,
-                                ),
-                                padding: const EdgeInsets.all(16),
-                                child: const Icon(
-                                  Icons.favorite_rounded,
-                                  color: Colors.white,
-                                  size: 64,
-                                ),
+                              child: Icon(
+                                Icons.favorite_rounded,
+                                color: heartColor,
+                                size: 80,
                               ),
                             );
                           },

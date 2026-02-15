@@ -14,7 +14,6 @@ import '../widgets/mini_player.dart';
 import '../widgets/song_options_bottom_sheet.dart';
 import '../widgets/artwork_widget.dart';
 import '../services/music_metadata_cache.dart';
-import 'music_player_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/metadata_service.dart';
 import '../services/local_music_state_service.dart';
@@ -932,23 +931,24 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                       initialIndex: 0,
                       autoPlay: true,
                     );
-                    Navigator.of(context).push(
-                      PageRouteBuilder(
-                        pageBuilder: (context, animation, secondaryAnimation) =>
-                            const MusicPlayerScreen(),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                              var tween = Tween(
-                                begin: const Offset(0.0, 1.0),
-                                end: Offset.zero,
-                              ).chain(CurveTween(curve: Curves.easeOutCubic));
-                              return SlideTransition(
-                                position: animation.drive(tween),
-                                child: child,
-                              );
-                            },
-                      ),
-                    );
+                    // Don't auto-open player
+                    // Navigator.of(context).push(
+                    //   PageRouteBuilder(
+                    //     pageBuilder: (context, animation, secondaryAnimation) =>
+                    //         const MusicPlayerScreen(),
+                    //     transitionsBuilder:
+                    //         (context, animation, secondaryAnimation, child) {
+                    //           var tween = Tween(
+                    //             begin: const Offset(0.0, 1.0),
+                    //             end: Offset.zero,
+                    //           ).chain(CurveTween(curve: Curves.easeOutCubic));
+                    //           return SlideTransition(
+                    //             position: animation.drive(tween),
+                    //             child: child,
+                    //           );
+                    //         },
+                    //   ),
+                    // );
                   }
                 },
               ),
@@ -1374,43 +1374,44 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                         initialIndex: 0,
                                         autoPlay: true,
                                       );
-                                      Navigator.of(context).push(
-                                        PageRouteBuilder(
-                                          pageBuilder:
-                                              (
-                                                context,
-                                                animation,
-                                                secondaryAnimation,
-                                              ) => const MusicPlayerScreen(),
-                                          transitionsBuilder:
-                                              (
-                                                context,
-                                                animation,
-                                                secondaryAnimation,
-                                                child,
-                                              ) {
-                                                var tween =
-                                                    Tween(
-                                                      begin: const Offset(
-                                                        0.0,
-                                                        1.0,
-                                                      ),
-                                                      end: Offset.zero,
-                                                    ).chain(
-                                                      CurveTween(
-                                                        curve:
-                                                            Curves.easeOutCubic,
-                                                      ),
-                                                    );
-                                                return SlideTransition(
-                                                  position: animation.drive(
-                                                    tween,
-                                                  ),
-                                                  child: child,
-                                                );
-                                              },
-                                        ),
-                                      );
+                                      // Don't auto-open player
+                                      // Navigator.of(context).push(
+                                      //   PageRouteBuilder(
+                                      //     pageBuilder:
+                                      //         (
+                                      //           context,
+                                      //           animation,
+                                      //           secondaryAnimation,
+                                      //         ) => const MusicPlayerScreen(),
+                                      //     transitionsBuilder:
+                                      //         (
+                                      //           context,
+                                      //           animation,
+                                      //           secondaryAnimation,
+                                      //           child,
+                                      //         ) {
+                                      //           var tween =
+                                      //               Tween(
+                                      //                 begin: const Offset(
+                                      //                   0.0,
+                                      //                   1.0,
+                                      //                 ),
+                                      //                 end: Offset.zero,
+                                      //               ).chain(
+                                      //                 CurveTween(
+                                      //                   curve:
+                                      //                       Curves.easeOutCubic,
+                                      //                 ),
+                                      //               );
+                                      //           return SlideTransition(
+                                      //             position: animation.drive(
+                                      //               tween,
+                                      //             ),
+                                      //             child: child,
+                                      //           );
+                                      //         },
+                                      //   ),
+                                      // );
                                     },
                             ),
 
@@ -1431,43 +1432,44 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                         initialIndex: 0,
                                         autoPlay: true,
                                       );
-                                      Navigator.of(context).push(
-                                        PageRouteBuilder(
-                                          pageBuilder:
-                                              (
-                                                context,
-                                                animation,
-                                                secondaryAnimation,
-                                              ) => const MusicPlayerScreen(),
-                                          transitionsBuilder:
-                                              (
-                                                context,
-                                                animation,
-                                                secondaryAnimation,
-                                                child,
-                                              ) {
-                                                var tween =
-                                                    Tween(
-                                                      begin: const Offset(
-                                                        0.0,
-                                                        1.0,
-                                                      ),
-                                                      end: Offset.zero,
-                                                    ).chain(
-                                                      CurveTween(
-                                                        curve:
-                                                            Curves.easeOutCubic,
-                                                      ),
-                                                    );
-                                                return SlideTransition(
-                                                  position: animation.drive(
-                                                    tween,
-                                                  ),
-                                                  child: child,
-                                                );
-                                              },
-                                        ),
-                                      );
+                                      // Don't auto-open player
+                                      // Navigator.of(context).push(
+                                      //   PageRouteBuilder(
+                                      //     pageBuilder:
+                                      //         (
+                                      //           context,
+                                      //           animation,
+                                      //           secondaryAnimation,
+                                      //         ) => const MusicPlayerScreen(),
+                                      //     transitionsBuilder:
+                                      //         (
+                                      //           context,
+                                      //           animation,
+                                      //           secondaryAnimation,
+                                      //           child,
+                                      //         ) {
+                                      //           var tween =
+                                      //               Tween(
+                                      //                 begin: const Offset(
+                                      //                   0.0,
+                                      //                   1.0,
+                                      //                 ),
+                                      //                 end: Offset.zero,
+                                      //               ).chain(
+                                      //                 CurveTween(
+                                      //                   curve:
+                                      //                       Curves.easeOutCubic,
+                                      //                 ),
+                                      //               );
+                                      //           return SlideTransition(
+                                      //             position: animation.drive(
+                                      //               tween,
+                                      //             ),
+                                      //             child: child,
+                                      //           );
+                                      //         },
+                                      //   ),
+                                      // );
                                     },
                             ),
                           ],
@@ -1570,41 +1572,42 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                       initialIndex: songs.indexOf(song),
                                       autoPlay: true,
                                     );
-                                    Navigator.of(context).push(
-                                      PageRouteBuilder(
-                                        pageBuilder:
-                                            (
-                                              context,
-                                              animation,
-                                              secondaryAnimation,
-                                            ) => const MusicPlayerScreen(),
-                                        transitionsBuilder:
-                                            (
-                                              context,
-                                              animation,
-                                              secondaryAnimation,
-                                              child,
-                                            ) {
-                                              return SlideTransition(
-                                                position:
-                                                    Tween(
-                                                      begin: const Offset(
-                                                        0.0,
-                                                        1.0,
-                                                      ),
-                                                      end: Offset.zero,
-                                                    ).animate(
-                                                      CurvedAnimation(
-                                                        parent: animation,
-                                                        curve:
-                                                            Curves.easeOutCubic,
-                                                      ),
-                                                    ),
-                                                child: child,
-                                              );
-                                            },
-                                      ),
-                                    );
+                                    // Don't auto-open player
+                                    // Navigator.of(context).push(
+                                    //   PageRouteBuilder(
+                                    //     pageBuilder:
+                                    //         (
+                                    //           context,
+                                    //           animation,
+                                    //           secondaryAnimation,
+                                    //         ) => const MusicPlayerScreen(),
+                                    //     transitionsBuilder:
+                                    //         (
+                                    //           context,
+                                    //           animation,
+                                    //           secondaryAnimation,
+                                    //           child,
+                                    //         ) {
+                                    //           return SlideTransition(
+                                    //             position:
+                                    //                 Tween(
+                                    //                   begin: const Offset(
+                                    //                     0.0,
+                                    //                     1.0,
+                                    //                   ),
+                                    //                   end: Offset.zero,
+                                    //                 ).animate(
+                                    //                   CurvedAnimation(
+                                    //                     parent: animation,
+                                    //                     curve:
+                                    //                         Curves.easeOutCubic,
+                                    //                   ),
+                                    //                 ),
+                                    //             child: child,
+                                    //           );
+                                    //         },
+                                    //   ),
+                                    // );
                                   },
                                   onLongPress: () {
                                     SongOptionsBottomSheet.show(

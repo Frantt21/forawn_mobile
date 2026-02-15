@@ -45,10 +45,14 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     });
 
     // Sincronizar duración real (Importante para que la barra de progreso tenga "fin")
+    // Durante crossfade, usamos la duración del modelo de la canción actual
     _player.durationStream.listen((duration) {
       final current = _player.currentSong;
-      if (current != null && duration != null) {
-        _updateMediaItem(current, duration);
+      if (current != null) {
+        // Siempre usar la duración del modelo de la canción para evitar
+        // problemas durante crossfade donde el reproductor activo puede tener
+        // una duración diferente
+        _updateMediaItem(current, current.duration);
       }
     });
 
@@ -70,15 +74,38 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // print('[AudioHandler] Broadcasting state: $state'); // Debug (opcional)
 
     final playing = state == app_state.PlayerState.playing;
+    final song = _player.currentSong;
+    final isLiked = song != null ? PlaylistService().isLiked(song.id) : false;
+
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
+          // Shuffle button (first)
+          MediaControl(
+            androidIcon: 'drawable/ic_shuffle',
+            label: 'Shuffle',
+            action: MediaAction.custom,
+            customAction: CustomMediaAction(name: 'toggleShuffle', extras: {}),
+          ),
           MediaControl.skipToPrevious,
           if (playing) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
+          // Favorite button (last)
+          MediaControl(
+            androidIcon: isLiked
+                ? 'drawable/ic_favorite'
+                : 'drawable/ic_favorite_border',
+            label: isLiked ? 'Unlike' : 'Like',
+            action: MediaAction.custom,
+            customAction: CustomMediaAction(name: 'toggleFavorite', extras: {}),
+          ),
         ],
         systemActions: const {MediaAction.seek},
-        androidCompactActionIndices: const [0, 1, 2],
+        androidCompactActionIndices: const [
+          1,
+          2,
+          3,
+        ], // Previous, Play/Pause, Next in compact view
         playing: playing,
         processingState: _mapProcessingState(state),
         // updatePosition must be fresh for the progress bar to sync correctly
@@ -175,6 +202,9 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         await PlaylistService().toggleLike(song);
         // La actualización del widget ocurrirá automáticamente gracias al listener de favoritesNotifier
       }
+    } else if (name == 'toggleShuffle') {
+      _player.toggleShuffle();
+      _broadcastState(); // Update controls to reflect new state
     }
   }
 }

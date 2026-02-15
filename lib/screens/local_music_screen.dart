@@ -23,7 +23,6 @@ import '../models/playlist_model.dart';
 import '../models/song.dart';
 import '../utils/text_utils.dart';
 import 'playlist_detail_screen.dart';
-import 'music_player_screen.dart';
 import '../widgets/local_music_home.dart';
 import 'home.dart';
 import '../utils/id_generator.dart';
@@ -1062,32 +1061,33 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                           initialIndex: indexToLoad,
                           autoPlay: true,
                         );
-                        Navigator.of(context).push(
-                          PageRouteBuilder(
-                            pageBuilder:
-                                (context, animation, secondaryAnimation) =>
-                                    const MusicPlayerScreen(),
-                            transitionsBuilder:
-                                (
-                                  context,
-                                  animation,
-                                  secondaryAnimation,
-                                  child,
-                                ) {
-                                  var tween =
-                                      Tween(
-                                        begin: const Offset(0.0, 1.0),
-                                        end: Offset.zero,
-                                      ).chain(
-                                        CurveTween(curve: Curves.easeOutCubic),
-                                      );
-                                  return SlideTransition(
-                                    position: animation.drive(tween),
-                                    child: child,
-                                  );
-                                },
-                          ),
-                        );
+                        // Don't auto-open player - user can tap mini player if needed
+                        // Navigator.of(context).push(
+                        //   PageRouteBuilder(
+                        //     pageBuilder:
+                        //         (context, animation, secondaryAnimation) =>
+                        //             const MusicPlayerScreen(),
+                        //     transitionsBuilder:
+                        //         (
+                        //           context,
+                        //           animation,
+                        //           secondaryAnimation,
+                        //           child,
+                        //         ) {
+                        //           var tween =
+                        //               Tween(
+                        //                 begin: const Offset(0.0, 1.0),
+                        //                 end: Offset.zero,
+                        //               ).chain(
+                        //                 CurveTween(curve: Curves.easeOutCubic),
+                        //               );
+                        //           return SlideTransition(
+                        //             position: animation.drive(tween),
+                        //             child: child,
+                        //           );
+                        //         },
+                        //   ),
+                        // );
                       },
                       onLongPress: () => _showSongOptions(context, song),
                     ),
