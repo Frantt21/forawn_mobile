@@ -270,7 +270,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
   void _removeSong(Song song) {
     if (widget.playlist.id == 'favorites_virtual') {
       // Manejo especial para favoritos
-      PlaylistService().toggleLike(song.id);
+      PlaylistService().toggleLike(song);
       setState(() {
         _virtualSongs = List.from(_virtualSongs)
           ..removeWhere((s) => s.id == song.id);
@@ -1365,6 +1365,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                               icon: Icons.play_arrow,
                               label: LanguageService().getText('play'),
                               isPrimary: true,
+                              accentColor: _dominantColor,
                               onPressed: songs.isEmpty
                                   ? null
                                   : () {
@@ -1420,6 +1421,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                               icon: Icons.shuffle,
                               label: LanguageService().getText('shuffle'),
                               isPrimary: false,
+                              accentColor: _dominantColor,
                               onPressed: songs.isEmpty
                                   ? null
                                   : () {
@@ -1490,9 +1492,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                   ),
                 )
               else
-                // Optimized: No StreamBuilder - same pattern as LocalMusicScreen
-                Builder(
-                  builder: (context) {
+                // StreamBuilder to listen for song changes and update isPlaying immediately
+                StreamBuilder<Song?>(
+                  stream: _audioPlayer.currentSongStream,
+                  builder: (context, songSnapshot) {
+                    final currentSong = songSnapshot.data;
                     final filteredSongs = _getFilteredSongs(songs);
                     return SliverPadding(
                       padding: const EdgeInsets.only(bottom: 100),
@@ -1505,8 +1509,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             }
 
                             final song = filteredSongs[index];
-                            final isPlaying =
-                                _audioPlayer.currentSong?.id == song.id;
+                            final isPlaying = currentSong?.id == song.id;
 
                             // Wrap in RepaintBoundary for better isolation
                             return RepaintBoundary(
@@ -1645,7 +1648,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     required String label,
     required bool isPrimary,
     required VoidCallback? onPressed,
+    Color? accentColor,
   }) {
+    // Apply same contrast logic as music player
+    final rawColor = accentColor ?? Colors.purpleAccent;
+    final adjustedColor = HSLColor.fromColor(rawColor).lightness < 0.3
+        ? HSLColor.fromColor(rawColor).withLightness(0.6).toColor()
+        : rawColor;
+
     return Expanded(
       child: ElevatedButton.icon(
         onPressed: onPressed,
@@ -1653,9 +1663,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
         label: Text(label),
         style: ElevatedButton.styleFrom(
           backgroundColor: isPrimary
-              ? Colors.white
-              : Colors.white.withOpacity(0.2),
-          foregroundColor: isPrimary ? Colors.black : Colors.white,
+              ? adjustedColor
+              : adjustedColor.withOpacity(0.2),
+          foregroundColor: isPrimary ? Colors.white : adjustedColor,
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),

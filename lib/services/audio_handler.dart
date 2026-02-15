@@ -172,7 +172,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (name == 'toggleFavorite') {
       final song = _player.currentSong;
       if (song != null) {
-        await PlaylistService().toggleLike(song.id);
+        await PlaylistService().toggleLike(song);
         // La actualización del widget ocurrirá automáticamente gracias al listener de favoritesNotifier
       }
     }

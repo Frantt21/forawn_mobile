@@ -271,14 +271,32 @@ class PlaylistService extends ChangeNotifier {
 
   bool isLiked(String songId) => _likedSongIds.contains(songId);
 
-  Future<void> toggleLike(String songId) async {
+  Future<void> toggleLike(Song song) async {
     final dbHelper = DatabaseHelper();
-    if (_likedSongIds.contains(songId)) {
-      _likedSongIds.remove(songId);
-      await dbHelper.removeFromFavorites(songId);
+    if (_likedSongIds.contains(song.id)) {
+      _likedSongIds.remove(song.id);
+      await dbHelper.removeFromFavorites(song.id);
     } else {
-      _likedSongIds.add(songId);
-      await dbHelper.addToFavorites(songId);
+      _likedSongIds.add(song.id);
+
+      // Save complete metadata to ensure the song can be played later
+      final existingMeta = await dbHelper.getMetadata(song.id);
+      if (existingMeta == null) {
+        await dbHelper.insertMetadata({
+          'id': song.id,
+          'title': song.title,
+          'artist': song.artist,
+          'album': song.album,
+          'duration': song.duration?.inMilliseconds,
+          'file_path': song.filePath, // CRITICAL: Save filePath
+          'artwork_path': song.artworkPath,
+          'artwork_uri': song.artworkUri,
+          'dominant_color': song.dominantColor,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+
+      await dbHelper.addToFavorites(song.id);
     }
     favoritesNotifier.value = List.from(_likedSongIds);
     notifyListeners();

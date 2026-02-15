@@ -125,7 +125,7 @@ class SongOptionsBottomSheet extends StatelessWidget {
             style: const TextStyle(color: Colors.white),
           ),
           onTap: () async {
-            await PlaylistService().toggleLike(song.id);
+            await PlaylistService().toggleLike(song);
             if (context.mounted) Navigator.pop(context);
             onOptionSelected?.call(SongOption.like);
           },

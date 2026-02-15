@@ -561,9 +561,19 @@ class LocalMusicHome extends StatelessWidget {
                               favoriteSongs.length - 1 - index;
                           final song = favoriteSongs[reversedIndex];
                           final isCurrentSong = currentSong?.id == song.id;
-                          final dominantColor = song.dominantColor != null
+                          Color dominantColor = song.dominantColor != null
                               ? Color(song.dominantColor!)
                               : Colors.purpleAccent;
+
+                          if (isCurrentSong) {
+                            dominantColor =
+                                HSLColor.fromColor(dominantColor).lightness <
+                                    0.3
+                                ? HSLColor.fromColor(
+                                    dominantColor,
+                                  ).withLightness(0.6).toColor()
+                                : dominantColor;
+                          }
 
                           return GestureDetector(
                             onTap: () => onSongTap(song),

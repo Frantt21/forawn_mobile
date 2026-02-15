@@ -121,7 +121,50 @@ class MiniPlayer extends StatelessWidget {
                     ],
                   ),
                   child: song != null
-                      ? _buildPlayerContent(song, player)
+                      ? StreamBuilder<PlaybackProgress>(
+                          stream: player.progressStream,
+                          builder: (context, progressSnapshot) {
+                            final progress = progressSnapshot.data;
+                            final progressPercent =
+                                progress != null &&
+                                    progress.duration.inMilliseconds > 0
+                                ? progress.position.inMilliseconds /
+                                      progress.duration.inMilliseconds
+                                : 0.0;
+
+                            return Stack(
+                              children: [
+                                // Progress background layer
+                                Positioned.fill(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: FractionallySizedBox(
+                                        widthFactor: progressPercent.clamp(
+                                          0.0,
+                                          1.0,
+                                        ),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(
+                                              0.15,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              24,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // Content on top
+                                _buildPlayerContent(song, player),
+                              ],
+                            );
+                          },
+                        )
                       : _buildPlaceholder(),
                 ),
               ),

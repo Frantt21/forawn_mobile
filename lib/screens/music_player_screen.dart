@@ -96,7 +96,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           }
                         },
                         onDoubleTap: () {
-                          PlaylistService().toggleLike(song.id);
+                          PlaylistService().toggleLike(song);
                           setState(() {
                             _showHeartAnimation = true;
                           });
@@ -437,7 +437,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           final isLiked = PlaylistService().isLiked(song.id);
                           return GestureDetector(
                             onTap: () {
-                              PlaylistService().toggleLike(song.id);
+                              PlaylistService().toggleLike(song);
                             },
                             child: Icon(
                               isLiked ? Icons.favorite : Icons.favorite_border,
@@ -767,7 +767,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       style: const TextStyle(color: Colors.white),
                     ),
                     onTap: () {
-                      PlaylistService().toggleLike(song.id);
+                      PlaylistService().toggleLike(song);
                       // Don't pop immediately so user sees the change state
                       // Navigator.pop(context);
                     },
