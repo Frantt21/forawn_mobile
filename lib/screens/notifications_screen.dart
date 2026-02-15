@@ -219,7 +219,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _notifications.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final notification = _notifications[index];
                   final icon = _getIconForType(notification.type);
@@ -247,7 +247,7 @@ class NotificationsScreenState extends State<NotificationsScreen> {
                                 width: 56,
                                 height: 56,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                                errorBuilder: (_, _, _) => Container(
                                   width: 56,
                                   height: 56,
                                   decoration: BoxDecoration(
