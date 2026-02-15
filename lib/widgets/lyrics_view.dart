@@ -88,8 +88,8 @@ class _LyricsViewState extends State<LyricsView> {
   void _scrollToIndex(int index) {
     if (!_itemScrollController.isAttached) return;
 
-    // Si el índice es -1 (antes de empezar), volver al inicio
-    final targetIndex = index >= 0 ? index : 0;
+    // Adjust for phantom line: index -1 -> scroll to 0 (phantom), index 0+ -> scroll to index+1
+    final targetIndex = index >= 0 ? index + 1 : 0;
 
     // Calcular alineación dinámica
     final alignment = _getAlignment(targetIndex);
@@ -149,21 +149,43 @@ class _LyricsViewState extends State<LyricsView> {
           blendMode: BlendMode.dstIn,
           child: ScrollablePositionedList.builder(
             // Initial scroll
-            initialScrollIndex: currentIndex > 0 ? currentIndex : 0,
+            initialScrollIndex: currentIndex >= 0 ? currentIndex + 1 : 0,
             initialAlignment: _getAlignment(
-              currentIndex > 0 ? currentIndex : 0,
+              currentIndex >= 0 ? currentIndex + 1 : 0,
             ),
 
-            itemCount: widget.lyrics!.syncedLyrics.length + 1,
+            itemCount:
+                widget.lyrics!.syncedLyrics.length +
+                2, // +1 phantom, +1 credits
             itemScrollController: _itemScrollController,
             itemPositionsListener: _itemPositionsListener,
             padding: EdgeInsets.only(
-              top: 60,
+              top: 0, // Phantom line now provides the space
               bottom: MediaQuery.of(context).size.height / 2.5,
             ),
             itemBuilder: (context, index) {
-              // Item final: Créditos
-              if (index == widget.lyrics!.syncedLyrics.length) {
+              // Index 0: Phantom line (invisible spacer, always "active")
+              if (index == 0) {
+                return Container(
+                  height: 60, // Match the old top padding
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 24,
+                  ),
+                  child: Text(
+                    '', // Empty text
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                      color: widget.textColor.withOpacity(0), // Invisible
+                    ),
+                  ),
+                );
+              }
+
+              // Last item: Credits
+              if (index == widget.lyrics!.syncedLyrics.length + 1) {
                 return Padding(
                   padding: const EdgeInsets.only(top: 40, bottom: 80),
                   child: Center(
@@ -179,11 +201,17 @@ class _LyricsViewState extends State<LyricsView> {
                 );
               }
 
-              final line = widget.lyrics!.syncedLyrics[index];
-              final isCurrent = index == currentIndex;
+              // Real lyrics (index 1 to length)
+              final lyricIndex = index - 1; // Adjust for phantom line
+              final line = widget.lyrics!.syncedLyrics[lyricIndex];
+              final isCurrent = lyricIndex == currentIndex;
 
               return GestureDetector(
-                onTap: () => widget.onSeek(line.timestamp),
+                onTap: () {
+                  // Apply offset to seek position so it matches the synchronized time
+                  final seekPosition = line.timestamp + widget.offset;
+                  widget.onSeek(seekPosition);
+                },
                 behavior: HitTestBehavior.opaque, // Mejora touch
                 child: Container(
                   padding: const EdgeInsets.symmetric(

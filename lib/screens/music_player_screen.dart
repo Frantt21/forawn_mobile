@@ -580,32 +580,32 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           state == player_state.PlayerState.buffering ||
                           state == player_state.PlayerState.loading;
 
-                      return Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: effectiveColor,
-                        ),
-                        child: IconButton(
-                          icon: isBuffering
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
+                      return IconButton(
+                        iconSize: 72,
+                        padding: EdgeInsets.zero,
+                        icon: isBuffering
+                            ? SizedBox(
+                                width: 72,
+                                height: 72,
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      color: effectiveColor,
+                                    ),
                                   ),
-                                )
-                              : Icon(
-                                  isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                  size: 40,
-                                  color: Colors.white,
                                 ),
-                          onPressed: isPlaying ? _player.pause : _player.play,
-                        ),
+                              )
+                            : Icon(
+                                isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                size: 72,
+                                color: effectiveColor,
+                              ),
+                        onPressed: isPlaying ? _player.pause : _player.play,
                       );
                     },
                   ),
