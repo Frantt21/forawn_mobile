@@ -836,7 +836,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                 Flexible(
                   child: ListView.separated(
                     shrinkWrap: true,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemCount: _results.length,
                     itemBuilder: (context, index) {
                       final l = _results[index];
