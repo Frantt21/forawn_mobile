@@ -62,3 +62,4 @@ lib/backend/package.json
 lib/backend/.env.example
 lib/config/api_config.dart
 /lib/backend
+lib/config/api_config.dart
