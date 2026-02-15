@@ -6,13 +6,14 @@ import '../services/audio_player_service.dart';
 import '../services/language_service.dart';
 import '../services/playlist_service.dart';
 import '../models/song.dart';
-import '../models/playback_state.dart';
+import '../models/playback_state.dart' as player_state;
 import '../widgets/lyrics_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/lyrics_service.dart';
 import 'package:audiotags/audiotags.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import '../services/deezer_service.dart';
 import '../services/foranly_service.dart';
 import '../services/metadata_service.dart';
 import '../services/saf_helper.dart';
@@ -461,10 +462,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
               const SizedBox(height: 12),
 
               // Slider de Progreso
-              StreamBuilder<PlaybackProgress>(
+              StreamBuilder<player_state.PlaybackProgress>(
                 stream: _player.progressStream,
                 builder: (context, snapshot) {
-                  final progress = snapshot.data ?? PlaybackProgress.zero();
+                  final progress =
+                      snapshot.data ?? player_state.PlaybackProgress.zero();
 
                   return Column(
                     children: [
@@ -574,14 +576,16 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   ),
 
                   // Play/Pause
-                  StreamBuilder<PlayerState>(
+                  StreamBuilder<player_state.PlayerState>(
                     stream: _player.playerStateStream,
                     builder: (context, snapshot) {
-                      final state = snapshot.data ?? PlayerState.idle;
-                      final isPlaying = state == PlayerState.playing;
+                      final state =
+                          snapshot.data ?? player_state.PlayerState.idle;
+                      final isPlaying =
+                          state == player_state.PlayerState.playing;
                       final isBuffering =
-                          state == PlayerState.buffering ||
-                          state == PlayerState.loading;
+                          state == player_state.PlayerState.buffering ||
+                          state == player_state.PlayerState.loading;
 
                       return Container(
                         width: 72,
@@ -624,23 +628,23 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   ),
 
                   // Repeat Mode
-                  StreamBuilder<RepeatMode>(
+                  StreamBuilder<player_state.RepeatMode>(
                     stream: _player.repeatModeStream,
                     builder: (context, snapshot) {
-                      final mode = snapshot.data ?? RepeatMode.off;
+                      final mode = snapshot.data ?? player_state.RepeatMode.off;
                       IconData icon;
                       Color color = Colors.white;
 
                       switch (mode) {
-                        case RepeatMode.one:
+                        case player_state.RepeatMode.one:
                           icon = Icons.repeat_one_rounded;
                           color = effectiveColor;
                           break;
-                        case RepeatMode.all:
+                        case player_state.RepeatMode.all:
                           icon = Icons.repeat_rounded;
                           color = effectiveColor;
                           break;
-                        case RepeatMode.off:
+                        case player_state.RepeatMode.off:
                           icon = Icons.repeat_rounded;
                           color = Colors.white38;
                           break;
@@ -1118,8 +1122,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
     final titleController = TextEditingController(text: song.title);
     final artistController = TextEditingController(text: song.artist);
     bool isLoading = false;
-    Map<String, dynamic>? searchResult;
+    List<Map<String, dynamic>> searchResults = [];
     String? errorMessage;
+    String selectedSource = 'Deezer'; // Default to Deezer
 
     showDialog(
       context: context,
@@ -1169,6 +1174,54 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                             ],
                           ),
                           const SizedBox(height: 16),
+                          // Source Selector
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: selectedSource,
+                                dropdownColor: Colors.grey[900],
+                                style: const TextStyle(color: Colors.white),
+                                icon: const Icon(
+                                  Icons.arrow_drop_down,
+                                  color: Colors.white,
+                                ),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: 'Deezer',
+                                    child: Text(
+                                      LanguageService().getText(
+                                        'deezer_precise',
+                                      ),
+                                    ),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Server',
+                                    child: Text(
+                                      LanguageService().getText(
+                                        'spotify_less_precise',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() {
+                                      selectedSource = value;
+                                      searchResults =
+                                          []; // Clear previous results
+                                      errorMessage = null;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           TextField(
                             controller: titleController,
                             style: const TextStyle(color: Colors.white),
@@ -1239,21 +1292,47 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                                     setState(() {
                                       isLoading = true;
                                       errorMessage = null;
-                                      searchResult = null;
+                                      searchResults = [];
                                     });
-                                    final result = await ForanlyService()
-                                        .searchMetadata(
-                                          titleController.text,
-                                          artistController.text,
-                                        );
-                                    setState(() {
-                                      isLoading = false;
-                                      searchResult = result;
-                                      if (result == null) {
-                                        errorMessage = LanguageService()
-                                            .getText('no_results');
+
+                                    try {
+                                      if (selectedSource == 'Deezer') {
+                                        final results = await DeezerService()
+                                            .searchMetadata(
+                                              titleController.text,
+                                              artistController.text,
+                                            );
+                                        setState(() {
+                                          isLoading = false;
+                                          searchResults = results;
+                                          if (results.isEmpty) {
+                                            errorMessage = LanguageService()
+                                                .getText('no_results');
+                                          }
+                                        });
+                                      } else {
+                                        // Server (Foranly)
+                                        final result = await ForanlyService()
+                                            .searchMetadata(
+                                              titleController.text,
+                                              artistController.text,
+                                            );
+                                        setState(() {
+                                          isLoading = false;
+                                          if (result != null) {
+                                            searchResults = [result];
+                                          } else {
+                                            errorMessage = LanguageService()
+                                                .getText('no_results');
+                                          }
+                                        });
                                       }
-                                    });
+                                    } catch (e) {
+                                      setState(() {
+                                        isLoading = false;
+                                        errorMessage = 'Error: $e';
+                                      });
+                                    }
                                   },
                           ),
                           if (errorMessage != null)
@@ -1265,78 +1344,87 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                                 textAlign: TextAlign.center,
                               ),
                             ),
-                          if (searchResult != null) ...[
+                          if (searchResults.isNotEmpty) ...[
                             const SizedBox(height: 20),
                             const Divider(color: Colors.white24),
                             const SizedBox(height: 10),
                             Text(
-                              LanguageService().getText('results'),
+                              '${LanguageService().getText('results')} (${searchResults.length})',
                               style: const TextStyle(color: Colors.white70),
                             ),
                             const SizedBox(height: 10),
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child:
-                                    searchResult!['albumArt'] != null &&
-                                        searchResult!['albumArt']['data'] !=
-                                            null
-                                    ? Image.memory(
-                                        Uint8List.fromList(
-                                          List<int>.from(
-                                            searchResult!['albumArt']['data'],
-                                          ),
-                                        ),
-                                        width: 50,
-                                        height: 50,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            const Icon(
-                                              Icons.music_note,
-                                              color: Colors.white,
+                            ...searchResults.map((result) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child:
+                                        result['albumArt'] != null &&
+                                            result['albumArt']['data'] != null
+                                        ? Image.memory(
+                                            Uint8List.fromList(
+                                              List<int>.from(
+                                                result['albumArt']['data'],
+                                              ),
                                             ),
-                                      )
-                                    : (searchResult!['albumArtUrl'] != null
-                                          ? Image.network(
-                                              searchResult!['albumArtUrl'],
-                                              width: 50,
-                                              height: 50,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
-                                                  const Icon(
-                                                    Icons.music_note,
-                                                    color: Colors.white,
-                                                  ),
-                                            )
-                                          : const Icon(
-                                              Icons.music_note,
-                                              color: Colors.white,
-                                              size: 50,
-                                            )),
-                              ),
-                              title: Text(
-                                searchResult!['title'] ?? 'Unknown',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                                            width: 50,
+                                            height: 50,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) =>
+                                                const Icon(
+                                                  Icons.music_note,
+                                                  color: Colors.white,
+                                                ),
+                                          )
+                                        : (result['albumArtUrl'] != null
+                                              ? Image.network(
+                                                  result['albumArtUrl'],
+                                                  width: 50,
+                                                  height: 50,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, _, _) =>
+                                                      const Icon(
+                                                        Icons.music_note,
+                                                        color: Colors.white,
+                                                      ),
+                                                )
+                                              : const Icon(
+                                                  Icons.music_note,
+                                                  color: Colors.white,
+                                                  size: 50,
+                                                )),
+                                  ),
+                                  title: Text(
+                                    result['title'] ?? 'Unknown',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    "${result['artist'] ?? 'Unknown'} • ${result['album'] ?? ''}",
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(
+                                      Icons.check_circle,
+                                      color: Colors.greenAccent,
+                                      size: 32,
+                                    ),
+                                    onPressed: () {
+                                      _applyMetadata(context, song, result);
+                                    },
+                                  ),
                                 ),
-                              ),
-                              subtitle: Text(
-                                searchResult!['artist'] ?? 'Unknown',
-                                style: const TextStyle(color: Colors.white70),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.greenAccent,
-                                  size: 32,
-                                ),
-                                onPressed: () {
-                                  _applyMetadata(context, song, searchResult!);
-                                },
-                              ),
-                            ),
+                              );
+                            }),
                           ],
                         ],
                       ),
