@@ -988,51 +988,109 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                   final tileKey =
                       '${song.id}_${song.title}_${song.artist}_${song.artworkPath ?? ""}_v$version';
 
-                  return LazyMusicTile(
-                    key: ValueKey(tileKey),
-                    song: song,
-                    isPlaying: isPlaying,
-                    onTap: () {
-                      // Fix: If searching, play from full library context instead of just search results
-                      List<Song> playlistToLoad = songs;
-                      int indexToLoad = index;
-
-                      if (_searchQuery.isNotEmpty) {
-                        final fullLibrary = _musicState.librarySongs;
-                        final foundIndex = fullLibrary.indexWhere(
-                          (s) => s.id == song.id,
-                        );
-                        if (foundIndex != -1) {
-                          playlistToLoad = fullLibrary;
-                          indexToLoad = foundIndex;
+                  return Dismissible(
+                    key: Key('dismissible_${song.id}'),
+                    direction: DismissDirection.horizontal,
+                    confirmDismiss: (direction) async {
+                      if (direction == DismissDirection.endToStart) {
+                        // Swipe left: Add to playlist
+                        _showAddToPlaylistDialog(context, song);
+                      } else if (direction == DismissDirection.startToEnd) {
+                        // Swipe right: Toggle favorite
+                        await PlaylistService().toggleLike(song);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                PlaylistService().isLiked(song.id)
+                                    ? LanguageService().getText(
+                                        'added_to_favorites',
+                                      )
+                                    : LanguageService().getText(
+                                        'removed_from_favorites',
+                                      ),
+                              ),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
                         }
                       }
-
-                      _audioPlayer.loadPlaylist(
-                        playlistToLoad,
-                        initialIndex: indexToLoad,
-                        autoPlay: true,
-                      );
-                      Navigator.of(context).push(
-                        PageRouteBuilder(
-                          pageBuilder:
-                              (context, animation, secondaryAnimation) =>
-                                  const MusicPlayerScreen(),
-                          transitionsBuilder:
-                              (context, animation, secondaryAnimation, child) {
-                                var tween = Tween(
-                                  begin: const Offset(0.0, 1.0),
-                                  end: Offset.zero,
-                                ).chain(CurveTween(curve: Curves.easeOutCubic));
-                                return SlideTransition(
-                                  position: animation.drive(tween),
-                                  child: child,
-                                );
-                              },
-                        ),
-                      );
+                      return false; // Don't actually dismiss
                     },
-                    onLongPress: () => _showSongOptions(context, song),
+                    background: Container(
+                      color: Colors.purpleAccent.withOpacity(0.8),
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.only(left: 20),
+                      child: const Icon(
+                        Icons.favorite,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    secondaryBackground: Container(
+                      color: Colors.blueAccent.withOpacity(0.8),
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      child: const Icon(
+                        Icons.playlist_add,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    child: LazyMusicTile(
+                      key: ValueKey(tileKey),
+                      song: song,
+                      isPlaying: isPlaying,
+                      onTap: () {
+                        // Fix: If searching, play from full library context instead of just search results
+                        List<Song> playlistToLoad = songs;
+                        int indexToLoad = index;
+
+                        if (_searchQuery.isNotEmpty) {
+                          final fullLibrary = _musicState.librarySongs;
+                          final foundIndex = fullLibrary.indexWhere(
+                            (s) => s.id == song.id,
+                          );
+                          if (foundIndex != -1) {
+                            playlistToLoad = fullLibrary;
+                            indexToLoad = foundIndex;
+                          }
+                        }
+
+                        _audioPlayer.loadPlaylist(
+                          playlistToLoad,
+                          initialIndex: indexToLoad,
+                          autoPlay: true,
+                        );
+                        Navigator.of(context).push(
+                          PageRouteBuilder(
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) =>
+                                    const MusicPlayerScreen(),
+                            transitionsBuilder:
+                                (
+                                  context,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) {
+                                  var tween =
+                                      Tween(
+                                        begin: const Offset(0.0, 1.0),
+                                        end: Offset.zero,
+                                      ).chain(
+                                        CurveTween(curve: Curves.easeOutCubic),
+                                      );
+                                  return SlideTransition(
+                                    position: animation.drive(tween),
+                                    child: child,
+                                  );
+                                },
+                          ),
+                        );
+                      },
+                      onLongPress: () => _showSongOptions(context, song),
+                    ),
                   );
                 },
                 childCount: songs.length,

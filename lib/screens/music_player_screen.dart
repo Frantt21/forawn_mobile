@@ -369,7 +369,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Title and Artist (Left Aligned)
-                  Expanded(
+                  Flexible(
+                    flex: 2,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -383,7 +384,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           ),
                           delayBefore: const Duration(seconds: 3),
                           pauseBetween: const Duration(seconds: 3),
-                          intervalSpaces: 10,
+                          intervalSpaces: 25,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -402,7 +403,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           ),
                           delayBefore: const Duration(seconds: 3),
                           pauseBetween: const Duration(seconds: 3),
-                          intervalSpaces: 10,
+                          intervalSpaces: 25,
                           style: const TextStyle(
                             color: Colors.white60,
                             fontSize: 14,
@@ -414,6 +415,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                     ),
                   ),
 
+                  const SizedBox(width: 12), // Space between text and buttons
                   // Buttons (Right Aligned)
                   Row(
                     mainAxisSize: MainAxisSize.min,
