@@ -214,7 +214,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         left: 24.0,
         right: 24.0,
         top: 18.0,
-        bottom: 24.0,
+        bottom: 48.0,
       ),
       child: AspectRatio(
         aspectRatio: 1,
@@ -364,99 +364,92 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
             children: [
               // Row: Add to Playlist (Left) - Title/Artist (Center) - Favorite (Right)
               // Stack: Add to Playlist (Left) - Title/Artist (Center) - Favorite (Right)
-              SizedBox(
-                height: 80,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Title and Artist (Centered)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 48.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextScroll(
-                            song.title,
-                            key: ValueKey('title_${song.id}'),
-                            mode: TextScrollMode.endless,
-                            velocity: const Velocity(
-                              pixelsPerSecond: Offset(30, 0),
-                            ),
-                            delayBefore: const Duration(seconds: 3),
-                            pauseBetween: const Duration(seconds: 3),
-                            intervalSpaces: 3,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                            selectable:
-                                false, // Disable selection to avoid conflicts
+              // Row: Title/Artist (Left) - Buttons (Right)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Title and Artist (Left Aligned)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextScroll(
+                          song.title,
+                          key: ValueKey('title_${song.id}'),
+                          mode: TextScrollMode.endless,
+                          velocity: const Velocity(
+                            pixelsPerSecond: Offset(30, 0),
                           ),
-                          const SizedBox(height: 4),
-                          TextScroll(
-                            song.artist,
-                            key: ValueKey('artist_${song.id}'),
-                            mode: TextScrollMode.endless,
-                            velocity: const Velocity(
-                              pixelsPerSecond: Offset(30, 0),
-                            ),
-                            delayBefore: const Duration(seconds: 3),
-                            pauseBetween: const Duration(seconds: 1),
-                            intervalSpaces: 10,
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 16,
-                            ),
-                            textAlign: TextAlign.center,
-                            selectable: false,
+                          delayBefore: const Duration(seconds: 3),
+                          pauseBetween: const Duration(seconds: 3),
+                          intervalSpaces: 10,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
-                        ],
-                      ),
-                    ),
-
-                    // Add to Playlist Button (Left)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        icon: Icon(
-                          Icons.playlist_add,
-                          color: effectiveColor,
-                          size: 28,
+                          textAlign: TextAlign.left,
+                          selectable: false,
                         ),
-                        onPressed: () {
+                        const SizedBox(height: 4),
+                        TextScroll(
+                          song.artist,
+                          key: ValueKey('artist_${song.id}'),
+                          mode: TextScrollMode.endless,
+                          velocity: const Velocity(
+                            pixelsPerSecond: Offset(30, 0),
+                          ),
+                          delayBefore: const Duration(seconds: 3),
+                          pauseBetween: const Duration(seconds: 3),
+                          intervalSpaces: 10,
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.left,
+                          selectable: false,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Buttons (Right Aligned)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Add to Playlist Button
+                      GestureDetector(
+                        onTap: () {
                           _showAddToPlaylistDialog(context, song);
                         },
+                        child: Icon(
+                          Icons.playlist_add,
+                          color: effectiveColor,
+                          size: 30,
+                        ),
                       ),
-                    ),
-
-                    // Favorite Button (Right)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: ListenableBuilder(
+                      const SizedBox(width: 16), // Espacio aumentado
+                      // Favorite Button
+                      ListenableBuilder(
                         listenable: PlaylistService(),
                         builder: (context, child) {
                           final isLiked = PlaylistService().isLiked(song.id);
-                          return IconButton(
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            icon: Icon(
-                              isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: isLiked ? effectiveColor : Colors.white,
-                              size: 28,
-                            ),
-                            onPressed: () {
+                          return GestureDetector(
+                            onTap: () {
                               PlaylistService().toggleLike(song.id);
                             },
+                            child: Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: isLiked ? effectiveColor : Colors.white,
+                              size: 30,
+                            ),
                           );
                         },
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
 
               const SizedBox(height: 12),
