@@ -584,7 +584,7 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
                                           ? Image.network(
                                               video.thumbnail,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
+                                              errorBuilder: (_, _, _) =>
                                                   Icon(
                                                     Icons.music_note,
                                                     color: accentColor,
