@@ -653,7 +653,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
             return ValueListenableBuilder<String?>(
               valueListenable: MusicLibraryService.onMetadataUpdated,
-              builder: (context, _, __) {
+              builder: (context, _, _) {
                 return Dialog(
                   backgroundColor: const Color(0xFF1C1C1E),
                   shape: RoundedRectangleBorder(
