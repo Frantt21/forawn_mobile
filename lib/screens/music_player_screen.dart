@@ -1,6 +1,7 @@
 import 'package:text_scroll/text_scroll.dart'; // Added
 import 'dart:ui';
 import 'dart:io';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import '../services/audio_player_service.dart';
 import '../services/language_service.dart';
@@ -1473,6 +1474,21 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       // 3. Write tags using AudioTags
       String path = song.filePath;
       bool isSaf = path.startsWith('content://');
+
+      if (!isSaf && Platform.isAndroid) {
+        // En Android 11+ necesitamos MANAGE_EXTERNAL_STORAGE para escribir en archivos
+        // que no pertenecen a la app (escaneados) usando File API directa.
+        // Verificamos y pedimos el permiso si no lo tenemos.
+        if (await Permission.manageExternalStorage.status.isDenied) {
+          final status = await Permission.manageExternalStorage.request();
+          if (!status.isGranted) {
+            throw Exception(
+              LanguageService().getText('permission_denied') +
+                  ": Manage External Storage required",
+            );
+          }
+        }
+      }
 
       File? tempFile;
       String targetPath = path;

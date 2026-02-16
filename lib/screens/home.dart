@@ -252,7 +252,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.library_music,
                   title: LanguageService().getText('local_music'),
                   color: Colors.purpleAccent,
-                  onTap: () => Navigator.pushNamed(context, '/local-music'),
+                  onTap: () => _navigateToScreen(
+                    '/local-music',
+                    LanguageService().getText('local_music'),
+                    Icons.library_music,
+                    Colors.purpleAccent,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),

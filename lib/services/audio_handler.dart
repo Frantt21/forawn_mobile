@@ -87,6 +87,7 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     });
   }
 
+  Timer? _mediaItemDebounce;
   void _broadcastState() {
     final state = _player.playerState;
     final playing = state == app_state.PlayerState.playing;
@@ -97,11 +98,11 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
-          _shuffleControl,
+          isLiked ? _favoriteControl : _unfavoriteControl,
           MediaControl.skipToPrevious,
           if (playing) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
-          isLiked ? _favoriteControl : _unfavoriteControl,
+          _shuffleControl,
         ],
         systemActions: const {MediaAction.seek},
         androidCompactActionIndices: const [
@@ -125,24 +126,27 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return;
     }
 
-    Uri? artUri;
-    if (song.artworkPath != null) {
-      artUri = Uri.file(song.artworkPath!);
-    } else if (song.artworkUri != null) {
-      artUri = Uri.parse(song.artworkUri!);
-    }
+    // Debounce media item updates to prevent UI jank during transitions
+    _mediaItemDebounce?.cancel();
+    _mediaItemDebounce = Timer(const Duration(milliseconds: 500), () {
+      Uri? artUri;
+      if (song.artworkPath != null) {
+        artUri = Uri.file(song.artworkPath!);
+      } else if (song.artworkUri != null) {
+        artUri = Uri.parse(song.artworkUri!);
+      }
 
-    mediaItem.add(
-      MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album ?? '',
-        // Usar duración reportada por el player si existe, sino la del modelo
-        duration: duration ?? song.duration,
-        artUri: artUri,
-      ),
-    );
+      mediaItem.add(
+        MediaItem(
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          album: song.album ?? '',
+          duration: duration ?? song.duration,
+          artUri: artUri,
+        ),
+      );
+    });
   }
 
   AudioProcessingState _mapProcessingState(app_state.PlayerState state) {

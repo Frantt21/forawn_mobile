@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ Future<void> backgroundCallback(Uri? data) async {
 
 class WidgetService {
   static const String _widgetName = 'MusicWidgetProvider';
+  static Timer? _debounce;
 
   static Future<void> initialize() async {
     await HomeWidget.registerBackgroundCallback(backgroundCallback);
@@ -32,38 +34,41 @@ class WidgetService {
     required bool isPlaying,
     required bool isFavorite,
   }) async {
-    // Save Data
-    await HomeWidget.saveWidgetData<String>(
-      'title',
-      song?.title ?? 'Forawn Music',
-    );
-    await HomeWidget.saveWidgetData<String>(
-      'artist',
-      song?.artist ?? 'Tap to play',
-    );
-    await HomeWidget.saveWidgetData<bool>('isPlaying', isPlaying);
-    await HomeWidget.saveWidgetData<bool>('isFavorite', isFavorite);
-
-    // Color Calculation
-    final dominantColorValue = song?.dominantColor ?? 0xFF212121;
-    final dominantColor = Color(dominantColorValue);
-    final brightness = ThemeData.estimateBrightnessForColor(dominantColor);
-    final isDark = brightness == Brightness.dark;
-
-    await HomeWidget.saveWidgetData<bool>('isDark', isDark);
-    await HomeWidget.saveWidgetData<int>('dominantColor', dominantColorValue);
-
-    // Save Artwork Path
-    if (song?.artworkPath != null) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () async {
+      // Save Data
       await HomeWidget.saveWidgetData<String>(
-        'artwork_path',
-        song!.artworkPath,
+        'title',
+        song?.title ?? 'Forawn Music',
       );
-    } else {
-      await HomeWidget.saveWidgetData<String>('artwork_path', null);
-    }
+      await HomeWidget.saveWidgetData<String>(
+        'artist',
+        song?.artist ?? 'Tap to play',
+      );
+      await HomeWidget.saveWidgetData<bool>('isPlaying', isPlaying);
+      await HomeWidget.saveWidgetData<bool>('isFavorite', isFavorite);
 
-    // Trigger Update
-    await HomeWidget.updateWidget(name: _widgetName, androidName: _widgetName);
+      // Color Calculation
+      final dominantColorValue = song?.dominantColor ?? 0xFF212121;
+      final dominantColor = Color(dominantColorValue);
+      final brightness = ThemeData.estimateBrightnessForColor(dominantColor);
+      final isDark = brightness == Brightness.dark;
+
+      await HomeWidget.saveWidgetData<bool>('isDark', isDark);
+      await HomeWidget.saveWidgetData<int>('dominantColor', dominantColorValue);
+
+      // Save Artwork Path
+      if (song?.artworkPath != null) {
+        await HomeWidget.saveWidgetData<String>(
+          'artwork_path',
+          song!.artworkPath,
+        );
+      } else {
+        await HomeWidget.saveWidgetData<String>('artwork_path', null);
+      }
+
+      // Trigger Update
+      await HomeWidget.updateWidget(name: _widgetName, androidName: _widgetName);
+    });
   }
 }
