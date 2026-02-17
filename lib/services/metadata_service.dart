@@ -1,9 +1,8 @@
-// This tool call is just to verify SafHelper first.
-// I will cancel this replacement and view SafHelper instead.
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'music_metadata_cache.dart';
 import 'saf_helper.dart';
@@ -58,6 +57,9 @@ class MetadataService {
   static final MetadataService _instance = MetadataService._internal();
   factory MetadataService() => _instance;
   MetadataService._internal();
+
+  /// Notificador para actualizar UI cuando se cargan metadatos
+  static final ValueNotifier<String?> onMetadataUpdated = ValueNotifier(null);
 
   // Caché en memoria para acceso rápido
   final Map<String, SongMetadata> _memoryCache = {};
@@ -169,6 +171,9 @@ class MetadataService {
           print(
             '[MetadataService] Success! Helper saved metadata for $id to DB/File',
           );
+
+          // Notificar cambio
+          onMetadataUpdated.value = id;
 
           // Cargar desde caché para obtener la RUTA del archivo, no los bytes
           final cachedMetadata = await MusicMetadataCache.get(id);

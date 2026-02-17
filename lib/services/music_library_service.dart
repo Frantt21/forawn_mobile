@@ -17,7 +17,8 @@ class LibraryLoadingStatus {
 
 class MusicLibraryService {
   /// Notificador para actualizar UI cuando se cargan metadatos en background
-  static final ValueNotifier<String?> onMetadataUpdated = ValueNotifier(null);
+  static ValueNotifier<String?> get onMetadataUpdated =>
+      MetadataService.onMetadataUpdated;
 
   /// Notificador de estado de carga global
   static final ValueNotifier<LibraryLoadingStatus> loadingStatus =

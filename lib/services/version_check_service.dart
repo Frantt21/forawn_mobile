@@ -10,7 +10,13 @@ class VersionCheckService {
   /// Obtener la última versión disponible en GitHub
   static Future<GitHubRelease?> getLatestRelease() async {
     try {
-      final response = await http.get(Uri.parse(_githubApiUrl));
+      final response = await http.get(
+        Uri.parse(_githubApiUrl),
+        headers: {
+          'User-Agent': 'Forawn-Mobile-App',
+          'Accept': 'application/vnd.github.v3+json',
+        },
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -20,7 +26,9 @@ class VersionCheckService {
         print('[VersionCheck] No releases found');
         return null;
       } else {
-        print('[VersionCheck] Error: ${response.statusCode}');
+        print(
+          '[VersionCheck] Error: ${response.statusCode} - ${response.reasonPhrase ?? response.body}',
+        );
         return null;
       }
     } catch (e) {
@@ -50,10 +58,13 @@ class VersionCheckService {
       }
 
       // Comparar versiones
-      final hasUpdate = _isNewerVersion(
-        latestRelease.tagName.replaceAll('v', ''),
-        currentVersion,
-      );
+      // Limpiamos la 'v' del tag y cualquier sufijo de build
+      final cleanLatest = latestRelease.tagName
+          .replaceAll('v', '')
+          .split('+')[0];
+      final cleanCurrent = currentVersion.split('+')[0];
+
+      final hasUpdate = _isNewerVersion(cleanLatest, cleanCurrent);
 
       return VersionCheckResult(
         hasUpdate: hasUpdate,
@@ -77,8 +88,13 @@ class VersionCheckService {
   /// Comparar dos versiones (formato: x.y.z)
   static bool _isNewerVersion(String latest, String current) {
     try {
-      final latestParts = latest.split('.').map(int.parse).toList();
-      final currentParts = current.split('.').map(int.parse).toList();
+      final latestParts = latest.split('.').map((e) {
+        return int.tryParse(e) ?? 0;
+      }).toList();
+
+      final currentParts = current.split('.').map((e) {
+        return int.tryParse(e) ?? 0;
+      }).toList();
 
       for (int i = 0; i < 3; i++) {
         final latestPart = i < latestParts.length ? latestParts[i] : 0;

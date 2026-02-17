@@ -17,7 +17,6 @@ import '../services/music_metadata_cache.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/metadata_service.dart';
 import '../services/local_music_state_service.dart';
-import '../services/music_library_service.dart';
 import '../utils/id_generator.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
@@ -53,6 +52,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     _virtualSongs = widget.playlist.songs;
     _lastImagePath = widget.playlist.imagePath; // Initialize with current image
     PlaylistService().addListener(_onPlaylistChanged);
+    MetadataService.onMetadataUpdated.addListener(_onMetadataUpdated);
     _loadCachedColorOrExtract();
     _scrollController.addListener(_onScroll);
 
@@ -94,6 +94,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     _searchController.dispose();
     _animationController.dispose();
     PlaylistService().removeListener(_onPlaylistChanged);
+    MetadataService.onMetadataUpdated.removeListener(_onMetadataUpdated);
     super.dispose();
   }
 
@@ -121,6 +122,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
         // La imagen cambió, recalcular color dominante
         _loadCachedColorOrExtract();
       }
+      setState(() {});
+    }
+  }
+
+  void _onMetadataUpdated() {
+    if (mounted) {
+      // Rebuild to update duration and song details
       setState(() {});
     }
   }
@@ -651,7 +659,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             }).toList();
 
             return ValueListenableBuilder<String?>(
-              valueListenable: MusicLibraryService.onMetadataUpdated,
+              valueListenable: MetadataService.onMetadataUpdated,
               builder: (context, _, _) {
                 return Dialog(
                   backgroundColor: const Color(0xFF1C1C1E),
