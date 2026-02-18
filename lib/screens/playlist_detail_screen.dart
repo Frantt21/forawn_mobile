@@ -1108,21 +1108,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
     // Color de acento para botones: se ajusta al rango visible (0.45–0.75 lightness)
     // Evita que sea demasiado oscuro (invisible) o demasiado claro (invisible sobre fondo claro)
-    final rawAccent = _dominantColor ?? Colors.purpleAccent;
-    final rawHsl = HSLColor.fromColor(rawAccent);
-    final accentColor = rawHsl
-        .withLightness(rawHsl.lightness.clamp(0.45, 0.75))
-        .withSaturation(rawHsl.saturation.clamp(0.4, 1.0))
-        .toColor();
-    // Texto sobre el botón primario: contrasta con accentColor
-    final accentTextColor =
-        rawHsl
-                .withLightness(rawHsl.lightness.clamp(0.45, 0.75))
-                .toColor()
-                .computeLuminance() >
-            0.4
-        ? Colors.black87
-        : Colors.white;
+    // final rawAccent = _dominantColor ?? Colors.purpleAccent;
+    // final rawHsl = HSLColor.fromColor(rawAccent);
+    // final accentColor = rawHsl
+    //     .withLightness(rawHsl.lightness.clamp(0.45, 0.75))
+    //     .withSaturation(rawHsl.saturation.clamp(0.4, 1.0))
+    //     .toColor();
+    // // Texto sobre el botón primario: contrasta con accentColor
+    // final accentTextColor =
+    //     rawHsl
+    //             .withLightness(rawHsl.lightness.clamp(0.45, 0.75))
+    //             .toColor()
+    //             .computeLuminance() >
+    //         0.4
+    //     ? Colors.black87
+    //     : Colors.white;
 
     return Scaffold(
       backgroundColor: _dominantColor ?? Colors.black,
@@ -1227,7 +1227,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               SliverToBoxAdapter(
                 child: Container(
                   color: _dominantColor ?? Colors.black,
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  // Padding ajustado: 16 arriba para separar título
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                   child: Column(
                     children: [
                       Text(
@@ -1240,7 +1241,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                         textAlign: TextAlign.center,
                       ),
 
-                      const SizedBox(height: 12),
+                      // Espacio reducido título-descripción
+                      const SizedBox(height: 6),
 
                       if (playlist.description != null &&
                           playlist.description!.isNotEmpty)
@@ -1255,7 +1257,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                           overflow: TextOverflow.ellipsis,
                         ),
 
-                      const SizedBox(height: 16),
+                      // Espacio reducido descripción-info
+                      const SizedBox(height: 8),
 
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1284,16 +1287,20 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                         ],
                       ),
 
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 20),
 
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildActionButton(
-                            icon: Icons.play_arrow,
+
+
+                          // 2. Play Button (Primary Pill)
+                          _buildPrimaryPlayButton(
                             label: LanguageService().getText('play'),
-                            isPrimary: true,
-                            accentColor: accentColor,
-                            accentTextColor: accentTextColor,
+                            backgroundColor:
+                                textColor, // Alto contraste con el fondo
+                            foregroundColor:
+                                backgroundColor, // Texto color del fondo
                             onPressed: songs.isEmpty
                                 ? null
                                 : () {
@@ -1304,13 +1311,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                     );
                                   },
                           ),
+
                           const SizedBox(width: 12),
-                          _buildActionButton(
+
+                          // 1. Shuffle Button (Circular)
+                          _buildCircularButton(
                             icon: Icons.shuffle,
-                            label: LanguageService().getText('shuffle'),
-                            isPrimary: false,
-                            accentColor: accentColor,
-                            accentTextColor: accentTextColor,
+                            color: textColor,
                             onPressed: songs.isEmpty
                                 ? null
                                 : () {
@@ -1322,6 +1329,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                     );
                                   },
                           ),
+
+                          const SizedBox(width: 12),
+
+                          // 3. Add Button (Circular) - Solo si editable
+                          if (widget.playlist.id != 'favorites_virtual')
+                            _buildCircularButton(
+                              icon: Icons.add,
+                              color: textColor,
+                              onPressed: () {
+                                _showAddSongsDialog(context, _currentPlaylist);
+                              },
+                            )
+                          else
+                            // Placeholder invisible para mantener balance si es favoritos
+                            const SizedBox(width: 44, height: 44),
                         ],
                       ),
                     ],
@@ -1534,54 +1556,62 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildCircularButton({
     required IconData icon,
-    required String label,
-    required bool isPrimary,
+    required Color color,
     required VoidCallback? onPressed,
-    Color? accentColor,
-    Color? accentTextColor,
   }) {
-    final color = accentColor ?? Colors.purpleAccent;
-    final textColor = accentTextColor ?? Colors.white;
+    // Reducir tamaño de 56 a 44 y eliminar borde
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15), // Fondo un poco más visible sin borde
+        shape: BoxShape.circle,
+        // Borde eliminado para look más limpio
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: color, size: 22),
+        onPressed: onPressed,
+        tooltip: 'Action',
+        padding: EdgeInsets
+            .zero, // Remove padding to center icon better in smaller space
+      ),
+    );
+  }
 
-    if (isPrimary) {
-      // Botón primario: fondo sólido con el acento, texto que contrasta
-      return Expanded(
-        child: ElevatedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 20, color: textColor),
-          label: Text(label, style: TextStyle(color: textColor)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            foregroundColor: textColor,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-            elevation: 4,
+  Widget _buildPrimaryPlayButton({
+    required String label,
+    required Color backgroundColor,
+    required Color foregroundColor,
+    required VoidCallback? onPressed,
+  }) {
+    // Reducir altura a 44 y ancho
+    return SizedBox(
+      height: 44,
+      width: 130,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(Icons.play_arrow, size: 24, color: foregroundColor),
+        label: Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            color: foregroundColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 14, // Fuente más pequeña
+            letterSpacing: 1.0,
           ),
         ),
-      );
-    } else {
-      // Botón secundario: fondo oscuro semitransparente + borde del color acento
-      // Siempre visible independientemente del fondo dominante
-      return Expanded(
-        child: OutlinedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 20, color: color),
-          label: Text(label, style: TextStyle(color: color)),
-          style: OutlinedButton.styleFrom(
-            backgroundColor: Colors.black.withOpacity(0.3),
-            foregroundColor: color,
-            side: BorderSide(color: color, width: 1.5),
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
+          elevation: 2, // Menos elevación
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22), // Radio ajustado
           ),
         ),
-      );
-    }
+      ),
+    );
   }
 }

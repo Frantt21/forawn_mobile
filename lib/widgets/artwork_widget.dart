@@ -29,7 +29,7 @@ class ArtworkWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = width ?? size;
     final h = height ?? size;
-    final radius = borderRadius ?? BorderRadius.circular(8);
+    final radius = borderRadius ?? BorderRadius.circular(12);
 
     Widget imageContent;
 

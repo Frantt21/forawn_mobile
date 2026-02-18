@@ -1202,7 +1202,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
         height: 50,
         decoration: BoxDecoration(
           color: Colors.purpleAccent.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: const Icon(Icons.add, color: Colors.purpleAccent),
       ),
@@ -1224,7 +1224,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
         height: 50,
         decoration: BoxDecoration(
           color: Colors.grey[850],
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           image: playlist.getImageProvider() != null
               ? DecorationImage(
                   image: playlist.getImageProvider()!,
@@ -1511,7 +1511,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                       height: 56,
                       decoration: BoxDecoration(
                         color: Colors.white10,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                         image: playlist.imagePath != null
                             ? DecorationImage(
                                 image: File(playlist.imagePath!).existsSync()
