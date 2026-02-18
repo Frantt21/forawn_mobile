@@ -1483,8 +1483,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
           final status = await Permission.manageExternalStorage.request();
           if (!status.isGranted) {
             throw Exception(
-              LanguageService().getText('permission_denied') +
-                  ": Manage External Storage required",
+              "${LanguageService().getText('permission_denied')}: Manage External Storage required",
             );
           }
         }

@@ -328,7 +328,7 @@ class LyricsService {
     } catch (e) {
       if (e is DioException && CancelToken.isCancel(e)) {
         // Relanzar cancelación para que quien llame sepa que fue cancelado
-        throw e;
+        rethrow;
       }
       print('[LyricsService] Error fetching lyrics: $e');
       return null;
