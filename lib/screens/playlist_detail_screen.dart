@@ -1150,8 +1150,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
       ),
       body: Stack(
         children: [
-          // Background con color plano - máximo rendimiento
-          // Background oscuro con gradiente (estilo Player)
+          // Background sólido (Color dominante)
+          Container(color: _dominantColor ?? Colors.black),
+
+          /*
+          // OLD BACKGROUND
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -1164,6 +1167,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               ),
             ),
           ),
+          */
 
           // Content
           CustomScrollView(
@@ -1173,7 +1177,429 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               parent: AlwaysScrollableScrollPhysics(),
             ),
             slivers: [
-              // Header con portada, título, descripción y botones
+              // Nuevo Header con SliverAppBar para efecto stretch
+              SliverAppBar(
+                expandedHeight: MediaQuery.of(
+                  context,
+                ).size.width, // 1:1 Aspect Ratio
+                backgroundColor: _dominantColor ?? Colors.black,
+                floating: false,
+                pinned: false,
+                stretch:
+                    true, // Esto permite que la imagen se estire al hacer overscroll
+                flexibleSpace: FlexibleSpaceBar(
+                  stretchModes: const [
+                    StretchMode.zoomBackground,
+                    StretchMode.blurBackground,
+                  ],
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Imagen de portada
+                      Builder(
+                        builder: (context) {
+                          if (widget.playlist.id == 'favorites_virtual') {
+                            return Container(
+                              color: Colors.grey[900],
+                              child: const Center(
+                                child: Icon(
+                                  Icons.favorite,
+                                  color: Colors.purpleAccent,
+                                  size: 150,
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (coverImage != null) {
+                            return Image(image: coverImage, fit: BoxFit.cover);
+                          }
+
+                          // Fallback simple
+                          if (playlist.imagePath == null && songs.isNotEmpty) {
+                            final firstArt = songs.first.artworkPath;
+                            if (firstArt != null &&
+                                File(firstArt).existsSync()) {
+                              return Image.file(
+                                File(firstArt),
+                                fit: BoxFit.cover,
+                              );
+                            }
+                          }
+
+                          return Container(
+                            color: Colors.grey[900],
+                            child: Center(
+                              child: Icon(
+                                Icons.music_note,
+                                size: 150,
+                                color: Colors.white.withOpacity(0.1),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+
+                      // Gradiente para fundirse con el fondo
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors
+                                  .black38, // Un poco de sombra arriba para ver iconos status bar
+                              Colors.transparent,
+                              _dominantColor ?? Colors.black,
+                            ],
+                            stops: const [0.0, 0.5, 1.0],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Quitar leading/actions del SliverAppbar implícito si quisieramos
+                // pero como ya tenemos un AppBar transparente fijo arriba (scaffold appBar),
+                // este SliverAppBar funciona puramente como fondo flexible.
+                automaticallyImplyLeading: false,
+              ),
+
+              // Contenido de Info (Título, Botones) debajo de la imagen
+              SliverToBoxAdapter(
+                child: Container(
+                  color:
+                      _dominantColor ?? Colors.black, // Fondo sólido continuo
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 24,
+                  ),
+                  child: Column(
+                    children: [
+                      // Título
+                      Text(
+                        playlist.name,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Descripción
+                      if (playlist.description != null &&
+                          playlist.description!.isNotEmpty)
+                        Text(
+                          playlist.description!,
+                          style: TextStyle(
+                            color: textColor.withOpacity(0.7),
+                            fontSize: 15,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+
+                      const SizedBox(height: 16),
+
+                      // Cantidad de canciones y duración
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.music_note,
+                            size: 16,
+                            color: textColor.withOpacity(0.6),
+                          ),
+                          const SizedBox(width: 6),
+                          FutureBuilder<Duration>(
+                            future: _getTotalDurationFromCache(),
+                            builder: (context, snapshot) {
+                              final duration = snapshot.data ?? Duration.zero;
+                              return Text(
+                                duration.inSeconds > 0
+                                    ? '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${TextUtils.formatDurationLong(duration)}'
+                                    : '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}',
+                                style: TextStyle(
+                                  color: textColor.withOpacity(0.6),
+                                  fontSize: 14,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Botones
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Botón Play
+                          _buildActionButton(
+                            icon: Icons.play_arrow,
+                            label: LanguageService().getText('play'),
+                            isPrimary: true,
+                            accentColor:
+                                _getTextColor(
+                                      _dominantColor ?? Colors.purple,
+                                    ) ==
+                                    Colors.black
+                                ? Colors.white
+                                : Colors.purpleAccent,
+                            onPressed: songs.isEmpty
+                                ? null
+                                : () {
+                                    _audioPlayer.loadPlaylist(
+                                      songs,
+                                      initialIndex: 0,
+                                      autoPlay: true,
+                                    );
+                                  },
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          // Botón Shuffle
+                          _buildActionButton(
+                            icon: Icons.shuffle,
+                            label: LanguageService().getText('shuffle'),
+                            isPrimary: false,
+                            accentColor: textColor,
+                            onPressed: songs.isEmpty
+                                ? null
+                                : () {
+                                    _audioPlayer.toggleShuffle();
+                                    _audioPlayer.loadPlaylist(
+                                      songs,
+                                      initialIndex: 0,
+                                      autoPlay: true,
+                                    );
+                                  },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              /*
+              // Nuevo Header con Portada 1:1 y degradado
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        // 1:1 Image Full Width
+                        AspectRatio(
+                          aspectRatio: 1.0,
+                          child: Builder(
+                            builder: (context) {
+                              if (widget.playlist.id == 'favorites_virtual') {
+                                return Container(
+                                  color: Colors.grey[900],
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.favorite,
+                                      color: Colors.purpleAccent,
+                                      size: 150,
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              if (coverImage != null) {
+                                return Image(
+                                  image: coverImage,
+                                  fit: BoxFit.cover,
+                                );
+                              }
+
+                              // Collage / Fallback logic duplicated for simplicity,
+                              // or we reuse a widget if refactored.
+                              // For now, implementing basic fallback to keep it robust.
+                              if (playlist.imagePath == null &&
+                                  songs.isNotEmpty) {
+                                // Simple fallback to first song art
+                                final firstArt = songs.first.artworkPath;
+                                if (firstArt != null &&
+                                    File(firstArt).existsSync()) {
+                                  return Image.file(
+                                    File(firstArt),
+                                    fit: BoxFit.cover,
+                                  );
+                                }
+                              }
+
+                              return Container(
+                                color: Colors.grey[900],
+                                child: Center(
+                                  child: Icon(
+                                    Icons.music_note,
+                                    size: 150,
+                                    color: Colors.white.withOpacity(0.1),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+
+                        // Gradient Overlay (Transparent -> Solid Dominant Color)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  _dominantColor ?? Colors.black,
+                                ],
+                                stops: const [
+                                  0.5,
+                                  1.0,
+                                ], // Start fading halfway down
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Info Content (Title, etc.)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 24,
+                      ),
+                      child: Column(
+                        children: [
+                          // Título
+                          Text(
+                            playlist.name,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Descripción
+                          if (playlist.description != null &&
+                              playlist.description!.isNotEmpty)
+                            Text(
+                              playlist.description!,
+                              style: TextStyle(
+                                color: textColor.withOpacity(0.7),
+                                fontSize: 15,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+
+                          const SizedBox(height: 16),
+
+                          // Cantidad de canciones y duración
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.music_note,
+                                size: 16,
+                                color: textColor.withOpacity(0.6),
+                              ),
+                              const SizedBox(width: 6),
+                              FutureBuilder<Duration>(
+                                future: _getTotalDurationFromCache(),
+                                builder: (context, snapshot) {
+                                  final duration =
+                                      snapshot.data ?? Duration.zero;
+                                  return Text(
+                                    duration.inSeconds > 0
+                                        ? '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${TextUtils.formatDurationLong(duration)}'
+                                        : '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}',
+                                    style: TextStyle(
+                                      color: textColor.withOpacity(0.6),
+                                      fontSize: 14,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Botones
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Botón Play
+                              _buildActionButton(
+                                icon: Icons.play_arrow,
+                                label: LanguageService().getText('play'),
+                                isPrimary: true,
+                                accentColor:
+                                    _getTextColor(
+                                          _dominantColor ?? Colors.purple,
+                                        ) ==
+                                        Colors.black
+                                    ? Colors.white
+                                    : Colors
+                                          .purpleAccent, // Contrast adjustment
+                                onPressed: songs.isEmpty
+                                    ? null
+                                    : () {
+                                        _audioPlayer.loadPlaylist(
+                                          songs,
+                                          initialIndex: 0,
+                                          autoPlay: true,
+                                        );
+                                      },
+                              ),
+
+                              const SizedBox(width: 12),
+
+                              // Botón Shuffle
+                              _buildActionButton(
+                                icon: Icons.shuffle,
+                                label: LanguageService().getText('shuffle'),
+                                isPrimary: false,
+                                accentColor: textColor,
+                                onPressed: songs.isEmpty
+                                    ? null
+                                    : () {
+                                        _audioPlayer.toggleShuffle();
+                                        _audioPlayer.loadPlaylist(
+                                          songs,
+                                          initialIndex: 0,
+                                          autoPlay: true,
+                                        );
+                                      },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              */
+
+              /* 
+              // OLD HEADER (SliverToBoxAdapter version)
+              SliverToBoxAdapter(
               SliverToBoxAdapter(
                 child: SafeArea(
                   bottom: false,
@@ -1487,6 +1913,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                   ),
                 ),
               ),
+              */
 
               // Lista de canciones con StreamBuilder para actualizar el estado
               if (songs.isEmpty)
