@@ -281,7 +281,7 @@ class PlaylistService extends ChangeNotifier {
 
       // Save complete metadata to ensure the song can be played later
       final existingMeta = await dbHelper.getMetadata(song.id);
-      if (existingMeta == null) {
+      if (existingMeta == null || existingMeta['file_path'] == null) {
         await dbHelper.insertMetadata({
           'id': song.id,
           'title': song.title,
@@ -289,9 +289,10 @@ class PlaylistService extends ChangeNotifier {
           'album': song.album,
           'duration': song.duration?.inMilliseconds,
           'file_path': song.filePath, // CRITICAL: Save filePath
-          'artwork_path': song.artworkPath,
-          'artwork_uri': song.artworkUri,
-          'dominant_color': song.dominantColor,
+          'artwork_path': song.artworkPath ?? existingMeta?['artwork_path'],
+          'artwork_uri': song.artworkUri ?? existingMeta?['artwork_uri'],
+          'dominant_color':
+              song.dominantColor ?? existingMeta?['dominant_color'],
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         });
       }
@@ -420,9 +421,11 @@ class PlaylistService extends ChangeNotifier {
         _sortPlaylists();
         notifyListeners();
 
-        // 1. Guardar metadatos (incluyendo filePath) SOLO si no existen
+        // 1. Guardar metadatos (incluyendo filePath) para asegurar persistencia
         final existingMeta = await DatabaseHelper().getMetadata(song.id);
-        if (existingMeta == null) {
+
+        // Actualizar si no existe, si le falta file_path, o para asegurar datos frescos
+        if (existingMeta == null || existingMeta['file_path'] == null) {
           await DatabaseHelper().insertMetadata({
             'id': song.id,
             'title': song.title,
@@ -430,6 +433,10 @@ class PlaylistService extends ChangeNotifier {
             'album': song.album,
             'duration': song.duration?.inMilliseconds,
             'file_path': song.filePath,
+            'artwork_path': song.artworkPath ?? existingMeta?['artwork_path'],
+            'artwork_uri': song.artworkUri ?? existingMeta?['artwork_uri'],
+            'dominant_color':
+                song.dominantColor ?? existingMeta?['dominant_color'],
             'timestamp': DateTime.now().millisecondsSinceEpoch,
           });
         }

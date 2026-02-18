@@ -33,6 +33,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
   final AudioPlayerService _audioPlayer = AudioPlayerService();
   final ScrollController _scrollController = ScrollController();
   Color? _dominantColor;
+  Future<Duration>?
+  _durationFuture; // cacheado para no recrearse en cada rebuild
 
   // Estado local para manejar favoritos (que no están en PlaylistService._playlists)
   late List<Song> _virtualSongs;
@@ -54,6 +56,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     PlaylistService().addListener(_onPlaylistChanged);
     MetadataService.onMetadataUpdated.addListener(_onMetadataUpdated);
     _loadCachedColorOrExtract();
+    // _durationFuture se inicializa tras el preload (ver _preloadAndComputeDuration)
 
     // Inicializar animación de búsqueda
     _animationController = AnimationController(
@@ -64,9 +67,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
 
-    // Preload metadata for smoother scrolling
+    // Preload metadata for smoother scrolling, then compute total duration
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _preloadMetadata();
+      _preloadAndComputeDuration();
     });
   }
 
@@ -84,6 +87,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     }).toList();
 
     await MetadataService().preloadMetadata(requests);
+  }
+
+  /// Precarga metadatos y luego calcula la duración total (el orden importa)
+  Future<void> _preloadAndComputeDuration() async {
+    await _preloadMetadata();
+    if (mounted) {
+      setState(() {
+        _durationFuture = _getTotalDurationFromCache();
+      });
+    }
   }
 
   @override
@@ -107,14 +120,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
         // La imagen cambió, recalcular color dominante
         _loadCachedColorOrExtract();
       }
-      setState(() {});
+      setState(() {
+        _durationFuture = _getTotalDurationFromCache();
+      });
     }
   }
 
   void _onMetadataUpdated() {
     if (mounted) {
       // Rebuild to update duration and song details
-      setState(() {});
+      setState(() {
+        _durationFuture = _getTotalDurationFromCache();
+      });
     }
   }
 
@@ -266,6 +283,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
       setState(() {
         _virtualSongs = List.from(_virtualSongs)
           ..removeWhere((s) => s.id == song.id);
+        _durationFuture = _getTotalDurationFromCache();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1088,6 +1106,24 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     final backgroundColor = _dominantColor ?? Colors.purple;
     final textColor = _getTextColor(backgroundColor);
 
+    // Color de acento para botones: se ajusta al rango visible (0.45–0.75 lightness)
+    // Evita que sea demasiado oscuro (invisible) o demasiado claro (invisible sobre fondo claro)
+    final rawAccent = _dominantColor ?? Colors.purpleAccent;
+    final rawHsl = HSLColor.fromColor(rawAccent);
+    final accentColor = rawHsl
+        .withLightness(rawHsl.lightness.clamp(0.45, 0.75))
+        .withSaturation(rawHsl.saturation.clamp(0.4, 1.0))
+        .toColor();
+    // Texto sobre el botón primario: contrasta con accentColor
+    final accentTextColor =
+        rawHsl
+                .withLightness(rawHsl.lightness.clamp(0.45, 0.75))
+                .toColor()
+                .computeLuminance() >
+            0.4
+        ? Colors.black87
+        : Colors.white;
+
     return Scaffold(
       backgroundColor: _dominantColor ?? Colors.black,
       body: Stack(
@@ -1231,7 +1267,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                           ),
                           const SizedBox(width: 6),
                           FutureBuilder<Duration>(
-                            future: _getTotalDurationFromCache(),
+                            future: _durationFuture,
                             builder: (context, snapshot) {
                               final duration = snapshot.data ?? Duration.zero;
                               return Text(
@@ -1256,13 +1292,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             icon: Icons.play_arrow,
                             label: LanguageService().getText('play'),
                             isPrimary: true,
-                            accentColor:
-                                _getTextColor(
-                                      _dominantColor ?? Colors.purple,
-                                    ) ==
-                                    Colors.black
-                                ? Colors.white
-                                : Colors.purpleAccent,
+                            accentColor: accentColor,
+                            accentTextColor: accentTextColor,
                             onPressed: songs.isEmpty
                                 ? null
                                 : () {
@@ -1278,7 +1309,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             icon: Icons.shuffle,
                             label: LanguageService().getText('shuffle'),
                             isPrimary: false,
-                            accentColor: textColor,
+                            accentColor: accentColor,
+                            accentTextColor: accentTextColor,
                             onPressed: songs.isEmpty
                                 ? null
                                 : () {
@@ -1508,30 +1540,48 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     required bool isPrimary,
     required VoidCallback? onPressed,
     Color? accentColor,
+    Color? accentTextColor,
   }) {
-    // Apply same contrast logic as music player
-    final rawColor = accentColor ?? Colors.purpleAccent;
-    final adjustedColor = HSLColor.fromColor(rawColor).lightness < 0.3
-        ? HSLColor.fromColor(rawColor).withLightness(0.6).toColor()
-        : rawColor;
+    final color = accentColor ?? Colors.purpleAccent;
+    final textColor = accentTextColor ?? Colors.white;
 
-    return Expanded(
-      child: ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 20),
-        label: Text(label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isPrimary
-              ? adjustedColor
-              : adjustedColor.withOpacity(0.2),
-          foregroundColor: isPrimary ? Colors.white : adjustedColor,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
+    if (isPrimary) {
+      // Botón primario: fondo sólido con el acento, texto que contrasta
+      return Expanded(
+        child: ElevatedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 20, color: textColor),
+          label: Text(label, style: TextStyle(color: textColor)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: textColor,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+            elevation: 4,
           ),
-          elevation: isPrimary ? 4 : 0,
         ),
-      ),
-    );
+      );
+    } else {
+      // Botón secundario: fondo oscuro semitransparente + borde del color acento
+      // Siempre visible independientemente del fondo dominante
+      return Expanded(
+        child: OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 20, color: color),
+          label: Text(label, style: TextStyle(color: color)),
+          style: OutlinedButton.styleFrom(
+            backgroundColor: Colors.black.withOpacity(0.3),
+            foregroundColor: color,
+            side: BorderSide(color: color, width: 1.5),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
+        ),
+      );
+    }
   }
 }

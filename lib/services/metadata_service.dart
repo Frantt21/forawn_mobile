@@ -162,7 +162,7 @@ class MetadataService {
             title: rawMetadata['title'],
             artist: rawMetadata['artist'],
             album: rawMetadata['album'],
-            durationMs: rawMetadata['durationMsg'],
+            durationMs: rawMetadata['durationMs'],
             artworkData: artworkBytes, // Se guarda en disco y se libera
             artworkUri: rawMetadata['artworkUri'],
             dominantColor: dominantColor,
