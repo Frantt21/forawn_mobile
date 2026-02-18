@@ -319,7 +319,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     }).toList();
   }
 
-  Widget _buildSearchField(Color textColor) {
+  Widget _buildSearchField(Color textColor, Color accentColor) {
     return AnimatedBuilder(
       key: const ValueKey('search'),
       animation: _animationController,
@@ -348,9 +348,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                 ),
                 prefixIcon: Icon(Icons.search, color: textColor, size: 20),
                 filled: true,
-                fillColor: textColor.withOpacity(0.1),
+                // Fondo con el color de acento (botones) pero con opacidad ligera
+                // para mantener legibilidad y consistencia
+                fillColor: accentColor.withOpacity(0.2),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(
+                    24,
+                  ), // Redondeado como botones
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
@@ -1103,35 +1107,47 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
       }
     }
 
-    final backgroundColor = _dominantColor ?? Colors.purple;
-    final textColor = _getTextColor(backgroundColor);
+    // Detectar si es favoritos
+    final isFavorites = widget.playlist.id == 'favorites_virtual';
 
-    // Color de acento para botones: se ajusta al rango visible (0.45–0.75 lightness)
-    // Evita que sea demasiado oscuro (invisible) o demasiado claro (invisible sobre fondo claro)
-    // final rawAccent = _dominantColor ?? Colors.purpleAccent;
-    // final rawHsl = HSLColor.fromColor(rawAccent);
-    // final accentColor = rawHsl
-    //     .withLightness(rawHsl.lightness.clamp(0.45, 0.75))
-    //     .withSaturation(rawHsl.saturation.clamp(0.4, 1.0))
-    //     .toColor();
-    // // Texto sobre el botón primario: contrasta con accentColor
-    // final accentTextColor =
-    //     rawHsl
-    //             .withLightness(rawHsl.lightness.clamp(0.45, 0.75))
-    //             .toColor()
-    //             .computeLuminance() >
-    //         0.4
-    //     ? Colors.black87
-    //     : Colors.white;
+    // 1. Background Logic
+    final screenBackgroundColor = isFavorites
+        ? Colors.black
+        : (_dominantColor ?? Colors.black);
+
+    // 2. Button Color Logic
+    Color buttonColor;
+    Color buttonTextColor;
+
+    if (isFavorites) {
+      // Favoritos: Play Morado, Texto Blanco
+      buttonColor = Colors.purpleAccent;
+      buttonTextColor = Colors.white;
+    } else {
+      // Otras: Color dominante con ajuste de contraste
+      final baseColor = _dominantColor ?? Colors.grey[900]!;
+      final hsl = HSLColor.fromColor(baseColor);
+
+      if (hsl.lightness > 0.5) {
+        // Fondo Claro -> Botón Oscuro
+        buttonColor = hsl.withLightness(0.2).withSaturation(0.8).toColor();
+        buttonTextColor = Colors.white;
+      } else {
+        // Fondo Oscuro -> Botón Claro
+        buttonColor = hsl.withLightness(0.8).withSaturation(0.8).toColor();
+        buttonTextColor = Colors.black;
+      }
+    }
+
+    // Antiguo textColor para textos generales (blanco/negro según fondo)
+    final textColor = _getTextColor(screenBackgroundColor);
 
     return Scaffold(
-      backgroundColor: _dominantColor ?? Colors.black,
+      backgroundColor: screenBackgroundColor,
       body: Stack(
         children: [
-          // Fondo de color dominante que cubre TODO el área (incluyendo zonas sin contenido)
-          Positioned.fill(
-            child: Container(color: _dominantColor ?? Colors.black),
-          ),
+          // Fondo de color dominante que cubre TODO el área
+          Positioned.fill(child: Container(color: screenBackgroundColor)),
 
           // ── TODO el contenido en UN SOLO scroll ──
           CustomScrollView(
@@ -1209,10 +1225,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             colors: [
                               Colors.black.withOpacity(0.2),
                               Colors.transparent,
-                              (_dominantColor ?? Colors.black).withOpacity(
-                                0.75,
-                              ),
-                              _dominantColor ?? Colors.black,
+                              screenBackgroundColor.withOpacity(0.75),
+                              screenBackgroundColor,
                             ],
                             stops: const [0.0, 0.38, 0.78, 1.0],
                           ),
@@ -1226,7 +1240,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               // ── INFO: titulo, descripcion, botones ──
               SliverToBoxAdapter(
                 child: Container(
-                  color: _dominantColor ?? Colors.black,
+                  color: screenBackgroundColor,
                   // Padding ajustado: 16 arriba para separar título
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                   child: Column(
@@ -1287,65 +1301,132 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                         ],
                       ),
 
+                      // Espacio reducido info-botones
                       const SizedBox(height: 20),
 
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
+                      if (isFavorites)
+                        // FAVORITOS: Play y Shuffle ambos tipo Píldora
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Play Button (Primary Pill)
+                            _buildPrimaryPlayButton(
+                              label: LanguageService().getText('play'),
+                              backgroundColor: buttonColor,
+                              foregroundColor: buttonTextColor,
+                              onPressed: songs.isEmpty
+                                  ? null
+                                  : () {
+                                      _audioPlayer.loadPlaylist(
+                                        songs,
+                                        initialIndex: 0,
+                                        autoPlay: true,
+                                      );
+                                    },
+                            ),
 
+                            const SizedBox(width: 16),
 
-                          // 2. Play Button (Primary Pill)
-                          _buildPrimaryPlayButton(
-                            label: LanguageService().getText('play'),
-                            backgroundColor:
-                                textColor, // Alto contraste con el fondo
-                            foregroundColor:
-                                backgroundColor, // Texto color del fondo
-                            onPressed: songs.isEmpty
-                                ? null
-                                : () {
-                                    _audioPlayer.loadPlaylist(
-                                      songs,
-                                      initialIndex: 0,
-                                      autoPlay: true,
-                                    );
-                                  },
-                          ),
+                            // Shuffle Button (Secondary Pill - Transparent with Border)
+                            SizedBox(
+                              height: 44,
+                              width: 130,
+                              child: OutlinedButton.icon(
+                                onPressed: songs.isEmpty
+                                    ? null
+                                    : () {
+                                        _audioPlayer.toggleShuffle();
+                                        _audioPlayer.loadPlaylist(
+                                          songs,
+                                          initialIndex: 0,
+                                          autoPlay: true,
+                                        );
+                                      },
+                                icon: Icon(
+                                  Icons.shuffle,
+                                  size: 20,
+                                  color:
+                                      buttonColor, // Mismo color que botón play
+                                ),
+                                label: Text(
+                                  LanguageService()
+                                      .getText('shuffle')
+                                      .toUpperCase(),
+                                  style: TextStyle(
+                                    color: buttonColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  // Fondo semitransparente como pidió el usuario("misma transparencia que ya tiene")
+                                  // Asumo que se refiere a mantener un look sutil
+                                  backgroundColor: buttonColor.withOpacity(
+                                    0.15,
+                                  ),
+                                  side: BorderSide.none,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        // OTRAS PLAYLISTS: Play (Pill) + Shuffle (Circle) + Add (Circle)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // 2. Play Button (Primary Pill)
+                            _buildPrimaryPlayButton(
+                              label: LanguageService().getText('play'),
+                              backgroundColor: buttonColor,
+                              foregroundColor: buttonTextColor,
+                              onPressed: songs.isEmpty
+                                  ? null
+                                  : () {
+                                      _audioPlayer.loadPlaylist(
+                                        songs,
+                                        initialIndex: 0,
+                                        autoPlay: true,
+                                      );
+                                    },
+                            ),
 
-                          const SizedBox(width: 12),
+                            const SizedBox(width: 12),
 
-                          // 1. Shuffle Button (Circular)
-                          _buildCircularButton(
-                            icon: Icons.shuffle,
-                            color: textColor,
-                            onPressed: songs.isEmpty
-                                ? null
-                                : () {
-                                    _audioPlayer.toggleShuffle();
-                                    _audioPlayer.loadPlaylist(
-                                      songs,
-                                      initialIndex: 0,
-                                      autoPlay: true,
-                                    );
-                                  },
-                          ),
+                            // 1. Shuffle Button (Circular)
+                            _buildCircularButton(
+                              icon: Icons.shuffle,
+                              color:
+                                  buttonColor, // Color calculado por contraste
+                              onPressed: songs.isEmpty
+                                  ? null
+                                  : () {
+                                      _audioPlayer.toggleShuffle();
+                                      _audioPlayer.loadPlaylist(
+                                        songs,
+                                        initialIndex: 0,
+                                        autoPlay: true,
+                                      );
+                                    },
+                            ),
 
-                          const SizedBox(width: 12),
+                            const SizedBox(width: 12),
 
-                          // 3. Add Button (Circular) - Solo si editable
-                          if (widget.playlist.id != 'favorites_virtual')
+                            // 3. Add Button (Circular)
                             _buildCircularButton(
                               icon: Icons.add,
-                              color: textColor,
+                              color: buttonColor,
                               onPressed: () {
                                 _showAddSongsDialog(context, _currentPlaylist);
                               },
-                            )
-                          else
-                            // Placeholder invisible para mantener balance si es favoritos
-                            const SizedBox(width: 44, height: 44),
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -1355,7 +1436,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               if (songs.isEmpty)
                 SliverFillRemaining(
                   child: Container(
-                    color: _dominantColor ?? Colors.black,
+                    color: screenBackgroundColor,
                     child: Center(
                       child: Text(
                         LanguageService().getText('playlist_empty'),
@@ -1473,7 +1554,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             right: 0,
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ), // Padding aumentado
                 child: Row(
                   children: [
                     _buildNavButton(
@@ -1488,13 +1572,24 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                         child: _isSearching
                             ? Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
+                                  horizontal:
+                                      12, // Más espacio alrededor del buscador
                                 ),
-                                child: _buildSearchField(Colors.white),
+                                child: _buildSearchField(
+                                  textColor, // Texto (contraste con pantalla)
+                                  buttonColor, // Fondo (acento de la playlist)
+                                ),
                               )
                             : const SizedBox.shrink(key: ValueKey('empty')),
                       ),
                     ),
+
+                    // Separación Search Button -> More Button si NO está buscando (o search está a la derecha)
+                    // Si está buscando, search button es 'X'.
+                    // Si no está buscando, es Lupa.
+                    if (!_isSearching)
+                      const Spacer(), // Empujar iconos a la derecha si no hay buscador expandido
+
                     _buildNavButton(
                       icon: _isSearching ? Icons.close : Icons.search,
                       onPressed: () {
@@ -1510,11 +1605,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                         });
                       },
                     ),
-                    if (!_isSearching)
+
+                    if (!_isSearching) ...[
+                      const SizedBox(
+                        width: 12,
+                      ), // Separación entre Lupa y Opciones
                       _buildNavButton(
                         icon: Icons.more_horiz,
                         onPressed: () => _showPlaylistOptions(context),
                       ),
+                    ],
                   ],
                 ),
               ),
