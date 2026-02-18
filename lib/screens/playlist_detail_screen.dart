@@ -33,7 +33,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
   final AudioPlayerService _audioPlayer = AudioPlayerService();
   final ScrollController _scrollController = ScrollController();
   Color? _dominantColor;
-  double _imageScale = 1.0;
 
   // Estado local para manejar favoritos (que no están en PlaylistService._playlists)
   late List<Song> _virtualSongs;
@@ -49,12 +48,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
   @override
   void initState() {
     super.initState();
-    _virtualSongs = widget.playlist.songs;
+    // Create a mutable copy to allow sorting/removing
+    _virtualSongs = List.from(widget.playlist.songs);
     _lastImagePath = widget.playlist.imagePath; // Initialize with current image
     PlaylistService().addListener(_onPlaylistChanged);
     MetadataService.onMetadataUpdated.addListener(_onMetadataUpdated);
     _loadCachedColorOrExtract();
-    _scrollController.addListener(_onScroll);
 
     // Inicializar animación de búsqueda
     _animationController = AnimationController(
@@ -89,27 +88,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+
     _searchController.dispose();
     _animationController.dispose();
     PlaylistService().removeListener(_onPlaylistChanged);
     MetadataService.onMetadataUpdated.removeListener(_onMetadataUpdated);
     super.dispose();
-  }
-
-  void _onScroll() {
-    // Calcular el scale de la imagen basado en el scroll
-    // Cuando scroll = 0, scale = 1.0 (300px)
-    // Cuando scroll = 300, scale = 0.5 (150px)
-    final offset = _scrollController.offset;
-    final newScale = (1.0 - (offset / 600)).clamp(0.5, 1.0);
-
-    if (newScale != _imageScale) {
-      setState(() {
-        _imageScale = newScale;
-      });
-    }
   }
 
   void _onPlaylistChanged() {
@@ -311,7 +296,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     final query = _searchQuery.toLowerCase();
     return songs.where((song) {
       return song.title.toLowerCase().contains(query) ||
-          (song.artist.toLowerCase().contains(query) ?? false) ||
+          song.artist.toLowerCase().contains(query) ||
           (song.album?.toLowerCase().contains(query) ?? false);
     }).toList();
   }
@@ -655,12 +640,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               if (searchQuery.isEmpty) return true;
               final query = searchQuery.toLowerCase();
               return song.title.toLowerCase().contains(query) ||
-                  (song.artist ?? '').toLowerCase().contains(query);
+                  song.artist.toLowerCase().contains(query);
             }).toList();
 
             return ValueListenableBuilder<String?>(
               valueListenable: MetadataService.onMetadataUpdated,
-              builder: (context, _, _) {
+              builder: (context, _, __) {
                 return Dialog(
                   backgroundColor: const Color(0xFF1C1C1E),
                   shape: RoundedRectangleBorder(
@@ -736,7 +721,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 20),
                             child: Text(
-                              '${selectedSongs.length} ${LanguageService().getText('selected')}',
+                              "${selectedSongs.length} ${LanguageService().getText('selected')}",
                               style: const TextStyle(
                                 color: Colors.purpleAccent,
                                 fontWeight: FontWeight.bold,
@@ -785,7 +770,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       subtitle: Text(
-                                        song.artist ?? '',
+                                        song.artist,
                                         style: const TextStyle(
                                           color: Colors.white54,
                                         ),
@@ -850,7 +835,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                           ).showSnackBar(
                                             SnackBar(
                                               content: Text(
-                                                '${selectedSongs.length} ${LanguageService().getText('songs_added')}',
+                                                "${selectedSongs.length} ${LanguageService().getText('songs_added')}",
                                               ),
                                             ),
                                           );
@@ -1022,8 +1007,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                   Navigator.pop(context);
                   setState(() {
                     _virtualSongs.sort(
-                      (a, b) => (a.artist ?? '').toLowerCase().compareTo(
-                        (b.artist ?? '').toLowerCase(),
+                      (a, b) => a.artist.toLowerCase().compareTo(
+                        b.artist.toLowerCase(),
                       ),
                     );
                   });
@@ -1104,94 +1089,36 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     final textColor = _getTextColor(backgroundColor);
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          child: _isSearching
-              ? _buildSearchField(textColor)
-              : const SizedBox.shrink(key: ValueKey('empty')),
-        ),
-        actions: [
-          // Botón de búsqueda
-          IconButton(
-            icon: Icon(
-              _isSearching ? Icons.close : Icons.search,
-              color: textColor,
-            ),
-            onPressed: () {
-              setState(() {
-                _isSearching = !_isSearching;
-                if (_isSearching) {
-                  _animationController.forward();
-                } else {
-                  _animationController.reverse();
-                  _searchController.clear();
-                  _searchQuery = '';
-                }
-              });
-            },
-          ),
-          if (!_isSearching)
-            IconButton(
-              icon: Icon(Icons.more_horiz, color: textColor),
-              onPressed: () => _showPlaylistOptions(context),
-            ),
-        ],
-      ),
+      backgroundColor: _dominantColor ?? Colors.black,
       body: Stack(
         children: [
-          // Background sólido (Color dominante)
-          Container(color: _dominantColor ?? Colors.black),
-
-          /*
-          // OLD BACKGROUND
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  (_dominantColor ?? Colors.grey[900]!).withOpacity(0.6),
-                  Colors.black,
-                ],
-              ),
-            ),
+          // Fondo de color dominante que cubre TODO el área (incluyendo zonas sin contenido)
+          Positioned.fill(
+            child: Container(color: _dominantColor ?? Colors.black),
           ),
-          */
 
-          // Content
+          // ── TODO el contenido en UN SOLO scroll ──
           CustomScrollView(
             controller: _scrollController,
-            cacheExtent: 1500, // Reduced for better memory usage
+            cacheExtent: 1500,
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
             slivers: [
-              // Nuevo Header con SliverAppBar para efecto stretch
+              // ── PORTADA: zoom nativo en overscroll ──
               SliverAppBar(
-                expandedHeight: MediaQuery.of(
-                  context,
-                ).size.width, // 1:1 Aspect Ratio
-                backgroundColor: _dominantColor ?? Colors.black,
-                floating: false,
+                expandedHeight: MediaQuery.of(context).size.width,
                 pinned: false,
-                stretch:
-                    true, // Esto permite que la imagen se estire al hacer overscroll
+                floating: false,
+                snap: false,
+                stretch: true,
+                stretchTriggerOffset: 60,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                automaticallyImplyLeading: false,
                 flexibleSpace: FlexibleSpaceBar(
-                  stretchModes: const [
-                    StretchMode.zoomBackground,
-                    StretchMode.blurBackground,
-                  ],
+                  collapseMode: CollapseMode.pin,
+                  stretchModes: const [StretchMode.zoomBackground],
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -1210,12 +1137,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                               ),
                             );
                           }
-
                           if (coverImage != null) {
                             return Image(image: coverImage, fit: BoxFit.cover);
                           }
-
-                          // Fallback simple
                           if (playlist.imagePath == null && songs.isNotEmpty) {
                             final firstArt = songs.first.artworkPath;
                             if (firstArt != null &&
@@ -1226,57 +1150,50 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                               );
                             }
                           }
-
                           return Container(
                             color: Colors.grey[900],
-                            child: Center(
+                            child: const Center(
                               child: Icon(
                                 Icons.music_note,
+                                color: Colors.white10,
                                 size: 150,
-                                color: Colors.white.withOpacity(0.1),
                               ),
                             ),
                           );
                         },
                       ),
 
-                      // Gradiente para fundirse con el fondo
-                      Container(
+                      // Gradiente: transparente arriba → color dominante abajo
+                      // El color final == fondo del bloque de info → sin costura
+                      DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors
-                                  .black38, // Un poco de sombra arriba para ver iconos status bar
+                              Colors.black.withOpacity(0.2),
                               Colors.transparent,
+                              (_dominantColor ?? Colors.black).withOpacity(
+                                0.75,
+                              ),
                               _dominantColor ?? Colors.black,
                             ],
-                            stops: const [0.0, 0.5, 1.0],
+                            stops: const [0.0, 0.38, 0.78, 1.0],
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                // Quitar leading/actions del SliverAppbar implícito si quisieramos
-                // pero como ya tenemos un AppBar transparente fijo arriba (scaffold appBar),
-                // este SliverAppBar funciona puramente como fondo flexible.
-                automaticallyImplyLeading: false,
               ),
 
-              // Contenido de Info (Título, Botones) debajo de la imagen
+              // ── INFO: titulo, descripcion, botones ──
               SliverToBoxAdapter(
                 child: Container(
-                  color:
-                      _dominantColor ?? Colors.black, // Fondo sólido continuo
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 24,
-                  ),
+                  color: _dominantColor ?? Colors.black,
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                   child: Column(
                     children: [
-                      // Título
                       Text(
                         playlist.name,
                         style: TextStyle(
@@ -1289,7 +1206,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
                       const SizedBox(height: 12),
 
-                      // Descripción
                       if (playlist.description != null &&
                           playlist.description!.isNotEmpty)
                         Text(
@@ -1305,7 +1221,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
                       const SizedBox(height: 16),
 
-                      // Cantidad de canciones y duración
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -1321,8 +1236,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                               final duration = snapshot.data ?? Duration.zero;
                               return Text(
                                 duration.inSeconds > 0
-                                    ? '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${TextUtils.formatDurationLong(duration)}'
-                                    : '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}',
+                                    ? "${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${TextUtils.formatDurationLong(duration)}"
+                                    : "${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}",
                                 style: TextStyle(
                                   color: textColor.withOpacity(0.6),
                                   fontSize: 14,
@@ -1335,11 +1250,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
                       const SizedBox(height: 32),
 
-                      // Botones
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Botón Play
                           _buildActionButton(
                             icon: Icons.play_arrow,
                             label: LanguageService().getText('play'),
@@ -1361,10 +1273,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                     );
                                   },
                           ),
-
                           const SizedBox(width: 12),
-
-                          // Botón Shuffle
                           _buildActionButton(
                             icon: Icons.shuffle,
                             label: LanguageService().getText('shuffle'),
@@ -1388,548 +1297,23 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                 ),
               ),
 
-              /*
-              // Nuevo Header con Portada 1:1 y degradado
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        // 1:1 Image Full Width
-                        AspectRatio(
-                          aspectRatio: 1.0,
-                          child: Builder(
-                            builder: (context) {
-                              if (widget.playlist.id == 'favorites_virtual') {
-                                return Container(
-                                  color: Colors.grey[900],
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.favorite,
-                                      color: Colors.purpleAccent,
-                                      size: 150,
-                                    ),
-                                  ),
-                                );
-                              }
-
-                              if (coverImage != null) {
-                                return Image(
-                                  image: coverImage,
-                                  fit: BoxFit.cover,
-                                );
-                              }
-
-                              // Collage / Fallback logic duplicated for simplicity,
-                              // or we reuse a widget if refactored.
-                              // For now, implementing basic fallback to keep it robust.
-                              if (playlist.imagePath == null &&
-                                  songs.isNotEmpty) {
-                                // Simple fallback to first song art
-                                final firstArt = songs.first.artworkPath;
-                                if (firstArt != null &&
-                                    File(firstArt).existsSync()) {
-                                  return Image.file(
-                                    File(firstArt),
-                                    fit: BoxFit.cover,
-                                  );
-                                }
-                              }
-
-                              return Container(
-                                color: Colors.grey[900],
-                                child: Center(
-                                  child: Icon(
-                                    Icons.music_note,
-                                    size: 150,
-                                    color: Colors.white.withOpacity(0.1),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-
-                        // Gradient Overlay (Transparent -> Solid Dominant Color)
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  _dominantColor ?? Colors.black,
-                                ],
-                                stops: const [
-                                  0.5,
-                                  1.0,
-                                ], // Start fading halfway down
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Info Content (Title, etc.)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 24,
-                      ),
-                      child: Column(
-                        children: [
-                          // Título
-                          Text(
-                            playlist.name,
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Descripción
-                          if (playlist.description != null &&
-                              playlist.description!.isNotEmpty)
-                            Text(
-                              playlist.description!,
-                              style: TextStyle(
-                                color: textColor.withOpacity(0.7),
-                                fontSize: 15,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-
-                          const SizedBox(height: 16),
-
-                          // Cantidad de canciones y duración
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.music_note,
-                                size: 16,
-                                color: textColor.withOpacity(0.6),
-                              ),
-                              const SizedBox(width: 6),
-                              FutureBuilder<Duration>(
-                                future: _getTotalDurationFromCache(),
-                                builder: (context, snapshot) {
-                                  final duration =
-                                      snapshot.data ?? Duration.zero;
-                                  return Text(
-                                    duration.inSeconds > 0
-                                        ? '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${TextUtils.formatDurationLong(duration)}'
-                                        : '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}',
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.6),
-                                      fontSize: 14,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          // Botones
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              // Botón Play
-                              _buildActionButton(
-                                icon: Icons.play_arrow,
-                                label: LanguageService().getText('play'),
-                                isPrimary: true,
-                                accentColor:
-                                    _getTextColor(
-                                          _dominantColor ?? Colors.purple,
-                                        ) ==
-                                        Colors.black
-                                    ? Colors.white
-                                    : Colors
-                                          .purpleAccent, // Contrast adjustment
-                                onPressed: songs.isEmpty
-                                    ? null
-                                    : () {
-                                        _audioPlayer.loadPlaylist(
-                                          songs,
-                                          initialIndex: 0,
-                                          autoPlay: true,
-                                        );
-                                      },
-                              ),
-
-                              const SizedBox(width: 12),
-
-                              // Botón Shuffle
-                              _buildActionButton(
-                                icon: Icons.shuffle,
-                                label: LanguageService().getText('shuffle'),
-                                isPrimary: false,
-                                accentColor: textColor,
-                                onPressed: songs.isEmpty
-                                    ? null
-                                    : () {
-                                        _audioPlayer.toggleShuffle();
-                                        _audioPlayer.loadPlaylist(
-                                          songs,
-                                          initialIndex: 0,
-                                          autoPlay: true,
-                                        );
-                                      },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              */
-
-              /* 
-              // OLD HEADER (SliverToBoxAdapter version)
-              SliverToBoxAdapter(
-              SliverToBoxAdapter(
-                child: SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 60, 24, 24),
-                    child: Column(
-                      children: [
-                        // Portada 1:1 con animación de tamaño
-                        Center(
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 100),
-                            width: 300 * _imageScale,
-                            height: 300 * _imageScale,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.5),
-                                  blurRadius: 30,
-                                  offset: const Offset(0, 15),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Builder(
-                                builder: (context) {
-                                  // 0. Favoritas (Gris y morado)
-                                  if (widget.playlist.id ==
-                                      'favorites_virtual') {
-                                    return Container(
-                                      color: Colors.grey[900],
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.favorite,
-                                          color: Colors.purpleAccent,
-                                          size: 120,
-                                        ),
-                                      ),
-                                    );
-                                  }
-
-                                  // 1. Imagen Personalizada
-                                  if (coverImage != null) {
-                                    return Image(
-                                      image: coverImage,
-                                      fit: BoxFit.cover,
-                                    );
-                                  }
-
-                                  // 2. Collage (4 imágenes)
-                                  final artworks = <String>[];
-                                  for (var song in songs) {
-                                    if (song.artworkPath != null &&
-                                        File(song.artworkPath!).existsSync() &&
-                                        !artworks.contains(song.artworkPath)) {
-                                      artworks.add(song.artworkPath!);
-                                      if (artworks.length >= 4) break;
-                                    }
-                                  }
-
-                                  if (artworks.length >= 4) {
-                                    return Column(
-                                      children: [
-                                        Expanded(
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: Image.file(
-                                                  File(artworks[0]),
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                              Expanded(
-                                                child: Image.file(
-                                                  File(artworks[1]),
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: Image.file(
-                                                  File(artworks[2]),
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                              Expanded(
-                                                child: Image.file(
-                                                  File(artworks[3]),
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }
-
-                                  // 3. Fallback (Primera imagen)
-                                  if (artworks.isNotEmpty) {
-                                    return Image.file(
-                                      File(artworks.first),
-                                      fit: BoxFit.cover,
-                                    );
-                                  }
-
-                                  // 4. Default Placeholder
-                                  return Container(
-                                    color: Colors.grey[900],
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.music_note,
-                                        size: 120,
-                                        color: Colors.white.withOpacity(0.1),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        // Título
-                        Text(
-                          playlist.name,
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // Descripción
-                        if (playlist.description != null &&
-                            playlist.description!.isNotEmpty)
-                          Text(
-                            playlist.description!,
-                            style: TextStyle(
-                              color: textColor.withOpacity(0.7),
-                              fontSize: 15,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-
-                        const SizedBox(height: 16),
-
-                        // Cantidad de canciones y duración
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.music_note,
-                              size: 16,
-                              color: textColor.withOpacity(0.6),
-                            ),
-                            const SizedBox(width: 6),
-                            FutureBuilder<Duration>(
-                              future: _getTotalDurationFromCache(),
-                              builder: (context, snapshot) {
-                                final duration = snapshot.data ?? Duration.zero;
-                                return Text(
-                                  duration.inSeconds > 0
-                                      ? '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')} · ${TextUtils.formatDurationLong(duration)}'
-                                      : '${songs.length} ${songs.length == 1 ? LanguageService().getText('song') : LanguageService().getText('songs')}',
-                                  style: TextStyle(
-                                    color: textColor.withOpacity(0.6),
-                                    fontSize: 14,
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        // Botones
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Botón Play
-                            _buildActionButton(
-                              icon: Icons.play_arrow,
-                              label: LanguageService().getText('play'),
-                              isPrimary: true,
-                              accentColor: _dominantColor,
-                              onPressed: songs.isEmpty
-                                  ? null
-                                  : () {
-                                      _audioPlayer.loadPlaylist(
-                                        songs,
-                                        initialIndex: 0,
-                                        autoPlay: true,
-                                      );
-                                      // Don't auto-open player
-                                      // Navigator.of(context).push(
-                                      //   PageRouteBuilder(
-                                      //     pageBuilder:
-                                      //         (
-                                      //           context,
-                                      //           animation,
-                                      //           secondaryAnimation,
-                                      //         ) => const MusicPlayerScreen(),
-                                      //     transitionsBuilder:
-                                      //         (
-                                      //           context,
-                                      //           animation,
-                                      //           secondaryAnimation,
-                                      //           child,
-                                      //         ) {
-                                      //           var tween =
-                                      //               Tween(
-                                      //                 begin: const Offset(
-                                      //                   0.0,
-                                      //                   1.0,
-                                      //                 ),
-                                      //                 end: Offset.zero,
-                                      //               ).chain(
-                                      //                 CurveTween(
-                                      //                   curve:
-                                      //                       Curves.easeOutCubic,
-                                      //                 ),
-                                      //               );
-                                      //           return SlideTransition(
-                                      //             position: animation.drive(
-                                      //               tween,
-                                      //             ),
-                                      //             child: child,
-                                      //           );
-                                      //         },
-                                      //   ),
-                                      // );
-                                    },
-                            ),
-
-                            const SizedBox(width: 12),
-
-                            // Botón Shuffle
-                            _buildActionButton(
-                              icon: Icons.shuffle,
-                              label: LanguageService().getText('shuffle'),
-                              isPrimary: false,
-                              accentColor: _dominantColor,
-                              onPressed: songs.isEmpty
-                                  ? null
-                                  : () {
-                                      _audioPlayer.toggleShuffle();
-                                      _audioPlayer.loadPlaylist(
-                                        songs,
-                                        initialIndex: 0,
-                                        autoPlay: true,
-                                      );
-                                      // Don't auto-open player
-                                      // Navigator.of(context).push(
-                                      //   PageRouteBuilder(
-                                      //     pageBuilder:
-                                      //         (
-                                      //           context,
-                                      //           animation,
-                                      //           secondaryAnimation,
-                                      //         ) => const MusicPlayerScreen(),
-                                      //     transitionsBuilder:
-                                      //         (
-                                      //           context,
-                                      //           animation,
-                                      //           secondaryAnimation,
-                                      //           child,
-                                      //         ) {
-                                      //           var tween =
-                                      //               Tween(
-                                      //                 begin: const Offset(
-                                      //                   0.0,
-                                      //                   1.0,
-                                      //                 ),
-                                      //                 end: Offset.zero,
-                                      //               ).chain(
-                                      //                 CurveTween(
-                                      //                   curve:
-                                      //                       Curves.easeOutCubic,
-                                      //                 ),
-                                      //               );
-                                      //           return SlideTransition(
-                                      //             position: animation.drive(
-                                      //               tween,
-                                      //             ),
-                                      //             child: child,
-                                      //           );
-                                      //         },
-                                      //   ),
-                                      // );
-                                    },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              */
-
-              // Lista de canciones con StreamBuilder para actualizar el estado
+              // ── LISTA DE CANCIONES ──
               if (songs.isEmpty)
                 SliverFillRemaining(
-                  child: Center(
-                    child: Text(
-                      LanguageService().getText('playlist_empty'),
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 16,
+                  child: Container(
+                    color: _dominantColor ?? Colors.black,
+                    child: Center(
+                      child: Text(
+                        LanguageService().getText('playlist_empty'),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
                 )
               else
-                // StreamBuilder to listen for song changes and update isPlaying immediately
                 StreamBuilder<Song?>(
                   stream: _audioPlayer.currentSongStream,
                   builder: (context, songSnapshot) {
@@ -1938,23 +1322,20 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                     return SliverPadding(
                       padding: const EdgeInsets.only(bottom: 100),
                       sliver: SliverFixedExtentList(
-                        itemExtent: 72.0, // Fixed height for performance
+                        itemExtent: 72.0,
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
                             if (index < 0 || index >= filteredSongs.length) {
                               return const SizedBox.shrink();
                             }
-
                             final song = filteredSongs[index];
                             final isPlaying = currentSong?.id == song.id;
 
-                            // Wrap in RepaintBoundary for better isolation
                             return RepaintBoundary(
                               child: Dismissible(
                                 key: Key("${song.id}_${playlist.id}"),
                                 direction: DismissDirection.endToStart,
                                 confirmDismiss: (direction) async {
-                                  // Show confirmation to avoid accidental deletes
                                   return await showDialog(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
@@ -2007,42 +1388,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                       initialIndex: songs.indexOf(song),
                                       autoPlay: true,
                                     );
-                                    // Don't auto-open player
-                                    // Navigator.of(context).push(
-                                    //   PageRouteBuilder(
-                                    //     pageBuilder:
-                                    //         (
-                                    //           context,
-                                    //           animation,
-                                    //           secondaryAnimation,
-                                    //         ) => const MusicPlayerScreen(),
-                                    //     transitionsBuilder:
-                                    //         (
-                                    //           context,
-                                    //           animation,
-                                    //           secondaryAnimation,
-                                    //           child,
-                                    //         ) {
-                                    //           return SlideTransition(
-                                    //             position:
-                                    //                 Tween(
-                                    //                   begin: const Offset(
-                                    //                     0.0,
-                                    //                     1.0,
-                                    //                   ),
-                                    //                   end: Offset.zero,
-                                    //                 ).animate(
-                                    //                   CurvedAnimation(
-                                    //                     parent: animation,
-                                    //                     curve:
-                                    //                         Curves.easeOutCubic,
-                                    //                   ),
-                                    //                 ),
-                                    //             child: child,
-                                    //           );
-                                    //         },
-                                    //   ),
-                                    // );
                                   },
                                   onLongPress: () {
                                     SongOptionsBottomSheet.show(
@@ -2057,10 +1402,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             );
                           },
                           childCount: filteredSongs.length,
-                          addRepaintBoundaries:
-                              false, // We're adding them manually
-                          addAutomaticKeepAlives:
-                              false, // Disable for better performance
+                          addRepaintBoundaries: false,
+                          addAutomaticKeepAlives: false,
                         ),
                       ),
                     );
@@ -2069,7 +1412,62 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             ],
           ),
 
-          // Mini Player
+          // ── AppBar flotante transparente (siempre visible) ──
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    _buildNavButton(
+                      icon: Icons.arrow_back,
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        transitionBuilder: (child, animation) =>
+                            FadeTransition(opacity: animation, child: child),
+                        child: _isSearching
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: _buildSearchField(Colors.white),
+                              )
+                            : const SizedBox.shrink(key: ValueKey('empty')),
+                      ),
+                    ),
+                    _buildNavButton(
+                      icon: _isSearching ? Icons.close : Icons.search,
+                      onPressed: () {
+                        setState(() {
+                          _isSearching = !_isSearching;
+                          if (_isSearching) {
+                            _animationController.forward();
+                          } else {
+                            _animationController.reverse();
+                            _searchController.clear();
+                            _searchQuery = '';
+                          }
+                        });
+                      },
+                    ),
+                    if (!_isSearching)
+                      _buildNavButton(
+                        icon: Icons.more_horiz,
+                        onPressed: () => _showPlaylistOptions(context),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Mini Player ──
           const Positioned(
             bottom: 16,
             left: 16,
@@ -2077,6 +1475,29 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             child: SafeArea(child: MiniPlayer()),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Botón circular semitransparente para la barra de navegación flotante
+  Widget _buildNavButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.35),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 22),
+        ),
       ),
     );
   }
