@@ -34,7 +34,10 @@ class SongOptionsBottomSheet extends StatelessWidget {
     this.onOptionSelected,
     this.onAddToPlaylist,
     this.onRemove,
+    this.accentColor,
   });
+
+  final Color? accentColor;
 
   /// Método estático para mostrar el bottom sheet
   static Future<void> show({
@@ -47,10 +50,12 @@ class SongOptionsBottomSheet extends StatelessWidget {
     Function(SongOption)? onOptionSelected,
     VoidCallback? onAddToPlaylist,
     VoidCallback? onRemove,
+    Color? backgroundColor,
+    Color? accentColor,
   }) {
     return showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey[900],
+      backgroundColor: backgroundColor ?? Colors.grey[900],
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -60,6 +65,7 @@ class SongOptionsBottomSheet extends StatelessWidget {
         onOptionSelected: onOptionSelected,
         onAddToPlaylist: onAddToPlaylist,
         onRemove: onRemove,
+        accentColor: accentColor,
       ),
     );
   }
@@ -116,7 +122,9 @@ class SongOptionsBottomSheet extends StatelessWidget {
         return ListTile(
           leading: Icon(
             isLiked ? Icons.favorite : Icons.favorite_border,
-            color: isLiked ? Colors.purpleAccent : Colors.white,
+            color: isLiked
+                ? (accentColor ?? Colors.purpleAccent)
+                : Colors.white,
           ),
           title: Text(
             isLiked

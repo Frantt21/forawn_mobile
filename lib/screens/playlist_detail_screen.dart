@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'dart:ui' as ui;
+
 import 'package:palette_generator/palette_generator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/playlist_model.dart';
@@ -12,11 +12,12 @@ import '../utils/text_utils.dart';
 import '../widgets/lazy_music_tile.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/song_options_bottom_sheet.dart';
-import '../widgets/artwork_widget.dart';
+
 import '../services/music_metadata_cache.dart';
-import 'package:image_picker/image_picker.dart';
+import '../widgets/playlist_form_sheet.dart';
+import '../widgets/add_songs_sheet.dart';
 import '../services/metadata_service.dart';
-import '../services/local_music_state_service.dart';
+
 import '../utils/id_generator.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
@@ -388,501 +389,57 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
     BuildContext context,
     Playlist playlist,
   ) async {
-    final nameController = TextEditingController(text: playlist.name);
-    final descController = TextEditingController(text: playlist.description);
-    String? selectedImagePath = playlist.imagePath;
-
-    await showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[900]!.withOpacity(0.95),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Título
-                          Text(
-                            LanguageService().getText('edit_playlist'),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Imagen cuadrada más grande
-                          Center(
-                            child: GestureDetector(
-                              onTap: () async {
-                                final picker = ImagePicker();
-                                final image = await picker.pickImage(
-                                  source: ImageSource.gallery,
-                                );
-                                if (image != null) {
-                                  setState(
-                                    () => selectedImagePath = image.path,
-                                  );
-                                }
-                              },
-                              child: Container(
-                                width: 180,
-                                height: 180,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1C1C1E),
-                                  borderRadius: BorderRadius.circular(16),
-                                  image: selectedImagePath != null
-                                      ? DecorationImage(
-                                          image:
-                                              File(
-                                                selectedImagePath!,
-                                              ).existsSync()
-                                              ? FileImage(
-                                                  File(selectedImagePath!),
-                                                )
-                                              : NetworkImage(selectedImagePath!)
-                                                    as ImageProvider,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
-                                ),
-                                child: selectedImagePath == null
-                                    ? const Icon(
-                                        Icons.add_photo_alternate,
-                                        color: Colors.white54,
-                                        size: 56,
-                                      )
-                                    : null,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Input de nombre estilo Card
-                          Card(
-                            color: const Color(0xFF1C1C1E),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    LanguageService().getText('playlist_name'),
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.5),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: nameController,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                    ),
-                                    cursorColor: Colors.purpleAccent,
-                                    decoration: InputDecoration(
-                                      hintText: LanguageService().getText(
-                                        'playlist_name',
-                                      ),
-                                      hintStyle: TextStyle(
-                                        color: Colors.white.withOpacity(0.3),
-                                      ),
-                                      border: InputBorder.none,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Input de descripción estilo Card
-                          Card(
-                            color: const Color(0xFF1C1C1E),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    LanguageService().getText('playlist_desc'),
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.5),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: descController,
-                                    maxLines: 3,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                    ),
-                                    cursorColor: Colors.purpleAccent,
-                                    decoration: InputDecoration(
-                                      hintText: LanguageService().getText(
-                                        'playlist_desc',
-                                      ),
-                                      hintStyle: TextStyle(
-                                        color: Colors.white.withOpacity(0.3),
-                                      ),
-                                      border: InputBorder.none,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Botones
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: Text(
-                                  LanguageService().getText('cancel'),
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.purpleAccent,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                onPressed: () async {
-                                  if (nameController.text.isNotEmpty) {
-                                    await PlaylistService().updatePlaylist(
-                                      playlist.id,
-                                      name: nameController.text,
-                                      description: descController.text,
-                                      imagePath: selectedImagePath,
-                                    );
-
-                                    // Recalcular color dominante si cambió la imagen
-                                    if (selectedImagePath !=
-                                        playlist.imagePath) {
-                                      await _extractDominantColor();
-                                    }
-
-                                    if (mounted) Navigator.pop(ctx);
-                                  }
-                                },
-                                child: Text(
-                                  LanguageService().getText('save'),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+    await PlaylistFormSheet.show(
+      context,
+      playlistToEdit: playlist,
+      backgroundColor: _getBottomSheetColor(),
+      accentColor: _getAccentColor(),
     );
+    if (mounted) {
+      await _extractDominantColor();
+    }
   }
 
   Future<void> _showAddSongsDialog(
     BuildContext context,
     Playlist playlist,
   ) async {
-    final allSongs = LocalMusicStateService().librarySongs;
-    final playlistSongIds = playlist.songs.map((s) => s.id).toSet();
-    final availableSongs = allSongs
-        .where((s) => !playlistSongIds.contains(s.id))
-        .toList();
-
-    if (availableSongs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(LanguageService().getText('no_songs_to_add'))),
-      );
-      return;
-    }
-
-    final selectedSongs = <Song>[];
-    String searchQuery = '';
-
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            final filteredSongs = availableSongs.where((song) {
-              if (searchQuery.isEmpty) return true;
-              final query = searchQuery.toLowerCase();
-              return song.title.toLowerCase().contains(query) ||
-                  song.artist.toLowerCase().contains(query);
-            }).toList();
-
-            return ValueListenableBuilder<String?>(
-              valueListenable: MetadataService.onMetadataUpdated,
-              builder: (context, _, __) {
-                return Dialog(
-                  backgroundColor: const Color(0xFF1C1C1E),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.8,
-                      maxWidth: 500,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Header
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  LanguageService().getText('add_songs'),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () => Navigator.pop(ctx),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Search bar
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: TextField(
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: LanguageService().getText('search'),
-                              hintStyle: TextStyle(
-                                color: Colors.white.withOpacity(0.3),
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: Colors.white54,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white.withOpacity(0.1),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                            onChanged: (value) {
-                              setState(() {
-                                searchQuery = value;
-                              });
-                            },
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Selected count
-                        if (selectedSongs.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Text(
-                              "${selectedSongs.length} ${LanguageService().getText('selected')}",
-                              style: const TextStyle(
-                                color: Colors.purpleAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-
-                        const SizedBox(height: 8),
-
-                        // Songs list
-                        Expanded(
-                          child: filteredSongs.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    LanguageService().getText('no_results'),
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                    ),
-                                  ),
-                                )
-                              : ListView.builder(
-                                  itemCount: filteredSongs.length,
-                                  itemBuilder: (context, index) {
-                                    final song = filteredSongs[index];
-                                    final isSelected = selectedSongs.contains(
-                                      song,
-                                    );
-
-                                    return CheckboxListTile(
-                                      value: isSelected,
-                                      onChanged: (bool? value) {
-                                        setState(() {
-                                          if (value == true) {
-                                            selectedSongs.add(song);
-                                          } else {
-                                            selectedSongs.remove(song);
-                                          }
-                                        });
-                                      },
-                                      title: Text(
-                                        song.title,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      subtitle: Text(
-                                        song.artist,
-                                        style: const TextStyle(
-                                          color: Colors.white54,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      secondary: ArtworkWidget(
-                                        artworkPath: song.artworkPath,
-                                        artworkUri: song.artworkUri,
-                                        width: 48,
-                                        height: 48,
-                                        borderRadius: BorderRadius.circular(4),
-                                        dominantColor: song.dominantColor,
-                                      ),
-                                      activeColor: Colors.purpleAccent,
-                                      checkColor: Colors.white,
-                                    );
-                                  },
-                                ),
-                        ),
-
-                        // Buttons
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: Text(
-                                  LanguageService().getText('cancel'),
-                                  style: const TextStyle(color: Colors.white70),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.purpleAccent,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                onPressed: selectedSongs.isEmpty
-                                    ? null
-                                    : () async {
-                                        for (final song in selectedSongs) {
-                                          await PlaylistService()
-                                              .addSongToPlaylist(
-                                                playlist.id,
-                                                song,
-                                              );
-                                        }
-                                        if (mounted) {
-                                          Navigator.pop(ctx);
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                "${selectedSongs.length} ${LanguageService().getText('songs_added')}",
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      },
-                                child: Text(
-                                  LanguageService().getText('add'),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
+    return AddSongsSheet.show(
+      context,
+      playlist: playlist,
+      backgroundColor: _getBottomSheetColor(),
+      accentColor: _getAccentColor(),
     );
+  }
+
+  Color _getBottomSheetColor() {
+    final isFavorites = widget.playlist.id == 'favorites_virtual';
+    final rawColor = isFavorites
+        ? Colors.purpleAccent
+        : (_dominantColor ?? Colors.purpleAccent);
+
+    // Asegurar que el color sea notorio, misma lógica que MusicPlayerScreen
+    final hsl = HSLColor.fromColor(rawColor);
+    final color = hsl.lightness < 0.3
+        ? hsl.withLightness(0.6).toColor()
+        : rawColor;
+
+    return Color.lerp(const Color(0xFF1C1C1E), color, 0.15) ??
+        const Color(0xFF1C1C1E);
+  }
+
+  Color _getAccentColor() {
+    final isFavorites = widget.playlist.id == 'favorites_virtual';
+    final rawColor = isFavorites
+        ? Colors.purpleAccent
+        : (_dominantColor ?? Colors.purpleAccent);
+    final hsl = HSLColor.fromColor(rawColor);
+
+    // Ensure the color is bright enough for dark background bottom sheets
+    if (hsl.lightness < 0.5) {
+      return hsl.withLightness(0.6).toColor();
+    }
+    return rawColor;
   }
 
   void _showPlaylistOptions(BuildContext context) {
@@ -896,7 +453,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
         maxChildSize: 0.9,
         builder: (_, controller) => Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
+            color: _getBottomSheetColor(),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: ListView(
@@ -1170,7 +727,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                 automaticallyImplyLeading: false,
                 flexibleSpace: FlexibleSpaceBar(
                   collapseMode: CollapseMode.pin,
-                  stretchModes: const [StretchMode.zoomBackground],
+                  stretchModes: const [
+                    StretchMode.zoomBackground,
+                    StretchMode.blurBackground,
+                  ],
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -1530,6 +1090,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                                       song: song,
                                       options: [SongOption.removeFromPlaylist],
                                       onRemove: () => _removeSong(song),
+                                      backgroundColor: _getBottomSheetColor(),
+                                      accentColor: _getAccentColor(),
                                     );
                                   },
                                 ),
@@ -1560,8 +1122,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                 ), // Padding aumentado
                 child: Row(
                   children: [
-                    _buildNavButton(
+                    _buildCircularButton(
                       icon: Icons.arrow_back,
+                      color: buttonColor,
                       onPressed: () => Navigator.pop(context),
                     ),
                     Expanded(
@@ -1590,8 +1153,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                     if (!_isSearching)
                       const Spacer(), // Empujar iconos a la derecha si no hay buscador expandido
 
-                    _buildNavButton(
+                    _buildCircularButton(
                       icon: _isSearching ? Icons.close : Icons.search,
+                      color: buttonColor,
                       onPressed: () {
                         setState(() {
                           _isSearching = !_isSearching;
@@ -1610,8 +1174,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                       const SizedBox(
                         width: 12,
                       ), // Separación entre Lupa y Opciones
-                      _buildNavButton(
+                      _buildCircularButton(
                         icon: Icons.more_horiz,
+                        color: buttonColor,
                         onPressed: () => _showPlaylistOptions(context),
                       ),
                     ],
@@ -1629,29 +1194,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             child: SafeArea(child: MiniPlayer()),
           ),
         ],
-      ),
-    );
-  }
-
-  /// Botón circular semitransparente para la barra de navegación flotante
-  Widget _buildNavButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.white, size: 22),
-        ),
       ),
     );
   }
