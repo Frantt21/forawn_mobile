@@ -675,7 +675,15 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
         maxChildSize: 0.9,
         builder: (_, controller) => Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
+            color:
+                Color.lerp(
+                  const Color(0xFF1C1C1E),
+                  song.dominantColor != null
+                      ? Color(song.dominantColor!)
+                      : Colors.purpleAccent,
+                  0.15,
+                ) ??
+                const Color(0xFF1C1C1E),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: ListView(
@@ -798,11 +806,13 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  showDialog(
+                  showModalBottomSheet(
                     context: context,
-                    barrierColor: Colors.black54,
+                    backgroundColor: Colors.transparent,
+                    isScrollControlled: true,
                     builder: (_) => LyricsSearchDialog(
                       initialQuery: '${song.title} ${song.artist}',
+                      dominantColor: song.dominantColor,
                       onLyricSelected: (l) {
                         LyricsService().saveLyricsToCache(
                           localTrackName: song.title,
@@ -843,273 +853,302 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
 
   // Mostrar diálogo para agregar a playlist
   void _showAddToPlaylistDialog(BuildContext context, Song song) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 500),
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          builder: (_, controller) {
+            return Container(
               decoration: BoxDecoration(
-                color: Colors.grey[900]!.withOpacity(0.95),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 1,
+                color:
+                    Color.lerp(
+                      const Color(0xFF1C1C1E),
+                      song.dominantColor != null
+                          ? Color(song.dominantColor!)
+                          : Colors.purpleAccent,
+                      0.15,
+                    ) ??
+                    const Color(0xFF1C1C1E),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
                 ),
               ),
-              child: Padding(
+              child: ListView(
+                controller: controller,
                 padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Título
-                    Text(
-                      LanguageService().getText('add_to_playlist'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                  ),
+                  // Título
+                  Text(
+                    LanguageService().getText('add_to_playlist'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
-                    // Botón de nueva playlist
-                    InkWell(
-                      onTap: () {
-                        Navigator.pop(context);
-                        // TODO: Mostrar diálogo de crear playlist con la canción
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              LanguageService().getText('feature_coming_soon'),
-                            ),
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.purpleAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.purpleAccent.withOpacity(0.3),
-                            width: 1,
+                  // Botón de nueva playlist
+                  InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      // TODO: Mostrar diálogo de crear playlist con la canción
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            LanguageService().getText('feature_coming_soon'),
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.purpleAccent.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.add_circle_outline,
-                                color: Colors.purpleAccent,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Text(
-                              LanguageService().getText('new_playlist'),
-                              style: const TextStyle(
-                                color: Colors.purpleAccent,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color:
+                            (song.dominantColor != null
+                                    ? Color(song.dominantColor!)
+                                    : Colors.purpleAccent)
+                                .withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color:
+                              (song.dominantColor != null
+                                      ? Color(song.dominantColor!)
+                                      : Colors.purpleAccent)
+                                  .withOpacity(0.3),
+                          width: 1,
                         ),
                       ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color:
+                                  (song.dominantColor != null
+                                          ? Color(song.dominantColor!)
+                                          : Colors.purpleAccent)
+                                      .withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.add_circle_outline,
+                              color: song.dominantColor != null
+                                  ? Color(song.dominantColor!)
+                                  : Colors.purpleAccent,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Text(
+                            LanguageService().getText('new_playlist'),
+                            style: TextStyle(
+                              color: song.dominantColor != null
+                                  ? Color(song.dominantColor!)
+                                  : Colors.purpleAccent,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 16),
 
-                    // Lista de playlists
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          children: PlaylistService().playlists.map((playlist) {
-                            // Verificar si la canción ya está en la playlist
-                            final songExists = playlist.songs.any(
-                              (s) => s.id == song.id,
-                            );
+                  // Lista de playlists
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: PlaylistService().playlists.map((playlist) {
+                          // Verificar si la canción ya está en la playlist
+                          final songExists = playlist.songs.any(
+                            (s) => s.id == song.id,
+                          );
 
-                            return InkWell(
-                              onTap: songExists
-                                  ? null
-                                  : () async {
-                                      await PlaylistService().addSongToPlaylist(
-                                        playlist.id,
-                                        song,
-                                      );
-                                      if (mounted) {
-                                        Navigator.pop(context);
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              LanguageService()
-                                                  .getText('added_to')
-                                                  .replaceFirst(
-                                                    '%s',
-                                                    playlist.name,
-                                                  ),
-                                            ),
-                                            backgroundColor:
-                                                Colors.purpleAccent,
+                          return InkWell(
+                            onTap: songExists
+                                ? null
+                                : () async {
+                                    await PlaylistService().addSongToPlaylist(
+                                      playlist.id,
+                                      song,
+                                    );
+                                    if (mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            LanguageService()
+                                                .getText('added_to')
+                                                .replaceFirst(
+                                                  '%s',
+                                                  playlist.name,
+                                                ),
                                           ),
-                                        );
-                                      }
-                                    },
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: songExists
-                                      ? Colors.white.withOpacity(0.03)
-                                      : Colors.white.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  children: [
-                                    // Imagen de la playlist
-                                    Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF1C1C1E),
-                                        borderRadius: BorderRadius.circular(8),
-                                        image: playlist.imagePath != null
-                                            ? DecorationImage(
-                                                image:
-                                                    File(
-                                                      playlist.imagePath!,
-                                                    ).existsSync()
-                                                    ? FileImage(
-                                                        File(
+                                          backgroundColor:
+                                              song.dominantColor != null
+                                              ? Color(song.dominantColor!)
+                                              : Colors.purpleAccent,
+                                        ),
+                                      );
+                                    }
+                                  },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: songExists
+                                    ? Colors.white.withOpacity(0.03)
+                                    : Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  // Imagen de la playlist
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1C1C1E),
+                                      borderRadius: BorderRadius.circular(8),
+                                      image: playlist.imagePath != null
+                                          ? DecorationImage(
+                                              image:
+                                                  File(
+                                                    playlist.imagePath!,
+                                                  ).existsSync()
+                                                  ? FileImage(
+                                                      File(playlist.imagePath!),
+                                                    )
+                                                  : NetworkImage(
                                                           playlist.imagePath!,
-                                                        ),
-                                                      )
-                                                    : NetworkImage(
-                                                            playlist.imagePath!,
-                                                          )
-                                                          as ImageProvider,
-                                                fit: BoxFit.cover,
-                                              )
-                                            : null,
-                                      ),
-                                      child: playlist.imagePath == null
-                                          ? const Icon(
-                                              Icons.music_note,
-                                              color: Colors.white54,
-                                              size: 24,
+                                                        )
+                                                        as ImageProvider,
+                                              fit: BoxFit.cover,
                                             )
                                           : null,
                                     ),
-                                    const SizedBox(width: 16),
-                                    // Info de la playlist
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            playlist.name,
-                                            style: TextStyle(
-                                              color: songExists
-                                                  ? Colors.white54
-                                                  : Colors.white,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w500,
-                                            ),
+                                    child: playlist.imagePath == null
+                                        ? const Icon(
+                                            Icons.music_note,
+                                            color: Colors.white54,
+                                            size: 24,
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // Info de la playlist
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          playlist.name,
+                                          style: TextStyle(
+                                            color: songExists
+                                                ? Colors.white54
+                                                : Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
                                           ),
-                                          const SizedBox(height: 4),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          "${playlist.songs.length} ${LanguageService().getText('songs')}",
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(
+                                              0.5,
+                                            ),
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Indicador si ya existe
+                                  if (songExists)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.check_circle,
+                                            color: Colors.green,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 4),
                                           Text(
-                                            "${playlist.songs.length} ${LanguageService().getText('songs')}",
-                                            style: TextStyle(
-                                              color: Colors.white.withOpacity(
-                                                0.5,
-                                              ),
-                                              fontSize: 13,
+                                            LanguageService().getText('added'),
+                                            style: const TextStyle(
+                                              color: Colors.green,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    // Indicador si ya existe
-                                    if (songExists)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.check_circle,
-                                              color: Colors.green,
-                                              size: 16,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              LanguageService().getText(
-                                                'added',
-                                              ),
-                                              style: const TextStyle(
-                                                color: Colors.green,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
+                                ],
                               ),
-                            );
-                          }).toList(),
-                        ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 16),
 
-                    // Botón cerrar
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          LanguageService().getText('cancel'),
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 16,
-                          ),
+                  const SizedBox(height: 16),
+
+                  // Botón cerrar
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        LanguageService().getText('cancel'),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -1124,312 +1163,326 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
     String? errorMessage;
     String selectedSource = 'Deezer'; // Default to Deezer
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                insetPadding: const EdgeInsets.all(24),
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 500),
+            return DraggableScrollableSheet(
+              initialChildSize: 0.6,
+              minChildSize: 0.4,
+              maxChildSize: 0.9,
+              builder: (_, controller) {
+                return Container(
                   decoration: BoxDecoration(
-                    color: Colors.grey[900]!.withOpacity(0.95),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1,
+                    color:
+                        Color.lerp(
+                          const Color(0xFF1C1C1E),
+                          song.dominantColor != null
+                              ? Color(song.dominantColor!)
+                              : Colors.purpleAccent,
+                          0.15,
+                        ) ??
+                        const Color(0xFF1C1C1E),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
                     ),
                   ),
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: ListView(
+                    controller: controller,
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                LanguageService().getText('update_metadata'),
+                          Text(
+                            LanguageService().getText('update_metadata'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close,
+                              color: Colors.white54,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Source Selector
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: selectedSource,
+                            dropdownColor: Colors.grey[900],
+                            style: const TextStyle(color: Colors.white),
+                            icon: const Icon(
+                              Icons.arrow_drop_down,
+                              color: Colors.white,
+                            ),
+                            items: [
+                              DropdownMenuItem(
+                                value: 'Deezer',
+                                child: Text(
+                                  LanguageService().getText('deezer_precise'),
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Server',
+                                child: Text(
+                                  LanguageService().getText(
+                                    'spotify_less_precise',
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  selectedSource = value;
+                                  searchResults = []; // Clear previous results
+                                  errorMessage = null;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: titleController,
+                        cursorColor: song.dominantColor != null
+                            ? Color(song.dominantColor!)
+                            : Colors.purpleAccent,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: LanguageService().getText('song'),
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: artistController,
+                        cursorColor: song.dominantColor != null
+                            ? Color(song.dominantColor!)
+                            : Colors.purpleAccent,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: LanguageService()
+                              .getText('playlist_desc')
+                              .replaceAll('Descripción', 'Artista'), // Fallback
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        icon: isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.search),
+                        label: Text(LanguageService().getText('search')),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: song.dominantColor != null
+                              ? Color(song.dominantColor!)
+                              : Colors.purpleAccent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: isLoading
+                            ? null
+                            : () async {
+                                setState(() {
+                                  isLoading = true;
+                                  errorMessage = null;
+                                  searchResults = [];
+                                });
+
+                                try {
+                                  if (selectedSource == 'Deezer') {
+                                    final results = await DeezerService()
+                                        .searchMetadata(
+                                          titleController.text,
+                                          artistController.text,
+                                        );
+                                    setState(() {
+                                      isLoading = false;
+                                      searchResults = results;
+                                      if (results.isEmpty) {
+                                        errorMessage = LanguageService()
+                                            .getText('no_results');
+                                      }
+                                    });
+                                  } else {
+                                    // Server (Foranly)
+                                    final result = await ForanlyService()
+                                        .searchMetadata(
+                                          titleController.text,
+                                          artistController.text,
+                                        );
+                                    setState(() {
+                                      isLoading = false;
+                                      if (result != null) {
+                                        searchResults = [result];
+                                      } else {
+                                        errorMessage = LanguageService()
+                                            .getText('no_results');
+                                      }
+                                    });
+                                  }
+                                } catch (e) {
+                                  setState(() {
+                                    isLoading = false;
+                                    errorMessage = 'Error: $e';
+                                  });
+                                }
+                              },
+                      ),
+                      if (errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(
+                            errorMessage!,
+                            style: const TextStyle(color: Colors.redAccent),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      if (searchResults.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        const Divider(color: Colors.white24),
+                        const SizedBox(height: 10),
+                        Text(
+                          '${LanguageService().getText('results')} (${searchResults.length})',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 10),
+                        ...searchResults.map((result) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child:
+                                    result['albumArt'] != null &&
+                                        result['albumArt']['data'] != null
+                                    ? Image.memory(
+                                        Uint8List.fromList(
+                                          List<int>.from(
+                                            result['albumArt']['data'],
+                                          ),
+                                        ),
+                                        width: 50,
+                                        height: 50,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) => const Icon(
+                                          Icons.music_note,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : (result['albumArtUrl'] != null
+                                          ? Image.network(
+                                              result['albumArtUrl'],
+                                              width: 50,
+                                              height: 50,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) =>
+                                                  const Icon(
+                                                    Icons.music_note,
+                                                    color: Colors.white,
+                                                  ),
+                                            )
+                                          : const Icon(
+                                              Icons.music_note,
+                                              color: Colors.white,
+                                              size: 50,
+                                            )),
+                              ),
+                              title: Text(
+                                result['title'] ?? 'Unknown',
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 20,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Colors.white54,
+                              subtitle: Text(
+                                "${result['artist'] ?? 'Unknown'} • ${result['album'] ?? ''}",
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
                                 ),
-                                onPressed: () => Navigator.pop(context),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          // Source Selector
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: selectedSource,
-                                dropdownColor: Colors.grey[900],
-                                style: const TextStyle(color: Colors.white),
+                              trailing: IconButton(
                                 icon: const Icon(
-                                  Icons.arrow_drop_down,
-                                  color: Colors.white,
+                                  Icons.check_circle,
+                                  color: Colors.greenAccent,
+                                  size: 32,
                                 ),
-                                items: [
-                                  DropdownMenuItem(
-                                    value: 'Deezer',
-                                    child: Text(
-                                      LanguageService().getText(
-                                        'deezer_precise',
-                                      ),
-                                    ),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'Server',
-                                    child: Text(
-                                      LanguageService().getText(
-                                        'spotify_less_precise',
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      selectedSource = value;
-                                      searchResults =
-                                          []; // Clear previous results
-                                      errorMessage = null;
-                                    });
-                                  }
+                                onPressed: () {
+                                  _applyMetadata(context, song, result);
                                 },
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: titleController,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: LanguageService().getText('song'),
-                              hintStyle: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                              ),
-                              filled: true,
-                              fillColor: Colors.white.withOpacity(0.05),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: artistController,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: LanguageService()
-                                  .getText('playlist_desc')
-                                  .replaceAll(
-                                    'Descripción',
-                                    'Artista',
-                                  ), // Fallback
-                              hintStyle: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                              ),
-                              filled: true,
-                              fillColor: Colors.white.withOpacity(0.05),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            icon: isLoading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.search),
-                            label: Text(LanguageService().getText('search')),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.purpleAccent,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            onPressed: isLoading
-                                ? null
-                                : () async {
-                                    setState(() {
-                                      isLoading = true;
-                                      errorMessage = null;
-                                      searchResults = [];
-                                    });
-
-                                    try {
-                                      if (selectedSource == 'Deezer') {
-                                        final results = await DeezerService()
-                                            .searchMetadata(
-                                              titleController.text,
-                                              artistController.text,
-                                            );
-                                        setState(() {
-                                          isLoading = false;
-                                          searchResults = results;
-                                          if (results.isEmpty) {
-                                            errorMessage = LanguageService()
-                                                .getText('no_results');
-                                          }
-                                        });
-                                      } else {
-                                        // Server (Foranly)
-                                        final result = await ForanlyService()
-                                            .searchMetadata(
-                                              titleController.text,
-                                              artistController.text,
-                                            );
-                                        setState(() {
-                                          isLoading = false;
-                                          if (result != null) {
-                                            searchResults = [result];
-                                          } else {
-                                            errorMessage = LanguageService()
-                                                .getText('no_results');
-                                          }
-                                        });
-                                      }
-                                    } catch (e) {
-                                      setState(() {
-                                        isLoading = false;
-                                        errorMessage = 'Error: $e';
-                                      });
-                                    }
-                                  },
-                          ),
-                          if (errorMessage != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 10),
-                              child: Text(
-                                errorMessage!,
-                                style: const TextStyle(color: Colors.redAccent),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          if (searchResults.isNotEmpty) ...[
-                            const SizedBox(height: 20),
-                            const Divider(color: Colors.white24),
-                            const SizedBox(height: 10),
-                            Text(
-                              '${LanguageService().getText('results')} (${searchResults.length})',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                            const SizedBox(height: 10),
-                            ...searchResults.map((result) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0),
-                                child: ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child:
-                                        result['albumArt'] != null &&
-                                            result['albumArt']['data'] != null
-                                        ? Image.memory(
-                                            Uint8List.fromList(
-                                              List<int>.from(
-                                                result['albumArt']['data'],
-                                              ),
-                                            ),
-                                            width: 50,
-                                            height: 50,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) =>
-                                                const Icon(
-                                                  Icons.music_note,
-                                                  color: Colors.white,
-                                                ),
-                                          )
-                                        : (result['albumArtUrl'] != null
-                                              ? Image.network(
-                                                  result['albumArtUrl'],
-                                                  width: 50,
-                                                  height: 50,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (_, _, _) =>
-                                                      const Icon(
-                                                        Icons.music_note,
-                                                        color: Colors.white,
-                                                      ),
-                                                )
-                                              : const Icon(
-                                                  Icons.music_note,
-                                                  color: Colors.white,
-                                                  size: 50,
-                                                )),
-                                  ),
-                                  title: Text(
-                                    result['title'] ?? 'Unknown',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    "${result['artist'] ?? 'Unknown'} • ${result['album'] ?? ''}",
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: IconButton(
-                                    icon: const Icon(
-                                      Icons.check_circle,
-                                      color: Colors.greenAccent,
-                                      size: 32,
-                                    ),
-                                    onPressed: () {
-                                      _applyMetadata(context, song, result);
-                                    },
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
-                        ],
-                      ),
-                    ),
+                          );
+                        }),
+                      ],
+                    ],
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );

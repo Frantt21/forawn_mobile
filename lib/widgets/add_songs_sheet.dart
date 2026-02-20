@@ -502,9 +502,6 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
                                           artworkUri: song.artworkUri,
                                           width: 50,
                                           height: 50,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
                                           dominantColor: song.dominantColor,
                                         ),
                                         const SizedBox(width: 16),

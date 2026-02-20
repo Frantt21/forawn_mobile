@@ -171,6 +171,7 @@ class LocalMusicHome extends StatelessWidget {
                                           height: constraints.maxHeight,
                                           fit: BoxFit.cover,
                                           dominantColor: song.dominantColor,
+                                          borderRadius: BorderRadius.zero,
                                         );
                                       },
                                     ),
@@ -312,11 +313,11 @@ class LocalMusicHome extends StatelessWidget {
                               onTap: () => onPlaylistTap(playlist),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(24),
                                   color: Colors.grey[900],
                                 ),
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(24),
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
@@ -607,6 +608,7 @@ class LocalMusicHome extends StatelessWidget {
                                           height: constraints.maxHeight,
                                           fit: BoxFit.cover,
                                           dominantColor: song.dominantColor,
+                                          borderRadius: BorderRadius.zero,
                                         );
                                       },
                                     ),

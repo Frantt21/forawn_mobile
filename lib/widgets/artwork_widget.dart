@@ -25,11 +25,33 @@ class ArtworkWidget extends StatelessWidget {
     this.dominantColor,
   });
 
+  double _calculateRadius(double w, double h) {
+    double minDim;
+    if (w.isFinite && h.isFinite) {
+      minDim = w < h ? w : h;
+    } else if (w.isFinite) {
+      minDim = w;
+    } else if (h.isFinite) {
+      minDim = h;
+    } else {
+      // If both are infinite, fall back to the explicit size param if it's usable,
+      // or assume a large size since it's filling the screen.
+      minDim = size > 0 ? size : 300.0;
+    }
+
+    // Proportional radius mapping
+    if (minDim >= 200) return 24.0;
+    if (minDim >= 100) return 12.0;
+    return 8.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final w = width ?? size;
     final h = height ?? size;
-    final radius = borderRadius ?? BorderRadius.circular(12);
+
+    final computedRadius = _calculateRadius(w, h);
+    final radius = borderRadius ?? BorderRadius.circular(computedRadius);
 
     Widget imageContent;
 

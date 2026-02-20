@@ -188,7 +188,6 @@ class _LazyMusicTileState extends State<LazyMusicTile> {
         artworkPath: _artworkPath,
         artworkUri: _artworkUri,
         size: 48,
-        borderRadius: BorderRadius.circular(12),
         dominantColor: widget.song.dominantColor,
       ),
       title: Text(

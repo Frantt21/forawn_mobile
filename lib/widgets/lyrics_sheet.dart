@@ -402,211 +402,257 @@ class _LyricsSheetState extends State<LyricsSheet> {
   }
 
   void _showSyncDialog() {
-    showDialog(
+    final effectiveColor = _currentSong.dominantColor != null
+        ? Color(_currentSong.dominantColor!)
+        : Colors.purpleAccent;
+
+    showModalBottomSheet(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
         // Usamos StatefulBuilder para actualizar el texto del offset dentro del diálogo
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 400),
+            return DraggableScrollableSheet(
+              initialChildSize: 0.5,
+              minChildSize: 0.3,
+              maxChildSize: 0.8,
+              builder: (_, controller) {
+                return Container(
                   decoration: BoxDecoration(
-                    color: Colors.grey[900]!.withOpacity(0.95),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1,
+                    color:
+                        Color.lerp(
+                          const Color(0xFF1C1C1E),
+                          effectiveColor,
+                          0.15,
+                        ) ??
+                        const Color(0xFF1C1C1E),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
                     ),
                   ),
-                  padding: const EdgeInsets.all(24),
-                  child: StreamBuilder<PlaybackProgress>(
-                    stream: widget.player.progressStream,
-                    builder: (context, snapshot) {
-                      final position = snapshot.data?.position ?? Duration.zero;
-                      final currentIndex = _getLyricIndex(position);
-                      final lyricsList = _lyrics?.syncedLyrics ?? [];
+                  child: ListView(
+                    controller: controller,
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      StreamBuilder<PlaybackProgress>(
+                        stream: widget.player.progressStream,
+                        builder: (context, snapshot) {
+                          final position =
+                              snapshot.data?.position ?? Duration.zero;
+                          final currentIndex = _getLyricIndex(position);
+                          final lyricsList = _lyrics?.syncedLyrics ?? [];
 
-                      final currentText =
-                          (currentIndex >= 0 &&
-                              currentIndex < lyricsList.length)
-                          ? lyricsList[currentIndex].text
-                          : '';
-                      final nextText = (currentIndex + 1 < lyricsList.length)
-                          ? lyricsList[currentIndex + 1].text
-                          : '';
+                          final currentText =
+                              (currentIndex >= 0 &&
+                                  currentIndex < lyricsList.length)
+                              ? lyricsList[currentIndex].text
+                              : '';
+                          final nextText =
+                              (currentIndex + 1 < lyricsList.length)
+                              ? lyricsList[currentIndex + 1].text
+                              : '';
 
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Header
-                          Row(
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
+                              // Header
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: effectiveColor.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.timer,
+                                      color: effectiveColor,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          LanguageService().getText(
+                                            'synchronization',
+                                          ),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          LanguageService().getText(
+                                            'adjust_lyrics_time',
+                                          ),
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(
+                                              0.6,
+                                            ),
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+
+                              // Lyrics Preview
                               Container(
-                                padding: const EdgeInsets.all(10),
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.purpleAccent.withOpacity(0.2),
+                                  color: Colors.black26,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Icon(
-                                  Icons.timer,
-                                  color: Colors.purpleAccent,
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      LanguageService().getText(
-                                        'synchronization',
-                                      ),
+                                      currentText.isEmpty ? '...' : currentText,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 20,
+                                        fontSize: 18,
                                         fontWeight: FontWeight.bold,
+                                        height: 1.3,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      LanguageService().getText(
-                                        'adjust_lyrics_time',
+                                    if (nextText.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        nextText,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.5),
+                                          fontSize: 14,
+                                        ),
                                       ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Current Offset Display
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1C1C1E),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '${LanguageService().getText('current')}: ',
                                       style: TextStyle(
                                         color: Colors.white.withOpacity(0.6),
-                                        fontSize: 13,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_offset.inMilliseconds}ms',
+                                      style: TextStyle(
+                                        color: effectiveColor,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
+                              const SizedBox(height: 24),
 
-                          // Lyrics Preview
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.black26,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  currentText.isEmpty ? '...' : currentText,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.3,
+                              // Sync Buttons
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _buildSyncButton(
+                                    '-500ms',
+                                    -500,
+                                    setDialogState,
                                   ),
-                                ),
-                                if (nextText.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    nextText,
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.5),
-                                      fontSize: 14,
-                                    ),
+                                  _buildSyncButton(
+                                    '-100ms',
+                                    -100,
+                                    setDialogState,
+                                  ),
+                                  _buildSyncButton(
+                                    '+100ms',
+                                    100,
+                                    setDialogState,
+                                  ),
+                                  _buildSyncButton(
+                                    '+500ms',
+                                    500,
+                                    setDialogState,
                                   ),
                                 ],
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
+                              ),
+                              const SizedBox(height: 24),
 
-                          // Current Offset Display
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1C1C1E),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '${LanguageService().getText('current')}: ',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
-                                    fontSize: 14,
+                              // Done Button
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: effectiveColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    LanguageService().getText('done'),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                                Text(
-                                  '${_offset.inMilliseconds}ms',
-                                  style: const TextStyle(
-                                    color: Colors.purpleAccent,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Sync Buttons
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildSyncButton('-500ms', -500, setDialogState),
-                              _buildSyncButton('-100ms', -100, setDialogState),
-                              _buildSyncButton('+100ms', 100, setDialogState),
-                              _buildSyncButton('+500ms', 500, setDialogState),
+                              ),
                             ],
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Done Button
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.purpleAccent,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: Text(
-                                LanguageService().getText('done'),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );
@@ -615,11 +661,13 @@ class _LyricsSheetState extends State<LyricsSheet> {
   }
 
   void _showSearchDialog() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) => LyricsSearchDialog(
         initialQuery: '${_currentSong.title} ${_currentSong.artist}',
+        dominantColor: _currentSong.dominantColor,
         onLyricSelected: (l) async {
           await LyricsService().saveLyricsToCache(
             localTrackName: _currentSong.title,
@@ -670,11 +718,13 @@ class _LyricsSheetState extends State<LyricsSheet> {
 class LyricsSearchDialog extends StatefulWidget {
   final String initialQuery;
   final Function(Lyrics) onLyricSelected;
+  final int? dominantColor;
 
   const LyricsSearchDialog({
     super.key,
     required this.initialQuery,
     required this.onLyricSelected,
+    this.dominantColor,
   });
 
   @override
@@ -729,23 +779,39 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-      child: Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      builder: (_, controller) {
+        return Container(
           decoration: BoxDecoration(
-            color: Colors.grey[900]!.withOpacity(0.95),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+            color:
+                Color.lerp(
+                  const Color(0xFF1C1C1E),
+                  widget.dominantColor != null
+                      ? Color(widget.dominantColor!)
+                      : Colors.purpleAccent,
+                  0.15,
+                ) ??
+                const Color(0xFF1C1C1E),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.all(24),
             children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               // Header
               Row(
                 children: [
@@ -809,11 +875,13 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
 
               // Loading
               if (_searching)
-                const Center(
+                Center(
                   child: Padding(
-                    padding: EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(20),
                     child: CircularProgressIndicator(
-                      color: Colors.purpleAccent,
+                      color: widget.dominantColor != null
+                          ? Color(widget.dominantColor!)
+                          : Colors.purpleAccent,
                     ),
                   ),
                 ),
@@ -920,8 +988,8 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                 ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
