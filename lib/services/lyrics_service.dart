@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'lyrics_adjuster.dart';
 import 'database_helper.dart';
@@ -22,7 +23,10 @@ class LyricLine {
       final minutes = int.parse(match.group(1)!);
       final seconds = int.parse(match.group(2)!);
       final centiseconds = int.parse(match.group(3)!);
-      final text = match.group(4)!;
+      String text = match.group(4)!;
+
+      // Limpiar etiquetas de tiempo interno tipo karaoke <00:11.68>
+      text = text.replaceAll(RegExp(r'<\d{2}:\d{2}\.\d{2,3}>'), '');
 
       final timestamp = Duration(
         minutes: minutes,
@@ -30,11 +34,15 @@ class LyricLine {
         milliseconds: centiseconds * 10,
       );
 
-      return LyricLine(timestamp: timestamp, text: text);
+      return LyricLine(timestamp: timestamp, text: text.trim());
     }
 
-    // Si no coincide el formato, devolver línea sin timestamp
-    return LyricLine(timestamp: Duration.zero, text: line);
+    // Si no coincide el formato, limpiar posibles etiquetas karaoke igual
+    String fallbackText = line.replaceAll(
+      RegExp(r'<\d{2}:\d{2}\.\d{2,3}>'),
+      '',
+    );
+    return LyricLine(timestamp: Duration.zero, text: fallbackText.trim());
   }
 
   Map<String, dynamic> toJson() => {
@@ -57,6 +65,7 @@ class Lyrics {
   final bool instrumental;
   final String plainLyrics;
   final List<LyricLine> syncedLyrics;
+  final List<LyricLine>? karaokeLyrics;
 
   Lyrics({
     required this.trackName,
@@ -66,6 +75,7 @@ class Lyrics {
     required this.instrumental,
     required this.plainLyrics,
     required this.syncedLyrics,
+    this.karaokeLyrics,
   });
 
   int get lineCount => syncedLyrics.length;
@@ -78,6 +88,7 @@ class Lyrics {
     'instrumental': instrumental,
     'plainLyrics': plainLyrics,
     'syncedLyrics': syncedLyrics.map((l) => l.toJson()).toList(),
+    'karaokeLyrics': karaokeLyrics?.map((l) => l.toJson()).toList(),
   };
 
   factory Lyrics.fromJson(Map<String, dynamic> json) => Lyrics(
@@ -86,10 +97,17 @@ class Lyrics {
     albumName: json['albumName'] as String?,
     duration: json['duration'] as int?,
     instrumental: json['instrumental'] as bool,
-    plainLyrics: json['plainLyrics'] as String,
-    syncedLyrics: (json['syncedLyrics'] as List)
-        .map((l) => LyricLine.fromJson(l as Map<String, dynamic>))
-        .toList(),
+    plainLyrics: json['plainLyrics'] as String? ?? '',
+    syncedLyrics:
+        (json['syncedLyrics'] as List?)
+            ?.map((l) => LyricLine.fromJson(l as Map<String, dynamic>))
+            .toList() ??
+        [],
+    karaokeLyrics: json['karaokeLyrics'] != null
+        ? (json['karaokeLyrics'] as List)
+              .map((l) => LyricLine.fromJson(l as Map<String, dynamic>))
+              .toList()
+        : null,
   );
 }
 
@@ -169,6 +187,66 @@ class LyricsService {
     _currentTrackingId = null;
   }
 
+  /// Fetch SyncLRC karaoke from /lyrics endpoint
+  Future<List<LyricLine>?> _fetchSyncLrcKaraoke(
+    String track,
+    String artist,
+    CancelToken? cancelToken,
+  ) async {
+    try {
+      final encodedTrack = Uri.encodeComponent(track);
+      final encodedArtist = Uri.encodeComponent(artist);
+      final url =
+          'https://synclrc.tharuk.pro/lyrics?track=$encodedTrack&artist=$encodedArtist&type=karaoke';
+
+      print('[LyricsService] Triggering SyncLRC Karaoke fetch: $url');
+
+      final response = await _dio.get(
+        url,
+        cancelToken: cancelToken,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      print(
+        '[LyricsService] SyncLRC Karaoke response status: ${response.statusCode}',
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final lyricsText = response.data['lyrics'] as String?;
+        if (lyricsText != null && lyricsText.isNotEmpty) {
+          print(
+            '[LyricsService] SyncLRC Karaoke lyrics generated successfully',
+          );
+          return lyricsText
+              .split('\n')
+              .where((line) => line.trim().isNotEmpty)
+              .map((line) => LyricLine.fromString(line))
+              .where((line) => line.text.isNotEmpty)
+              .toList();
+        } else {
+          print(
+            '[LyricsService] SyncLRC Karaoke lyrics field was empty or null',
+          );
+        }
+      }
+    } catch (e) {
+      if (e is DioException) {
+        print(
+          '[LyricsService] API Error in SyncLRC Karaoke (${e.type}): ${e.message}',
+        );
+        if (e.response != null) {
+          print('[LyricsService] SyncLRC response data: ${e.response?.data}');
+        }
+      } else {
+        print('[LyricsService] Error fetching SyncLRC karaoke manually: $e');
+      }
+    }
+    return null;
+  }
+
   /// Obtiene lyrics desde la API o caché
   Future<Lyrics?> fetchLyrics(
     String trackName,
@@ -198,6 +276,38 @@ class LyricsService {
       // Limpiar título y artista antes de buscar
       final cleanTrack = _cleanTitle(trackName);
       final cleanArtist = _cleanArtist(artistName);
+
+      // Leer preferencia para decidir proveedor
+      final prefs = await SharedPreferences.getInstance();
+      final isSweepEnabled = prefs.getBool('lyrics_sweep_enabled') ?? true;
+
+      List<LyricLine>? syncLrcKaraoke;
+
+      if (isSweepEnabled) {
+        print('[LyricsService] Sweep enabled. Fetching SyncLRC first...');
+        syncLrcKaraoke = await _fetchSyncLrcKaraoke(
+          trackName,
+          artistName,
+          cancelToken,
+        );
+
+        if (syncLrcKaraoke != null && syncLrcKaraoke.isNotEmpty) {
+          print('[LyricsService] SyncLRC success, caching and returning');
+          final lyrics = Lyrics(
+            trackName: trackName,
+            artistName: artistName,
+            instrumental: false,
+            plainLyrics: syncLrcKaraoke.map((l) => l.text).join('\n'),
+            syncedLyrics: syncLrcKaraoke,
+            karaokeLyrics: syncLrcKaraoke,
+          );
+          await DatabaseHelper().insertLyrics(
+            cacheKey,
+            jsonEncode(lyrics.toJson()),
+          );
+          return lyrics;
+        }
+      }
 
       print(
         '[LyricsService] Fetching lyrics from LRCLIB for: $cleanTrack by $cleanArtist',
@@ -290,6 +400,8 @@ class LyricsService {
                   .toList();
             }
 
+            List<LyricLine>? karaokeLines = syncLrcKaraoke;
+
             final lyrics = Lyrics(
               trackName: data['trackName'] as String? ?? trackName,
               artistName: data['artistName'] as String? ?? artistName,
@@ -298,6 +410,7 @@ class LyricsService {
               instrumental: data['instrumental'] as bool? ?? false,
               plainLyrics: plainLyrics,
               syncedLyrics: syncedLines,
+              karaokeLyrics: karaokeLines,
             );
 
             await DatabaseHelper().insertLyrics(
@@ -315,6 +428,9 @@ class LyricsService {
           '[LyricsService] LRCLIB API error/empty: ${response.statusCode}, trying fallback...',
         );
       }
+
+      // Esperar sincronización karaoke por si LRCLIB falló pero SyncLRC no
+      List<LyricLine>? fallbackKaraoke = syncLrcKaraoke;
 
       // FALLBACK API: api.lyrics.ovh (Solo proporciona lyrics en texto plano)
       try {
@@ -340,7 +456,8 @@ class LyricsService {
               artistName: artistName,
               instrumental: false,
               plainLyrics: lyricsText.trim(),
-              syncedLyrics: [], // OVH API no proporciona sincronización
+              syncedLyrics: fallbackKaraoke ?? [],
+              karaokeLyrics: fallbackKaraoke,
             );
             await DatabaseHelper().insertLyrics(
               cacheKey,
@@ -352,6 +469,24 @@ class LyricsService {
       } catch (e) {
         if (e is DioException && CancelToken.isCancel(e)) rethrow;
         print('[LyricsService] OVH Fallback API error: $e');
+      }
+
+      // Si OVH falla también, comprobar si de milagro SyncLRC devolvió algo útil
+      if (fallbackKaraoke != null && fallbackKaraoke.isNotEmpty) {
+        print('[LyricsService] Using SyncLRC since both LRCLIB & OVH failed');
+        final lyrics = Lyrics(
+          trackName: trackName,
+          artistName: artistName,
+          instrumental: false,
+          plainLyrics: fallbackKaraoke.map((l) => l.text).join('\n'),
+          syncedLyrics: fallbackKaraoke,
+          karaokeLyrics: fallbackKaraoke,
+        );
+        await DatabaseHelper().insertLyrics(
+          cacheKey,
+          jsonEncode(lyrics.toJson()),
+        );
+        return lyrics;
       }
 
       return null;
@@ -372,10 +507,13 @@ class LyricsService {
   }) async {
     try {
       if (provider == 'SyncLRC') {
+        final encodedQuery = Uri.encodeComponent(query);
         final searchResponse = await _dio.get(
-          'https://synclrc.tharuk.pro/search',
-          queryParameters: {'query': query},
-          options: Options(receiveTimeout: const Duration(seconds: 10)),
+          'https://synclrc.tharuk.pro/search?query=$encodedQuery',
+          options: Options(
+            receiveTimeout: const Duration(seconds: 30),
+            sendTimeout: const Duration(seconds: 30),
+          ),
         );
 
         if (searchResponse.statusCode == 200 && searchResponse.data != null) {

@@ -51,6 +51,16 @@ class _LyricsViewState extends State<LyricsView> {
 
   bool _isSweepEnabled = true;
 
+  List<LyricLine> get _activeLyrics {
+    if (widget.lyrics == null) return [];
+    if (_isSweepEnabled &&
+        widget.lyrics!.karaokeLyrics != null &&
+        widget.lyrics!.karaokeLyrics!.isNotEmpty) {
+      return widget.lyrics!.karaokeLyrics!;
+    }
+    return widget.lyrics!.syncedLyrics;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -177,7 +187,7 @@ class _LyricsViewState extends State<LyricsView> {
       );
     }
 
-    if (widget.lyrics!.syncedLyrics.isEmpty) {
+    if (_activeLyrics.isEmpty) {
       return SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Text(
@@ -214,9 +224,7 @@ class _LyricsViewState extends State<LyricsView> {
               currentIndex >= 0 ? currentIndex + 1 : 0,
             ),
 
-            itemCount:
-                widget.lyrics!.syncedLyrics.length +
-                2, // +1 phantom, +1 credits
+            itemCount: _activeLyrics.length + 2, // +1 phantom, +1 credits
             itemScrollController: _itemScrollController,
             itemPositionsListener: _itemPositionsListener,
             padding: EdgeInsets.only(
@@ -245,7 +253,7 @@ class _LyricsViewState extends State<LyricsView> {
               }
 
               // Last item: Credits
-              if (index == widget.lyrics!.syncedLyrics.length + 1) {
+              if (index == _activeLyrics.length + 1) {
                 return Padding(
                   padding: const EdgeInsets.only(top: 40, bottom: 80),
                   child: Center(
@@ -263,13 +271,13 @@ class _LyricsViewState extends State<LyricsView> {
 
               // Real lyrics (index 1 to length)
               final lyricIndex = index - 1; // Adjust for phantom line
-              final line = widget.lyrics!.syncedLyrics[lyricIndex];
+              final line = _activeLyrics[lyricIndex];
               final isCurrent = lyricIndex == currentIndex;
 
               // Calculate end time
               Duration endTime;
-              if (lyricIndex < widget.lyrics!.syncedLyrics.length - 1) {
-                endTime = widget.lyrics!.syncedLyrics[lyricIndex + 1].timestamp;
+              if (lyricIndex < _activeLyrics.length - 1) {
+                endTime = _activeLyrics[lyricIndex + 1].timestamp;
               } else {
                 // Last line: use song duration or a default 5s buffer
                 final durationSec = widget.lyrics!.duration;
@@ -319,7 +327,7 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   int _getLyricIndex(Duration position) {
-    final lyrics = widget.lyrics!.syncedLyrics;
+    final lyrics = _activeLyrics;
     final targetTime = position - widget.offset; // Ajustar por offset
 
     // Optimización: Empezar a buscar desde el último índice conocido (o un poco antes por si hizo seek atrás)
@@ -457,7 +465,7 @@ class _KaraokeLine extends StatelessWidget {
     for (int i = 0; i < words.length; i++) {
       staticWordWidgets.add(
         Text(
-          words[i] + (i < words.length - 1 ? '\u00A0' : ''),
+          words[i] + (i < words.length - 1 ? ' ' : ''),
           style: baseStyle.copyWith(
             color: textColor.withOpacity(0.2),
             fontWeight: FontWeight.w600,
@@ -575,9 +583,7 @@ class _KaraokeLine extends StatelessWidget {
                 _KaraokeWord(
                   word:
                       word +
-                      (i < words.length - 1
-                          ? '\u00A0'
-                          : ''), // Usar non-breaking space para no colapsar espacios al renderizar
+                      (i < words.length - 1 ? ' ' : ''), // Usar espacio normal
                   progress: wordProgress,
                   style: textStyle,
                   activeColor: textColor,
@@ -608,7 +614,7 @@ class _KaraokeLine extends StatelessWidget {
     for (int i = 0; i < wordsArray.length; i++) {
       activeWords.add(
         Text(
-          wordsArray[i] + (i < wordsArray.length - 1 ? '\u00A0' : ''),
+          wordsArray[i] + (i < wordsArray.length - 1 ? ' ' : ''),
           style: textStyle.copyWith(color: textColor),
         ),
       );

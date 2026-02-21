@@ -798,6 +798,71 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
     }
   }
 
+  void _showImportDialog(BuildContext context) {
+    final textController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF282828),
+        title: const Text(
+          'Importar Letras (LRC)',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: textController,
+          maxLines: 10,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: '[00:10.00] Pega tus letras LRC aquí...',
+            hintStyle: const TextStyle(color: Colors.white30),
+            filled: true,
+            fillColor: Colors.black26,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              final raw = textController.text.trim();
+              if (raw.isNotEmpty) {
+                final lines = raw
+                    .split('\n')
+                    .map((l) => LyricLine.fromString(l))
+                    .where((l) => l.text.isNotEmpty)
+                    .toList();
+
+                final customLyrics = Lyrics(
+                  trackName:
+                      widget.initialQuery, // Approximate, overwritten by save
+                  artistName: 'Custom',
+                  instrumental: false,
+                  plainLyrics: lines.map((l) => l.text).join('\n'),
+                  syncedLyrics: lines,
+                  karaokeLyrics: lines,
+                );
+
+                widget.onLyricSelected(customLyrics);
+                Navigator.pop(context); // Close import dialog
+                Navigator.pop(context); // Close search dialog
+              }
+            },
+            child: const Text(
+              'Guardar',
+              style: TextStyle(color: Colors.blueAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -836,7 +901,11 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
               // Header
               Row(
                 children: [
-                  const SizedBox(width: 48),
+                  IconButton(
+                    icon: const Icon(Icons.paste, color: Colors.blueAccent),
+                    tooltip: 'Pegar Letras LRC',
+                    onPressed: () => _showImportDialog(context),
+                  ),
                   Expanded(
                     child: Text(
                       LanguageService().getText('search_lyrics'),
