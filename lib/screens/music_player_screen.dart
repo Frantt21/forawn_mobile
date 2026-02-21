@@ -514,7 +514,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(
+                        height: 0,
+                      ), // Reducido el espacio a petición
                       Padding(
                         padding: EdgeInsets.zero,
                         child: Row(
@@ -1228,46 +1230,108 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       const SizedBox(height: 16),
                       // Source Selector
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: selectedSource,
-                            dropdownColor: Colors.grey[900],
-                            style: const TextStyle(color: Colors.white),
-                            icon: const Icon(
-                              Icons.arrow_drop_down,
-                              color: Colors.white,
-                            ),
-                            items: [
-                              DropdownMenuItem(
-                                value: 'Deezer',
-                                child: Text(
-                                  LanguageService().getText('deezer_precise'),
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Server',
-                                child: Text(
-                                  LanguageService().getText(
-                                    'spotify_less_precise',
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() {
+                                  selectedSource = 'Deezer';
+                                  searchResults = [];
+                                  errorMessage = null;
+                                }),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: selectedSource == 'Deezer'
+                                        ? (song.dominantColor != null
+                                              ? Color(
+                                                  song.dominantColor!,
+                                                ).withOpacity(0.2)
+                                              : Colors.purpleAccent.withOpacity(
+                                                  0.2,
+                                                ))
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.horizontal(
+                                      left: const Radius.circular(12),
+                                      right: Radius.circular(
+                                        selectedSource == 'Deezer' ? 12 : 0,
+                                      ),
+                                    ),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    LanguageService().getText('deezer_precise'),
+                                    style: TextStyle(
+                                      color: selectedSource == 'Deezer'
+                                          ? (song.dominantColor != null
+                                                ? Color(song.dominantColor!)
+                                                : Colors.purpleAccent)
+                                          : Colors.white70,
+                                      fontWeight: selectedSource == 'Deezer'
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                               ),
-                            ],
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() {
-                                  selectedSource = value;
-                                  searchResults = []; // Clear previous results
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() {
+                                  selectedSource = 'Server';
+                                  searchResults = [];
                                   errorMessage = null;
-                                });
-                              }
-                            },
-                          ),
+                                }),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: selectedSource == 'Server'
+                                        ? (song.dominantColor != null
+                                              ? Color(
+                                                  song.dominantColor!,
+                                                ).withOpacity(0.2)
+                                              : Colors.purpleAccent.withOpacity(
+                                                  0.2,
+                                                ))
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.horizontal(
+                                      right: const Radius.circular(12),
+                                      left: Radius.circular(
+                                        selectedSource == 'Server' ? 12 : 0,
+                                      ),
+                                    ),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    LanguageService().getText(
+                                      'spotify_less_precise',
+                                    ),
+                                    style: TextStyle(
+                                      color: selectedSource == 'Server'
+                                          ? (song.dominantColor != null
+                                                ? Color(song.dominantColor!)
+                                                : Colors.purpleAccent)
+                                          : Colors.white70,
+                                      fontWeight: selectedSource == 'Server'
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 12),
