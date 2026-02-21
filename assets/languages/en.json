@@ -264,5 +264,7 @@
   "crossfade_disabled": "Disabled",
   "view_all": "View All",
   "deezer_precise": "Deezer (More Precise)",
-  "spotify_less_precise": "Spotify (Less Precise)"
+  "spotify_less_precise": "Spotify (Less Precise)",
+  "lyrics_sweep_effect": "Lyrics Sweep Effect",
+  "lyrics_sweep_desc": "Disable to use the classic line-by-line mode"
 }

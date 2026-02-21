@@ -21,14 +21,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = false;
   String _version = 'Cargando...';
   double _crossfadeDuration = 0.0;
+  bool _lyricsSweepEnabled = true;
   static const String _notificationsKey = 'notifications_enabled';
   static const String _crossfadeKey = 'crossfade_duration';
+  static const String _lyricsSweepKey = 'lyrics_sweep_enabled';
 
   @override
   void initState() {
     super.initState();
     _loadNotificationPreference();
     _loadCrossfadeDuration();
+    _loadLyricsSweepPreference();
     _loadVersion();
   }
 
@@ -63,6 +66,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await prefs.setBool(_notificationsKey, value);
     } catch (e) {
       print('Error saving notification preference: $e');
+    }
+  }
+
+  Future<void> _loadLyricsSweepPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _lyricsSweepEnabled = prefs.getBool(_lyricsSweepKey) ?? true;
+      });
+    } catch (e) {
+      print('Error loading lyrics sweep preference: $e');
+    }
+  }
+
+  Future<void> _saveLyricsSweepPreference(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_lyricsSweepKey, value);
+    } catch (e) {
+      print('Error saving lyrics sweep preference: $e');
     }
   }
 
@@ -200,10 +223,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   // Language Selector
                   ListTile(
-                    leading: const Icon(
-                      Icons.language,
-                      color: Colors.green,
-                    ),
+                    leading: const Icon(Icons.language, color: Colors.green),
                     title: Text(
                       LanguageService().getText('language'),
                       style: const TextStyle(
@@ -403,6 +423,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    value: _lyricsSweepEnabled,
+                    onChanged: (value) async {
+                      setState(() {
+                        _lyricsSweepEnabled = value;
+                      });
+                      await _saveLyricsSweepPreference(value);
+                    },
+                    contentPadding: EdgeInsets.zero,
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            LanguageService().getText('lyrics_sweep_effect'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blueAccent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'BETA',
+                            style: TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('lyrics_sweep_desc'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    activeThumbColor: Colors.blueAccent,
+                    secondary: const Icon(
+                      Icons.animation,
+                      color: Colors.blueAccent,
                     ),
                   ),
                 ],

@@ -50,12 +50,14 @@ class _LyricsSheetState extends State<LyricsSheet> {
             song.artist != _currentSong.artist ||
             song.artworkPath != _currentSong.artworkPath;
 
-        if (song.id != _currentSong.id || metaChanged) {
+        final oldId = _currentSong.id;
+
+        if (song.id != oldId || metaChanged) {
           if (mounted) {
             setState(() {
               _currentSong = song;
               // Si cambió la canción (ID diferente), resetear offset. Si es solo metadata, mantenerlo.
-              if (song.id != _currentSong.id) {
+              if (song.id != oldId) {
                 _offset = Duration.zero;
                 _lyrics = null;
               } else {
@@ -68,6 +70,11 @@ class _LyricsSheetState extends State<LyricsSheet> {
               }
               // El estado de carga lo manejará el stream de isLoading
             });
+
+            // Fuera del setState, cargar el offset si es una canción nueva
+            if (song.id != oldId) {
+              _loadSavedOffset();
+            }
           }
         }
       }
@@ -380,6 +387,7 @@ class _LyricsSheetState extends State<LyricsSheet> {
                       },
                       offset: _offset,
                       textColor: textColor,
+                      audioPath: _currentSong.filePath,
                     ),
             ),
           ],
@@ -402,9 +410,18 @@ class _LyricsSheetState extends State<LyricsSheet> {
   }
 
   void _showSyncDialog() {
-    final effectiveColor = _currentSong.dominantColor != null
+    Color effectiveColor = _currentSong.dominantColor != null
         ? Color(_currentSong.dominantColor!)
         : Colors.purpleAccent;
+
+    // Asegurar que el color sea legible incluso si el color dominante es muy oscuro
+    final hsv = HSVColor.fromColor(effectiveColor);
+    if (hsv.value < 0.5) {
+      effectiveColor = hsv
+          .withValue(0.8)
+          .withSaturation((hsv.saturation < 0.3) ? 0.5 : hsv.saturation)
+          .toColor();
+    }
 
     showModalBottomSheet(
       context: context,
@@ -736,6 +753,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
   bool _searching = false;
   List<Lyrics> _results = [];
   String? _error;
+  String _selectedProvider = 'LRCLIB';
 
   @override
   void initState() {
@@ -757,7 +775,10 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
       _results = [];
     });
     try {
-      final res = await LyricsService().searchLyrics(query);
+      final res = await LyricsService().searchLyrics(
+        query,
+        provider: _selectedProvider,
+      );
       if (mounted) {
         setState(() {
           _results = res;
@@ -834,6 +855,83 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                 ],
               ),
               const SizedBox(height: 24),
+
+              // Provider Selector
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () =>
+                            setState(() => _selectedProvider = 'LRCLIB'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _selectedProvider == 'LRCLIB'
+                                ? Colors.purpleAccent.withOpacity(0.2)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.horizontal(
+                              left: Radius.circular(12),
+                              right: Radius.circular(
+                                _selectedProvider == 'LRCLIB' ? 12 : 0,
+                              ),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'LRCLIB (Synced)',
+                            style: TextStyle(
+                              color: _selectedProvider == 'LRCLIB'
+                                  ? Colors.purpleAccent
+                                  : Colors.white70,
+                              fontWeight: _selectedProvider == 'LRCLIB'
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () =>
+                            setState(() => _selectedProvider = 'SyncLRC'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _selectedProvider == 'SyncLRC'
+                                ? Colors.purpleAccent.withOpacity(0.2)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.horizontal(
+                              right: Radius.circular(12),
+                              left: Radius.circular(
+                                _selectedProvider == 'SyncLRC' ? 12 : 0,
+                              ),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'SyncLRC (Synced)',
+                            style: TextStyle(
+                              color: _selectedProvider == 'SyncLRC'
+                                  ? Colors.purpleAccent
+                                  : Colors.white70,
+                              fontWeight: _selectedProvider == 'SyncLRC'
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
               // Search Input
               Container(

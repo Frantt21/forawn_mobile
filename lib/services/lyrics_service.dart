@@ -221,9 +221,11 @@ class LyricsService {
         final results = response.data as List;
 
         if (results.isNotEmpty) {
-          // Buscar el mejor match en los resultados
+          Map<String, dynamic>? bestMatch;
+          double bestScore = -1.0;
+
+          // Buscar el mejor match usando un sistema de puntuación
           for (final item in results) {
-            // Verificar cancelación durante el procesamiento si la lista es muy larga
             if (cancelToken?.isCancelled ?? false) {
               throw DioException(
                 requestOptions: response.requestOptions,
@@ -232,67 +234,61 @@ class LyricsService {
             }
 
             final data = item as Map<String, dynamic>;
-
             final syncedLyricsRaw = data['syncedLyrics'] as String?;
-            final plainLyrics = data['plainLyrics'] as String? ?? '';
             final resultTrackName = (data['trackName'] as String? ?? '')
                 .toLowerCase();
             final resultArtistName = (data['artistName'] as String? ?? '')
                 .toLowerCase();
 
-            // VALIDACIÓN ESTRICTA: Verificar título Y artista ANTES de aceptar
             final searchTrack = cleanTrack.toLowerCase();
             final searchArtist = cleanArtist.toLowerCase();
 
-            // Calcular similitud para título (debe ser muy alta >80% o match exacto)
             final trackSimilarity = _calculateSimilarity(
               resultTrackName,
               searchTrack,
             );
-            final trackExactMatch = resultTrackName == searchTrack;
-            // Umbral estricto para título
-            final trackMatches = trackExactMatch || trackSimilarity > 0.8;
-
-            // Calcular similitud para artista (debe ser muy alta >80% o match exacto)
             final artistSimilarity = _calculateSimilarity(
               resultArtistName,
               searchArtist,
             );
-            final artistExactMatch = resultArtistName == searchArtist;
-            // Umbral estricto para artista
-            final artistMatches = artistExactMatch || artistSimilarity > 0.8;
 
-            // Rechazar si NO coinciden AMBOS
-            if (!trackMatches || !artistMatches) {
-              //   print(
-              //     '[LyricsService] Rejected: "$resultTrackName" by "$resultArtistName" '
-              //     '(track: ${(trackSimilarity * 100).toStringAsFixed(0)}%, '
-              //     'artist: ${(artistSimilarity * 100).toStringAsFixed(0)}%)',
-              //   );
-              continue; // Probar siguiente resultado
+            // Relajamos umbrales: Si la similitud combinada es aceptable o si alguna es perfecta
+            if (trackSimilarity < 0.5 || artistSimilarity < 0.5) {
+              // Permitimos un escenario donde al menos el título sea idéntico
+              if (trackSimilarity < 0.9) continue;
             }
 
-            // Solo aceptar si tiene synced lyrics
-            if (syncedLyricsRaw == null || syncedLyricsRaw.isEmpty) {
-              print(
-                '[LyricsService] Skipped: No synced lyrics for "$resultTrackName"',
-              );
-              continue;
-            }
+            // Puntaje: Mucho peso a tener synced lyrics
+            double currentScore =
+                (trackSimilarity * 10) + (artistSimilarity * 10);
+            bool hasSynced =
+                syncedLyricsRaw != null && syncedLyricsRaw.isNotEmpty;
+            if (hasSynced) currentScore += 20;
 
-            // Lyrics válidos encontrados - parsear
-            print('[LyricsService] Found synced lyrics from LRCLIB');
+            if (currentScore > bestScore) {
+              bestScore = currentScore;
+              bestMatch = data;
+            }
+          }
+
+          if (bestMatch != null) {
+            final data = bestMatch;
+            final syncedLyricsRaw = data['syncedLyrics'] as String?;
+            final plainLyrics = data['plainLyrics'] as String? ?? '';
+
             print(
-              '[LyricsService] Match: "$resultTrackName" by "$resultArtistName"',
+              '[LyricsService] Found best match from LRCLIB (Score: ${bestScore.toStringAsFixed(1)})',
             );
 
-            // Parsear lyrics en formato LRC
-            final syncedLines = syncedLyricsRaw
-                .split('\n')
-                .where((line) => line.trim().isNotEmpty)
-                .map((line) => LyricLine.fromString(line))
-                .where((line) => line.text.isNotEmpty) // Filtrar líneas vacías
-                .toList();
+            List<LyricLine> syncedLines = [];
+            if (syncedLyricsRaw != null && syncedLyricsRaw.isNotEmpty) {
+              syncedLines = syncedLyricsRaw
+                  .split('\n')
+                  .where((line) => line.trim().isNotEmpty)
+                  .map((line) => LyricLine.fromString(line))
+                  .where((line) => line.text.isNotEmpty)
+                  .toList();
+            }
 
             final lyrics = Lyrics(
               trackName: data['trackName'] as String? ?? trackName,
@@ -304,27 +300,61 @@ class LyricsService {
               syncedLyrics: syncedLines,
             );
 
-            // Guardar en SQLite (Migrado)
             await DatabaseHelper().insertLyrics(
               cacheKey,
               jsonEncode(lyrics.toJson()),
             );
-            print(
-              '[LyricsService] Lyrics cached successfully (${syncedLines.length} lines)',
-            );
-
             return lyrics;
           }
         }
-
         print(
-          '[LyricsService] No exact match (track & artist) found in LRCLIB',
+          '[LyricsService] No acceptable match found in LRCLIB, trying fallback...',
         );
-        return null;
       } else {
-        print('[LyricsService] LRCLIB API error: ${response.statusCode}');
-        return null;
+        print(
+          '[LyricsService] LRCLIB API error/empty: ${response.statusCode}, trying fallback...',
+        );
       }
+
+      // FALLBACK API: api.lyrics.ovh (Solo proporciona lyrics en texto plano)
+      try {
+        print('[LyricsService] Fetching from lyrics.ovh fallback...');
+        final ovhResponse = await _dio.get(
+          'https://api.lyrics.ovh/v1/${Uri.encodeComponent(cleanArtist)}/${Uri.encodeComponent(cleanTrack)}',
+          cancelToken: cancelToken,
+          options: Options(receiveTimeout: const Duration(seconds: 10)),
+        );
+
+        if (ovhResponse.statusCode == 200 && ovhResponse.data != null) {
+          String? lyricsText = ovhResponse.data['lyrics'] as String?;
+          if (lyricsText != null && lyricsText.isNotEmpty) {
+            // Limpiar metadata promocional que a veces incluye la API
+            lyricsText = lyricsText.replaceAll(
+              RegExp(r'Paroles de la chanson.*?\n'),
+              '',
+            );
+
+            print('[LyricsService] Found plain lyrics from lyrics.ovh');
+            final lyrics = Lyrics(
+              trackName: trackName,
+              artistName: artistName,
+              instrumental: false,
+              plainLyrics: lyricsText.trim(),
+              syncedLyrics: [], // OVH API no proporciona sincronización
+            );
+            await DatabaseHelper().insertLyrics(
+              cacheKey,
+              jsonEncode(lyrics.toJson()),
+            );
+            return lyrics;
+          }
+        }
+      } catch (e) {
+        if (e is DioException && CancelToken.isCancel(e)) rethrow;
+        print('[LyricsService] OVH Fallback API error: $e');
+      }
+
+      return null;
     } catch (e) {
       if (e is DioException && CancelToken.isCancel(e)) {
         // Relanzar cancelación para que quien llame sepa que fue cancelado
@@ -335,9 +365,59 @@ class LyricsService {
     }
   }
 
-  /// Busca lyrics manualmente sin filtrado estricto
-  Future<List<Lyrics>> searchLyrics(String query) async {
+  /// Busca lyrics manualmente
+  Future<List<Lyrics>> searchLyrics(
+    String query, {
+    String provider = 'LRCLIB',
+  }) async {
     try {
+      if (provider == 'SyncLRC') {
+        final searchResponse = await _dio.get(
+          'https://synclrc.tharuk.pro/search',
+          queryParameters: {'query': query},
+          options: Options(receiveTimeout: const Duration(seconds: 10)),
+        );
+
+        if (searchResponse.statusCode == 200 && searchResponse.data != null) {
+          final List results = searchResponse.data['results'] ?? [];
+          return results.map((data) {
+            final trackName = data['track'] as String? ?? '';
+            final artistName = data['artist'] as String? ?? '';
+            final lyricsData = data['lyrics'] as Map<String, dynamic>? ?? {};
+
+            String? syncedLyricsRaw = lyricsData['karaoke'] as String?;
+            if (syncedLyricsRaw == null || syncedLyricsRaw.isEmpty) {
+              syncedLyricsRaw = lyricsData['synced'] as String?;
+            }
+            final plainLyrics = lyricsData['plain'] as String? ?? '';
+
+            List<LyricLine> syncedLines = [];
+            if (syncedLyricsRaw != null && syncedLyricsRaw.isNotEmpty) {
+              try {
+                syncedLines = syncedLyricsRaw
+                    .split('\n')
+                    .where((line) => line.trim().isNotEmpty)
+                    .map((line) => LyricLine.fromString(line))
+                    .where((line) => line.text.isNotEmpty)
+                    .toList();
+              } catch (e) {
+                print('[LyricsService] Error parsing SyncLRC synced data: $e');
+              }
+            }
+
+            return Lyrics(
+              trackName: trackName,
+              artistName: artistName,
+              instrumental: false,
+              plainLyrics: plainLyrics.trim(),
+              syncedLyrics: syncedLines,
+            );
+          }).toList();
+        }
+        return [];
+      }
+
+      // Default: LRCLIB
       final response = await _dio.get(
         '${ApiConfig.lyricsBaseUrl}/search',
         queryParameters: {'q': query},
