@@ -42,6 +42,7 @@ class MainScaffold extends StatelessWidget {
     final accentColor = theme.colorScheme.primary;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: appBar,

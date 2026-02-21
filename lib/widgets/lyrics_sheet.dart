@@ -804,28 +804,33 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF282828),
-        title: const Text(
-          'Importar Letras (LRC)',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: textController,
-          maxLines: 10,
+        title: Text(
+          LanguageService().getText('import_lyrics_lrc'),
           style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: '[00:10.00] Pega tus letras LRC aquí...',
-            hintStyle: const TextStyle(color: Colors.white30),
-            filled: true,
-            fillColor: Colors.black26,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        content: SizedBox(
+          width: MediaQuery.of(context).size.width * 0.9,
+          child: TextField(
+            controller: textController,
+            maxLines: 10,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: LanguageService().getText('paste_lrc_lyrics_here'),
+              hintStyle: const TextStyle(color: Colors.white30),
+              filled: true,
+              fillColor: Colors.black26,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: Colors.white54),
+            child: Text(
+              LanguageService().getText('cancel'),
+              style: const TextStyle(color: Colors.white54),
             ),
           ),
           TextButton(
@@ -853,9 +858,9 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                 Navigator.pop(context); // Close search dialog
               }
             },
-            child: const Text(
-              'Guardar',
-              style: TextStyle(color: Colors.blueAccent),
+            child: Text(
+              LanguageService().getText('save'),
+              style: const TextStyle(color: Colors.blueAccent),
             ),
           ),
         ],
@@ -903,7 +908,9 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.paste, color: Colors.blueAccent),
-                    tooltip: 'Pegar Letras LRC',
+                    tooltip: LanguageService().getText(
+                      'paste_lrc_lyrics_tooltip',
+                    ),
                     onPressed: () => _showImportDialog(context),
                   ),
                   Expanded(
@@ -985,7 +992,7 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            'SyncLRC (Synced)',
+                            'SyncLRC (Karaoke)',
                             style: TextStyle(
                               color: _selectedProvider == 'SyncLRC'
                                   ? Colors.purpleAccent

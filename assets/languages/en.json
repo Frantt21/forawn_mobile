@@ -266,5 +266,11 @@
   "deezer_precise": "Deezer (More Precise)",
   "spotify_less_precise": "Spotify (Less Precise)",
   "lyrics_sweep_effect": "Lyrics Sweep Effect",
-  "lyrics_sweep_desc": "Disable to use the classic line-by-line mode"
+  "lyrics_sweep_desc": "Disable to use the classic line-by-line mode",
+  "experimental_feature": "Experimental Feature",
+  "experimental_feature_desc": "The word-by-word lyrics service is experimental and its retrieval can be unstable.\n\nThe internal animation calculation is also experimental. Do you want to enable it?",
+  "enable": "Enable",
+  "import_lyrics_lrc": "Import Lyrics (LRC)",
+  "paste_lrc_lyrics_here": "[00:10.00] Paste your LRC lyrics here...",
+  "paste_lrc_lyrics_tooltip": "Paste LRC Lyrics"
 }

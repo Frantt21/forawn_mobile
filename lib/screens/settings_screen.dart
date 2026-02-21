@@ -434,27 +434,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           context: context,
                           builder: (context) => AlertDialog(
                             backgroundColor: const Color(0xFF282828),
-                            title: const Text(
-                              'Función Experimental',
-                              style: TextStyle(color: Colors.white),
+                            title: Text(
+                              LanguageService().getText('experimental_feature'),
+                              style: const TextStyle(color: Colors.white),
                             ),
-                            content: const Text(
-                              'El servicio de lyrics palabra por palabra es experimental y su obtención puede ser inestable.\n\nEl cálculo interno de la animación también es experimental. ¿Deseas activarlo?',
-                              style: TextStyle(color: Colors.white70),
+                            content: Text(
+                              LanguageService().getText(
+                                'experimental_feature_desc',
+                              ),
+                              style: const TextStyle(color: Colors.white70),
                             ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
-                                child: const Text(
-                                  'Cancelar',
-                                  style: TextStyle(color: Colors.white54),
+                                child: Text(
+                                  LanguageService().getText('cancel'),
+                                  style: const TextStyle(color: Colors.white54),
                                 ),
                               ),
                               TextButton(
                                 onPressed: () => Navigator.pop(context, true),
-                                child: const Text(
-                                  'Activar',
-                                  style: TextStyle(color: Colors.blueAccent),
+                                child: Text(
+                                  LanguageService().getText('enable'),
+                                  style: const TextStyle(
+                                    color: Colors.blueAccent,
+                                  ),
                                 ),
                               ),
                             ],

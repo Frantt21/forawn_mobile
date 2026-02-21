@@ -266,5 +266,11 @@
   "deezer_precise": "Deezer (Más Preciso)",
   "spotify_less_precise": "Spotify (Menos Preciso)",
   "lyrics_sweep_effect": "Efecto Barrido de Letras",
-  "lyrics_sweep_desc": "Desactiva para usar el modo clásico de línea por línea"
+  "lyrics_sweep_desc": "Desactiva para usar el modo clásico de línea por línea",
+  "experimental_feature": "Función Experimental",
+  "experimental_feature_desc": "El servicio de lyrics palabra por palabra es experimental y su obtención puede ser inestable.\n\nEl cálculo interno de la animación también es experimental. ¿Deseas activarlo?",
+  "enable": "Activar",
+  "import_lyrics_lrc": "Importar Letras (LRC)",
+  "paste_lrc_lyrics_here": "[00:10.00] Pega tus letras LRC aquí...",
+  "paste_lrc_lyrics_tooltip": "Pegar Letras LRC"
 }

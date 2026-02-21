@@ -60,6 +60,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: StreamBuilder<Song?>(
         stream: _player.currentSongStream,
         builder: (context, snapshot) {
