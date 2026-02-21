@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">Forawn utiliza este servicio para permitirte cambiar de canción interactuando con las teclas de volumen cuando la pantalla está apagada.</string>
+</resources>

@@ -233,6 +233,16 @@ class MainActivity : AudioServiceActivity() {
     }.start()
   }
 
+  "openAccessibilitySettings" -> {
+    try {
+      val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+      startActivity(intent)
+      result.success(true)
+    } catch (e: Exception) {
+      result.error("OPEN_ACCESSIBILITY_ERROR", e.message, null)
+    }
+  }
+
         else -> {
           result.notImplemented()
         }
