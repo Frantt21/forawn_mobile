@@ -49,15 +49,10 @@ class _LyricsViewState extends State<LyricsView> {
   List<double> _waveformData = [];
   bool _isWaveformLoading = false;
 
-  bool _isSweepEnabled = true;
+  bool _isSweepEnabled = false;
 
   List<LyricLine> get _activeLyrics {
     if (widget.lyrics == null) return [];
-    if (_isSweepEnabled &&
-        widget.lyrics!.karaokeLyrics != null &&
-        widget.lyrics!.karaokeLyrics!.isNotEmpty) {
-      return widget.lyrics!.karaokeLyrics!;
-    }
     return widget.lyrics!.syncedLyrics;
   }
 
@@ -75,7 +70,7 @@ class _LyricsViewState extends State<LyricsView> {
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
         setState(() {
-          _isSweepEnabled = prefs.getBool('lyrics_sweep_enabled') ?? true;
+          _isSweepEnabled = prefs.getBool('lyrics_sweep_enabled') ?? false;
         });
       }
     } catch (_) {}
@@ -316,6 +311,7 @@ class _LyricsViewState extends State<LyricsView> {
                         ? Duration(seconds: widget.lyrics!.duration!)
                         : null,
                     isSweepEnabled: _isSweepEnabled,
+                    tagWords: line.words,
                   ),
                 ),
               );
@@ -361,6 +357,7 @@ class _KaraokeLine extends StatelessWidget {
   final List<double> waveformData;
   final Duration? songDuration;
   final bool isSweepEnabled;
+  final List<KaraokeWord>? tagWords;
 
   const _KaraokeLine({
     super.key,
@@ -374,6 +371,7 @@ class _KaraokeLine extends StatelessWidget {
     this.waveformData = const [],
     this.songDuration,
     this.isSweepEnabled = true,
+    this.tagWords,
   });
 
   /// Calcula el progreso de la línea basado en la energía del audio (waveformData)
@@ -525,6 +523,51 @@ class _KaraokeLine extends StatelessWidget {
 
         // Intentar obtener progreso por Waveform (más preciso)
         double lineProgress = _getWaveformProgress(current);
+
+        if (tagWords != null && tagWords!.isNotEmpty) {
+          // Si tenemos timestamps de karaoke reales (ej: de SyncLRC), no aplicamos matemática,
+          // renderizamos exactamente según el timing de cada palabra enviada por el proveedor.
+          List<Widget> wordWidgets = [];
+          for (int i = 0; i < tagWords!.length; i++) {
+            final w = tagWords![i];
+            final wStart = w.timestamp;
+            final wEnd = (i < tagWords!.length - 1)
+                ? tagWords![i + 1].timestamp
+                : endTime;
+
+            double wordProgress = 0.0;
+            if (current >= wEnd) {
+              wordProgress = 1.0;
+            } else if (current > wStart) {
+              final durationMs = (wEnd - wStart).inMilliseconds;
+              if (durationMs > 0) {
+                wordProgress = ((current - wStart).inMilliseconds / durationMs)
+                    .clamp(0.0, 1.0);
+              } else {
+                wordProgress = 1.0;
+              }
+            }
+
+            wordWidgets.add(
+              _KaraokeWord(
+                // Solo añadir espacio si no es la última palabra para mantener el layout general
+                word: w.text + (i < tagWords!.length - 1 ? ' ' : ''),
+                progress: wordProgress,
+                style: textStyle,
+                activeColor: textColor,
+                inactiveColor: textColor.withOpacity(0.3),
+              ),
+            );
+          }
+
+          return Wrap(
+            alignment: WrapAlignment.start,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 0.0,
+            runSpacing: 4.0,
+            children: wordWidgets,
+          );
+        }
 
         // Si no hay waveform o falló, usar el cálculo por tiempo (fallback)
         if (lineProgress < 0) {

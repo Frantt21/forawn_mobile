@@ -272,5 +272,7 @@
   "enable": "Activar",
   "import_lyrics_lrc": "Importar Letras (LRC)",
   "paste_lrc_lyrics_here": "[00:10.00] Pega tus letras LRC aquí...",
-  "paste_lrc_lyrics_tooltip": "Pegar Letras LRC"
+  "paste_lrc_lyrics_tooltip": "Pegar Letras LRC",
+  "volume_accessibility_title": "Salto por Volumen",
+  "volume_accessibility_desc": "Habilita el servicio de accesibilidad para saltar canciones manteniendo presionados los botones de volumen cuando la pantalla esté apagada"
 }

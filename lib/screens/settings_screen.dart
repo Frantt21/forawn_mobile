@@ -21,7 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = false;
   String _version = 'Cargando...';
   double _crossfadeDuration = 0.0;
-  bool _lyricsSweepEnabled = true;
+  bool _lyricsSweepEnabled = false;
   static const String _notificationsKey = 'notifications_enabled';
   static const String _crossfadeKey = 'crossfade_duration';
   static const String _lyricsSweepKey = 'lyrics_sweep_enabled';
@@ -73,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       setState(() {
-        _lyricsSweepEnabled = prefs.getBool(_lyricsSweepKey) ?? true;
+        _lyricsSweepEnabled = prefs.getBool(_lyricsSweepKey) ?? false;
       });
     } catch (e) {
       print('Error loading lyrics sweep preference: $e');
@@ -471,6 +471,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _lyricsSweepEnabled = value;
                       });
                       await _saveLyricsSweepPreference(value);
+                      LyricsService().onSweepPreferenceChanged(value);
                     },
                     contentPadding: EdgeInsets.zero,
                     title: Row(
@@ -514,6 +515,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Icons.animation,
                       color: Colors.blueAccent,
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.accessibility_new,
+                      color: Colors.greenAccent,
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      LanguageService().getText('volume_accessibility_title'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('volume_accessibility_desc'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    trailing: const Icon(
+                      Icons.open_in_new,
+                      color: Colors.greenAccent,
+                    ),
+                    onTap: () async {
+                      const channel = MethodChannel('forawn/saf');
+                      try {
+                        await channel.invokeMethod('openAccessibilitySettings');
+                      } catch (e) {
+                        debugPrint('Error opening accessibility settings: $e');
+                      }
+                    },
                   ),
                 ],
               ),

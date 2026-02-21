@@ -272,5 +272,7 @@
   "enable": "Enable",
   "import_lyrics_lrc": "Import Lyrics (LRC)",
   "paste_lrc_lyrics_here": "[00:10.00] Paste your LRC lyrics here...",
-  "paste_lrc_lyrics_tooltip": "Paste LRC Lyrics"
+  "paste_lrc_lyrics_tooltip": "Paste LRC Lyrics",
+  "volume_accessibility_title": "Volume Key Skip",
+  "volume_accessibility_desc": "Enable the accessibility service to skip songs by long-pressing volume buttons when the screen is off"
 }
