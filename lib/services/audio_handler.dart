@@ -12,6 +12,20 @@ import 'playlist_service.dart';
 class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayerService _player = AudioPlayerService();
 
+  static final _favoriteControl = MediaControl(
+    androidIcon: 'drawable/ic_favorite',
+    label: 'Favorite',
+    action: MediaAction.custom,
+    customAction: const CustomMediaAction(name: 'toggleFavorite'),
+  );
+
+  static final _unfavoriteControl = MediaControl(
+    androidIcon: 'drawable/ic_favorite_border',
+    label: 'Unfavorite',
+    action: MediaAction.custom,
+    customAction: const CustomMediaAction(name: 'toggleFavorite'),
+  );
+
   MyAudioHandler() {
     print('[AudioHandler] Initializing...');
 
@@ -71,19 +85,20 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   void _broadcastState() {
     final state = _player.playerState;
     final playing = state == app_state.PlayerState.playing;
+    final currentSong = _player.currentSong;
+    final isLiked =
+        currentSong != null && PlaylistService().isLiked(currentSong.id);
+
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
+          isLiked ? _favoriteControl : _unfavoriteControl,
           MediaControl.skipToPrevious,
           if (playing) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
         ],
         systemActions: const {MediaAction.seek},
-        androidCompactActionIndices: const [
-          0,
-          1,
-          2,
-        ], // Previous, Play/Pause, Next
+        androidCompactActionIndices: const [1, 2, 3], // Prev, Play/Pause, Next
         playing: playing,
         processingState: _mapProcessingState(state),
         updatePosition: _player.currentPosition,

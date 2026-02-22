@@ -148,20 +148,57 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   }
 
   Widget _buildBackground(Song song) {
-    final backgroundColor = song.dominantColor != null
+    final baseColor = song.dominantColor != null
         ? Color(song.dominantColor!)
         : Colors.grey[900]!;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeInOut,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [backgroundColor, Colors.black],
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 1. Color dominante de fondo con transición suave
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 1000),
+          color: baseColor,
         ),
-      ),
+
+        // 2. Textura borrosa ESTÁTICA
+        // RepaintBoundary cachea el blur, evitando uso repetido de CPU
+        RepaintBoundary(
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 800),
+              child: Opacity(
+                key: ValueKey('bg_${song.id}'),
+                opacity: 0.6,
+                child: song.artworkPath != null
+                    ? Image.file(File(song.artworkPath!), fit: BoxFit.cover)
+                    : (song.artworkUri != null
+                          ? Image.network(song.artworkUri!, fit: BoxFit.cover)
+                          : Container(
+                              key: ValueKey('bgEmpty_${song.id}'),
+                              color: baseColor,
+                            )),
+              ),
+            ),
+          ),
+        ),
+
+        // 3. Viñeta oscura estática para buen contraste
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withOpacity(0.3),
+                Colors.black.withOpacity(0.85),
+              ],
+              stops: const [0.0, 1.0],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -228,117 +265,134 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
 
             return Hero(
               tag: 'artwork_${song.id}',
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 350),
-                        transitionBuilder:
-                            (Widget child, Animation<double> animation) {
-                              final offsetRight = const Offset(1.0, 0.0);
-                              final offsetLeft = const Offset(-1.0, 0.0);
-                              final inTween = _isNextDirection
-                                  ? Tween<Offset>(
-                                      begin: offsetRight,
-                                      end: Offset.zero,
-                                    )
-                                  : Tween<Offset>(
-                                      begin: offsetLeft,
-                                      end: Offset.zero,
-                                    );
-                              final outTween = _isNextDirection
-                                  ? Tween<Offset>(
-                                      begin: offsetLeft,
-                                      end: Offset.zero,
-                                    )
-                                  : Tween<Offset>(
-                                      begin: offsetRight,
-                                      end: Offset.zero,
-                                    );
-                              final inAnimation = inTween.animate(
-                                CurvedAnimation(
-                                  parent: animation,
-                                  curve: Curves.easeOutQuad,
-                                ),
-                              );
-                              final outAnimation = outTween.animate(
-                                CurvedAnimation(
-                                  parent: animation,
-                                  curve: Curves.easeInQuad,
-                                ),
-                              );
-                              if (child.key == ValueKey(song.id)) {
-                                return SlideTransition(
-                                  position: inAnimation,
-                                  child: child,
-                                );
-                              } else {
-                                return SlideTransition(
-                                  position: outAnimation,
-                                  child: child,
-                                );
-                              }
-                            },
-                        child: ArtworkWidget(
-                          key: ValueKey(song.id),
-                          artworkPath: song.artworkPath,
-                          artworkUri: song.artworkUri,
-                          size: size,
-                          width: size,
-                          height: size,
-                          fit: BoxFit.cover,
-                          dominantColor: song.dominantColor,
-                        ),
-                      ),
-                    ),
-                    IgnorePointer(
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
-                        opacity: _showHeartAnimation ? 1.0 : 0.0,
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween(
-                            begin: 0.5,
-                            end: _showHeartAnimation ? 1.2 : 0.5,
-                          ),
-                          duration: const Duration(milliseconds: 400),
-                          curve: Curves.elasticOut,
-                          builder: (context, scale, child) {
-                            // Use the same color logic as controls
-                            final rawColor = _getDominantColor(song);
-                            final heartColor =
-                                HSLColor.fromColor(rawColor).lightness < 0.3
-                                ? HSLColor.fromColor(
-                                    rawColor,
-                                  ).withLightness(0.6).toColor()
-                                : rawColor;
+              child: StreamBuilder<player_state.PlayerState>(
+                stream: _player.playerStateStream,
+                initialData: _player.playerState,
+                builder: (context, snapshot) {
+                  final isPlaying =
+                      snapshot.data == player_state.PlayerState.playing;
 
-                            return Transform.scale(
-                              scale: scale,
-                              child: Icon(
-                                Icons.favorite_rounded,
-                                color: heartColor,
-                                size: 80,
+                  return AnimatedScale(
+                    scale: isPlaying ? 1.0 : 0.90, // Se encoje un 10% al pausar
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeOutCubic,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOutCubic,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: isPlaying ? 25 : 10,
+                            offset: Offset(0, isPlaying ? 12 : 4),
+                          ),
+                        ],
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 350),
+                              transitionBuilder:
+                                  (Widget child, Animation<double> animation) {
+                                    final offsetRight = const Offset(1.0, 0.0);
+                                    final offsetLeft = const Offset(-1.0, 0.0);
+                                    final inTween = _isNextDirection
+                                        ? Tween<Offset>(
+                                            begin: offsetRight,
+                                            end: Offset.zero,
+                                          )
+                                        : Tween<Offset>(
+                                            begin: offsetLeft,
+                                            end: Offset.zero,
+                                          );
+                                    final outTween = _isNextDirection
+                                        ? Tween<Offset>(
+                                            begin: offsetLeft,
+                                            end: Offset.zero,
+                                          )
+                                        : Tween<Offset>(
+                                            begin: offsetRight,
+                                            end: Offset.zero,
+                                          );
+                                    final inAnimation = inTween.animate(
+                                      CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOutQuad,
+                                      ),
+                                    );
+                                    final outAnimation = outTween.animate(
+                                      CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeInQuad,
+                                      ),
+                                    );
+                                    if (child.key == ValueKey(song.id)) {
+                                      return SlideTransition(
+                                        position: inAnimation,
+                                        child: child,
+                                      );
+                                    } else {
+                                      return SlideTransition(
+                                        position: outAnimation,
+                                        child: child,
+                                      );
+                                    }
+                                  },
+                              child: ArtworkWidget(
+                                key: ValueKey(song.id),
+                                artworkPath: song.artworkPath,
+                                artworkUri: song.artworkUri,
+                                size: size,
+                                width: size,
+                                height: size,
+                                fit: BoxFit.cover,
+                                dominantColor: song.dominantColor,
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                          IgnorePointer(
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: _showHeartAnimation ? 1.0 : 0.0,
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(
+                                  begin: 0.5,
+                                  end: _showHeartAnimation ? 1.2 : 0.5,
+                                ),
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.elasticOut,
+                                builder: (context, scale, child) {
+                                  // Use the same color logic as controls
+                                  final rawColor = _getDominantColor(song);
+                                  final heartColor =
+                                      HSLColor.fromColor(rawColor).lightness <
+                                          0.3
+                                      ? HSLColor.fromColor(
+                                          rawColor,
+                                        ).withLightness(0.6).toColor()
+                                      : rawColor;
+
+                                  return Transform.scale(
+                                    scale: scale,
+                                    child: Icon(
+                                      Icons.favorite_rounded,
+                                      color: heartColor,
+                                      size: 80,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             );
           },

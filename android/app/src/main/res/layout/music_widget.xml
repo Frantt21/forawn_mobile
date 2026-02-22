@@ -44,7 +44,7 @@
             android:layout_height="wrap_content"
             android:text="Artist"
             android:textSize="13sp"
-            android:textColor="#B0BEC5"
+            android:textColor="#FFFFFF"
             android:singleLine="true"
             android:ellipsize="end"
             android:layout_marginBottom="2dp"/>
@@ -55,18 +55,13 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center"
-            android:paddingLeft="16dp"
-            android:paddingRight="16dp"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp"
-            android:background="@drawable/control_background"
             android:layout_gravity="center_horizontal|bottom"
-            android:layout_marginTop="2dp">
+            android:layout_marginTop="6dp">
 
             <ImageButton
                 android:id="@+id/widget_prev"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:padding="0dp"
                 android:src="@drawable/ic_skip_previous_rounded"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
@@ -75,10 +70,10 @@
 
             <ImageButton
                 android:id="@+id/widget_play"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginLeft="20dp"
-                android:layout_marginRight="20dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginLeft="24dp"
+                android:layout_marginRight="24dp"
                 android:padding="0dp"
                 android:src="@drawable/ic_play_arrow_rounded"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
@@ -87,8 +82,8 @@
 
             <ImageButton
                 android:id="@+id/widget_next"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:padding="0dp"
                 android:src="@drawable/ic_skip_next_rounded"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
