@@ -22,10 +22,6 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                 // Actions using MediaButtonReceiver
                 setOnClickPendingIntent(R.id.widget_prev, getMediaButtonIntent(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
                 
-                // Toggle Play/Pause based on current state or just send generic PLAY_PAUSE?
-                // Sending specific PLAY or PAUSE is safer if we know the state, but PLAY_PAUSE is standard toggle.
-                // Since we update the ICON based on state, let's try sending the specific key code relative to what the user wants to do.
-                // If isPlaying is true, button shows Pause icon, so user wants PAUSE.
                 val isPlaying = widgetData.getBoolean("isPlaying", false)
                 if (isPlaying) {
                     setOnClickPendingIntent(R.id.widget_play, getMediaButtonIntent(context, KeyEvent.KEYCODE_MEDIA_PAUSE))
@@ -61,31 +57,13 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                     setImageViewResource(R.id.widget_artwork, R.mipmap.ic_launcher)
                 }
                 
-                // Action for Favorite
-                val favoriteIntent = Intent(context, MusicWidgetProvider::class.java).apply {
-                    action = "es.antonborri.home_widget.action.BACKGROUND_UPDATE"
-                    data = android.net.Uri.parse("homeWidget://favorite")
-                }
-                val favoritePendingIntent = PendingIntent.getBroadcast(context, 0, favoriteIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-                setOnClickPendingIntent(R.id.widget_favorite, favoritePendingIntent)
 
-                val isFavorite = widgetData.getBoolean("isFavorite", false)
-                if (isFavorite) {
-                     setImageViewResource(R.id.widget_favorite, R.drawable.ic_favorite)
-                     setInt(R.id.widget_favorite, "setColorFilter", android.graphics.Color.RED)
-                } else {
-                     setImageViewResource(R.id.widget_favorite, R.drawable.ic_favorite_border)
-                     // Reset tint to white (or based on brightness)
-                     val isDark = widgetData.getBoolean("isDark", true)
-                     val tintColor = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
-                     setInt(R.id.widget_favorite, "setColorFilter", tintColor)
-                }
 
                 // Update Play/Pause icon
                 if (isPlaying) {
-                    setImageViewResource(R.id.widget_play, R.drawable.ic_pause)
+                    setImageViewResource(R.id.widget_play, R.drawable.ic_pause_rounded)
                 } else {
-                    setImageViewResource(R.id.widget_play, R.drawable.ic_play_arrow)
+                    setImageViewResource(R.id.widget_play, R.drawable.ic_play_arrow_rounded)
                 }
             }
             appWidgetManager.updateAppWidget(widgetId, views)

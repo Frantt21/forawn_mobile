@@ -51,9 +51,58 @@ class _LyricsViewState extends State<LyricsView> {
 
   bool _isSweepEnabled = false;
 
+  List<LyricLine> _processedLyrics = [];
+  Lyrics? _lastLyrics;
+
   List<LyricLine> get _activeLyrics {
     if (widget.lyrics == null) return [];
-    return widget.lyrics!.syncedLyrics;
+
+    if (_lastLyrics != widget.lyrics) {
+      _lastLyrics = widget.lyrics;
+      _processedLyrics = _computeLyricsWithGaps(widget.lyrics!.syncedLyrics);
+    }
+    return _processedLyrics;
+  }
+
+  List<LyricLine> _computeLyricsWithGaps(List<LyricLine> original) {
+    if (original.isEmpty) return [];
+
+    final List<LyricLine> result = [];
+    // Espacio instrumental muy largo al inicio de la canción
+    if (original.first.timestamp.inSeconds > 10) {
+      result.add(LyricLine(timestamp: Duration.zero, text: '•••'));
+    }
+
+    for (int i = 0; i < original.length; i++) {
+      final current = original[i];
+      result.add(current);
+
+      if (i < original.length - 1) {
+        final next = original[i + 1];
+
+        // Calcular cuánto tiempo aproximado le toma cantar esta línea
+        final chars = current.text.length;
+        int estimatedMs =
+            ((chars / 12.0) * 1000).toInt() + 1500; // 1.5s de respiro
+
+        final durationUntilNext =
+            (next.timestamp - current.timestamp).inMilliseconds;
+
+        // Limitamos la estimación a no invadir el tiempo de la próxima línea
+        if (estimatedMs > durationUntilNext - 1000) {
+          estimatedMs = durationUntilNext - 1000;
+        }
+
+        final currentEndApprox =
+            current.timestamp + Duration(milliseconds: estimatedMs);
+
+        // Si quedan más de 8 segundos hasta el inicio de la siguiente vocal
+        if (next.timestamp - currentEndApprox > const Duration(seconds: 8)) {
+          result.add(LyricLine(timestamp: currentEndApprox, text: '•••'));
+        }
+      }
+    }
+    return result;
   }
 
   @override
