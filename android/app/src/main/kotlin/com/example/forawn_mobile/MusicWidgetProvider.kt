@@ -41,7 +41,6 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                 setTextViewText(R.id.widget_artist, artist)
                 
                 // Update Background Color
-                // setInt(viewId, "methodName", value) can be used for setBackgroundColor
                 setInt(R.id.widget_container, "setBackgroundColor", dominantColor)
 
                 // Update Artwork
@@ -56,7 +55,6 @@ class MusicWidgetProvider : HomeWidgetProvider() {
                 } else {
                     setImageViewResource(R.id.widget_artwork, R.mipmap.ic_launcher)
                 }
-                
 
 
                 // Update Play/Pause icon

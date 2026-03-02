@@ -973,6 +973,14 @@ class AudioPlayerService {
   }
 
   app_state.PlayerState _mapToAppPlayerState(PlayerState state) {
+    // Si el usuario pausó, debemos mostrarlo como pausado inmediatamente en UI,
+    // incluso si just_audio está haciendo buffering en fondo.
+    if (!state.playing &&
+        state.processingState != ProcessingState.idle &&
+        state.processingState != ProcessingState.completed) {
+      return app_state.PlayerState.paused;
+    }
+
     final processingState = state.processingState;
     switch (processingState) {
       case ProcessingState.idle:

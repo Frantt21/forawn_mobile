@@ -118,28 +118,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   ],
                 ),
               ),
-              // Draggable Lyrics Sheet
-              DraggableScrollableSheet(
-                initialChildSize: 0.11,
-                minChildSize: 0.11,
-                maxChildSize: 0.9,
-                snap: true,
-                snapSizes: const [0.11, 0.9],
-                builder: (context, scrollController) {
-                  return SingleChildScrollView(
-                    controller: scrollController,
-                    physics: const ClampingScrollPhysics(),
-                    child: SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.9,
-                      child: LyricsSheet(
-                        song: song,
-                        player: _player,
-                        onTapHeader: () {},
-                      ),
-                    ),
-                  );
-                },
-              ),
             ],
           );
         },
@@ -252,8 +230,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       padding: const EdgeInsets.only(
         left: 24.0,
         right: 24.0,
-        top: 18.0,
-        bottom: 48.0,
+        top: 8.0,
+        bottom: 16.0,
       ),
       child: AspectRatio(
         aspectRatio: 1,
@@ -599,33 +577,17 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                 },
               ),
 
-              const SizedBox(height: 10),
-
-              // Botones de Control
+              const SizedBox(height: 16),
+              // Botones de Control Principales
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  // Shuffle Toggle
-                  StreamBuilder<bool>(
-                    stream: _player.shuffleModeStream,
-                    builder: (context, snapshot) {
-                      final isShuffle = snapshot.data ?? false;
-                      return IconButton(
-                        icon: Icon(
-                          Icons.shuffle,
-                          color: isShuffle ? effectiveColor : Colors.white,
-                        ),
-                        onPressed: _player.toggleShuffle,
-                      );
-                    },
-                  ),
-
                   // Previous
                   IconButton(
                     icon: Icon(
                       Icons.skip_previous_rounded,
                       color: effectiveColor,
-                      size: 42,
+                      size: 56,
                     ),
                     onPressed: _skipToPrevious,
                   ),
@@ -643,16 +605,16 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           state == player_state.PlayerState.loading;
 
                       return IconButton(
-                        iconSize: 72,
+                        iconSize: 84,
                         padding: EdgeInsets.zero,
                         icon: isBuffering
                             ? SizedBox(
-                                width: 72,
-                                height: 72,
+                                width: 84,
+                                height: 84,
                                 child: Center(
                                   child: SizedBox(
-                                    width: 32,
-                                    height: 32,
+                                    width: 38,
+                                    height: 38,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 3,
                                       color: effectiveColor,
@@ -664,10 +626,12 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                                 isPlaying
                                     ? Icons.pause_rounded
                                     : Icons.play_arrow_rounded,
-                                size: 72,
+                                size: 84,
                                 color: effectiveColor,
                               ),
-                        onPressed: isPlaying ? _player.pause : _player.play,
+                        onPressed: (isPlaying || isBuffering)
+                            ? _player.pause
+                            : _player.play,
                       );
                     },
                   ),
@@ -677,9 +641,43 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                     icon: Icon(
                       Icons.skip_next_rounded,
                       color: effectiveColor,
-                      size: 42,
+                      size: 56,
                     ),
                     onPressed: _skipToNext,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Botones Secundarios
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Lyrics
+                  IconButton(
+                    icon: const Icon(
+                      Icons.lyrics_outlined,
+                      color: Colors.white,
+                      size: 24, // smaller size
+                    ),
+                    onPressed: () => _showLyricsSheet(context, song),
+                  ),
+
+                  // Shuffle Toggle
+                  StreamBuilder<bool>(
+                    stream: _player.shuffleModeStream,
+                    builder: (context, snapshot) {
+                      final isShuffle = snapshot.data ?? false;
+                      return IconButton(
+                        icon: Icon(
+                          Icons.shuffle,
+                          color: isShuffle ? effectiveColor : Colors.white,
+                          size: 24, // smaller size
+                        ),
+                        onPressed: _player.toggleShuffle,
+                      );
+                    },
                   ),
 
                   // Repeat Mode
@@ -706,7 +704,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       }
 
                       return IconButton(
-                        icon: Icon(icon, color: color),
+                        icon: Icon(
+                          icon,
+                          color: color,
+                          size: 24,
+                        ), // smaller size
                         onPressed: _player.toggleRepeat,
                       );
                     },
@@ -718,6 +720,35 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _showLyricsSheet(BuildContext context, Song song) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        snap: true,
+        snapSizes: const [0.5, 0.9],
+        builder: (context, scrollController) {
+          return SingleChildScrollView(
+            controller: scrollController,
+            physics: const ClampingScrollPhysics(),
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height * 0.9,
+              child: LyricsSheet(
+                song: song,
+                player: _player,
+                onTapHeader: () => Navigator.pop(context),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

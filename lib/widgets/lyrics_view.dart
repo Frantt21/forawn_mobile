@@ -180,7 +180,18 @@ class _LyricsViewState extends State<LyricsView> {
       if (_firstEvent) {
         _currentIndexNotifier.value = newIndex;
         _firstEvent = false;
-        // No animar en la primera carga, el builder usará initialScrollIndex
+
+        // Corregir el salto al inicio al abrir el modal:
+        // Forzamos el salto a la línea correcta en cuanto recibimos el evento de inicio.
+        Timer(const Duration(milliseconds: 100), () {
+          if (mounted && _itemScrollController.isAttached) {
+            final targetIndex = newIndex >= 0 ? newIndex + 1 : 0;
+            _itemScrollController.jumpTo(
+              index: targetIndex,
+              alignment: _getAlignment(targetIndex),
+            );
+          }
+        });
         return;
       }
 

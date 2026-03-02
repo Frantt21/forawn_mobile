@@ -26,6 +26,12 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     customAction: const CustomMediaAction(name: 'toggleFavorite'),
   );
 
+  static final _shuffleControl = MediaControl(
+    androidIcon: 'drawable/ic_shuffle',
+    label: 'Shuffle',
+    action: MediaAction.setShuffleMode,
+  );
+
   MyAudioHandler() {
     print('[AudioHandler] Initializing...');
 
@@ -92,12 +98,20 @@ class MyAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
-          isLiked ? _favoriteControl : _unfavoriteControl,
-          MediaControl.skipToPrevious,
-          if (playing) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
+          isLiked ? _favoriteControl : _unfavoriteControl, // 0
+          MediaControl.skipToPrevious, // 1
+          if (playing) MediaControl.pause else MediaControl.play, // 2
+          MediaControl.skipToNext, // 3
+          _shuffleControl, // 4
         ],
-        systemActions: const {MediaAction.seek},
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.setShuffleMode,
+          MediaAction.play,
+          MediaAction.pause,
+          MediaAction.skipToNext,
+          MediaAction.skipToPrevious,
+        },
         androidCompactActionIndices: const [1, 2, 3], // Prev, Play/Pause, Next
         playing: playing,
         processingState: _mapProcessingState(state),
