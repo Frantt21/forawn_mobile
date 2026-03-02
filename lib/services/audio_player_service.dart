@@ -643,24 +643,21 @@ class AudioPlayerService {
       final activePlayer = _getActivePlayer();
 
       if (song.filePath.startsWith('content://')) {
-        // Optimización: Intentar acceso directo primero (más rápido)
-        // Solo copiar a temp si falla
+        // Acceso directo a SAF, bloqueando explícitamente cualquier intención
+        // de just_audio de crear copias en caché
         try {
           await activePlayer.setAudioSource(
-            AudioSource.uri(Uri.parse(song.filePath)),
+            ProgressiveAudioSource(Uri.parse(song.filePath)),
           );
           print('[AudioPlayer] Using direct SAF access (fast path)');
-
-          // Previously we cached in background here, but user requested to stop creating temp copies.
-          // Removed background _copyToTemp call.
         } catch (e) {
-          // Si falla acceso directo, usar temp file
+          // Si falla acceso directo, usar temp file (muy raro pero posible)
           print('[AudioPlayer] Direct access failed: $e, using temp file...');
           String? playablePath = await _copyToTemp(song.filePath);
 
           if (playablePath != null) {
             await activePlayer.setAudioSource(
-              AudioSource.uri(Uri.file(playablePath)),
+              ProgressiveAudioSource(Uri.file(playablePath)),
             );
           } else {
             throw Exception('Failed to prepare audio source');
@@ -673,7 +670,7 @@ class AudioPlayerService {
       } else {
         // Archivo local normal
         await activePlayer.setAudioSource(
-          AudioSource.uri(Uri.file(song.filePath)),
+          ProgressiveAudioSource(Uri.file(song.filePath)),
         );
       }
 
@@ -986,9 +983,7 @@ class AudioPlayerService {
       case ProcessingState.idle:
         return app_state.PlayerState.idle;
       case ProcessingState.loading:
-        return app_state.PlayerState.loading;
       case ProcessingState.buffering:
-        return app_state.PlayerState.buffering;
       case ProcessingState.ready:
         return state.playing
             ? app_state.PlayerState.playing

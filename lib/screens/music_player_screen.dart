@@ -37,6 +37,28 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   bool _showHeartAnimation = false;
   bool _isDragging = false;
   double _dragValue = 0.0;
+  bool _isFullArtworkMode = true; // Added setting
+
+  @override
+  void initState() {
+    super.initState();
+    _loadArtworkMode();
+  }
+
+  Future<void> _loadArtworkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isFullArtworkMode = prefs.getBool('full_artwork_mode') ?? true;
+    });
+  }
+
+  Future<void> _toggleArtworkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isFullArtworkMode = !_isFullArtworkMode;
+    });
+    await prefs.setBool('full_artwork_mode', _isFullArtworkMode);
+  }
 
   void _skipToNext() {
     setState(() {
@@ -50,11 +72,6 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
       _isNextDirection = false;
     });
     _player.skipToPrevious();
-  }
-
-  @override
-  void initState() {
-    super.initState();
   }
 
   @override
@@ -77,13 +94,20 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
 
           return Stack(
             children: [
-              _buildBackground(song),
+              if (_isFullArtworkMode)
+                // -- NUEVO ESTILO DE FONDO Y ARTWORK --
+                _buildNewBackground(song)
+              else
+                // -- ESTILO VIEJO --
+                _buildBackground(song),
+
               SafeArea(
                 child: Column(
                   children: [
                     _buildHeader(context, song),
                     Flexible(
-                      fit: FlexFit.loose,
+                      fit: FlexFit
+                          .tight, // Permite que ocupe todo el espacio sobrante
                       child: GestureDetector(
                         onHorizontalDragEnd: (details) {
                           if (details.primaryVelocity! < 0) {
@@ -110,7 +134,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                             }
                           });
                         },
-                        child: _buildArtwork(song),
+                        child: _isFullArtworkMode
+                            ? _buildGestureArea(song)
+                            : _buildArtwork(song),
                       ),
                     ),
                     _buildControls(song),
@@ -379,6 +405,140 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
     );
   }
 
+  // --- NUEVOS ESTILOS EDGE-TO-EDGE PARA ARTWORK ---
+  Widget _buildNewBackground(Song song) {
+    Color rawColor = song.dominantColor != null
+        ? Color(song.dominantColor!)
+        : Colors.grey[900]!;
+
+    // Oscurecer el color base (al igual que en la playlist) para proteger el texto e iconos blancos
+    final hsl = HSLColor.fromColor(rawColor);
+    final baseColor = hsl
+        .withLightness((hsl.lightness * 0.4).clamp(0.0, 1.0))
+        .toColor();
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 1. Color sólido dominante cubriendo todo el fondo debajo
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 1000),
+          color: baseColor,
+        ),
+
+        // 2. Artwork en la mitad superior extendido edge-to-edge
+        Align(
+          alignment: Alignment.topCenter,
+          child: FractionallySizedBox(
+            heightFactor:
+                0.65, // Ocupa un poco más de la mitad para suavizar gradient
+            widthFactor: 1.0,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Hero(
+                  tag: 'artwork_${song.id}',
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 800),
+                    child: ArtworkWidget(
+                      key: ValueKey('new_bg_${song.id}'),
+                      artworkPath: song.artworkPath,
+                      artworkUri: song.artworkUri,
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      borderRadius: BorderRadius
+                          .zero, // Expandido por completo sin bordes
+                      dominantColor: song.dominantColor,
+                    ),
+                  ),
+                ),
+                // 3. Gradiente para fusionar elegantemente la imagen con el color base abajo
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 1000),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(
+                          0.5,
+                        ), // Oscurecer arriba para los iconos del header
+                        Colors.transparent,
+                        baseColor.withOpacity(
+                          0.8,
+                        ), // Más oscuro para contrastar botones
+                        baseColor,
+                      ],
+                      stops: const [0.0, 0.4, 0.85, 1.0],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // 4. Viñeta oscura extra en la parte inferior para forzar contraste extra en los botones de transporte si el color es muy chillon
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: FractionallySizedBox(
+            heightFactor: 0.5,
+            widthFactor: 1.0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.0),
+                    Colors.black.withOpacity(0.7),
+                  ],
+                  stops: const [0.0, 1.0],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGestureArea(Song song) {
+    return Container(
+      color:
+          Colors.transparent, // Transparente indispensable para capturar toques
+      child: Center(
+        child: IgnorePointer(
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: _showHeartAnimation ? 1.0 : 0.0,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.5, end: _showHeartAnimation ? 1.2 : 0.5),
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.elasticOut,
+              builder: (context, scale, child) {
+                final rawColor = _getDominantColor(song);
+                final heartColor = HSLColor.fromColor(rawColor).lightness < 0.3
+                    ? HSLColor.fromColor(rawColor).withLightness(0.6).toColor()
+                    : rawColor;
+
+                return Transform.scale(
+                  scale: scale,
+                  child: Icon(
+                    Icons.favorite_rounded,
+                    color: heartColor,
+                    size: 100, // Ajustado para centrarse bien
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildControls(Song song) {
     final rawColor = _getDominantColor(song);
     // Asegurar que el color tenga suficiente brillo para controles sobre fondo oscuro
@@ -562,6 +722,25 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                                 fontSize: 12,
                               ),
                             ),
+                            // Pastillita con el formato de audio
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                song.filePath.split('.').last.toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                             Text(
                               progress.formattedDuration,
                               style: const TextStyle(
@@ -607,6 +786,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       return IconButton(
                         iconSize: 84,
                         padding: EdgeInsets.zero,
+                        constraints:
+                            const BoxConstraints(), // Evita recortes del Material Button limitando el tamaño internamente
                         icon: isBuffering
                             ? SizedBox(
                                 width: 84,
@@ -626,7 +807,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                                 isPlaying
                                     ? Icons.pause_rounded
                                     : Icons.play_arrow_rounded,
-                                size: 84,
+                                // Removido el size estricto aquí para que use el iconSize del IconButton sin recortes
                                 color: effectiveColor,
                               ),
                         onPressed: (isPlaying || isBuffering)
@@ -658,7 +839,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                   IconButton(
                     icon: const Icon(
                       Icons.lyrics_outlined,
-                      color: Colors.white,
+                      color: Colors.white54,
                       size: 24, // smaller size
                     ),
                     onPressed: () => _showLyricsSheet(context, song),
@@ -672,7 +853,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       return IconButton(
                         icon: Icon(
                           Icons.shuffle,
-                          color: isShuffle ? effectiveColor : Colors.white,
+                          color: isShuffle ? effectiveColor : Colors.white54,
                           size: 24, // smaller size
                         ),
                         onPressed: _player.toggleShuffle,
@@ -686,7 +867,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                     builder: (context, snapshot) {
                       final mode = snapshot.data ?? player_state.RepeatMode.off;
                       IconData icon;
-                      Color color = Colors.white;
+                      Color color = Colors.white54;
 
                       switch (mode) {
                         case player_state.RepeatMode.one:
@@ -699,7 +880,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                           break;
                         case player_state.RepeatMode.off:
                           icon = Icons.repeat_rounded;
-                          color = Colors.white38;
+                          color = Colors.white54; // Rebajado
                           break;
                       }
 
@@ -873,6 +1054,22 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       // Navigator.pop(context);
                     },
                   );
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  _isFullArtworkMode ? Icons.crop_square : Icons.fullscreen,
+                  color: Colors.white,
+                ),
+                title: Text(
+                  _isFullArtworkMode
+                      ? LanguageService().getText('square_artwork_mode')
+                      : LanguageService().getText('full_artwork_mode'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleArtworkMode();
                 },
               ),
               ListTile(

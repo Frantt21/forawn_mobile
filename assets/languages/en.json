@@ -274,5 +274,8 @@
   "paste_lrc_lyrics_here": "[00:10.00] Paste your LRC lyrics here...",
   "paste_lrc_lyrics_tooltip": "Paste LRC Lyrics",
   "volume_accessibility_title": "Volume Key Skip",
-  "volume_accessibility_desc": "Enable the accessibility service to skip songs by long-pressing volume buttons when the screen is off"
+  "volume_accessibility_desc": "Enable the accessibility service to skip songs by long-pressing volume buttons when the screen is off",
+  "server_search_explanation": "Search music from a broader database (Spotify), useful if you can't find your song, but data might not be 100% accurate.",
+  "square_artwork_mode": "Square Mode",
+  "full_artwork_mode": "Full Mode"
 }
