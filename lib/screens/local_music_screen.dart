@@ -77,7 +77,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     RecentScreensService().addScreen(
       LanguageService().getText('local_music'),
       '/local-music',
-      Icons.library_music,
+      Icons.play_circle_fill,
       Colors.purpleAccent,
     );
 

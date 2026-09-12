@@ -91,7 +91,9 @@ class MainScaffold extends StatelessWidget {
                           _buildNavItem(context, Icons.home, 0, accentColor),
                           _buildNavItem(
                             context,
-                            Icons.library_music,
+                            // Tab del music player: icono sincronizado con
+                            // desktop (play_circle_fill).
+                            Icons.play_circle_fill,
                             1,
                             accentColor,
                           ),

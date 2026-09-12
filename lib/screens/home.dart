@@ -261,13 +261,15 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: _NavigationCard(
-                  icon: Icons.music_note,
+                  // Icono de sección sincronizado con desktop: video =
+                  // video_collection, música = library_music.
+                  icon: Icons.library_music,
                   title: LanguageService().getText('music_downloader'),
                   color: accentColor,
                   onTap: () => _navigateToScreen(
                     '/music-downloader',
                     LanguageService().getText('music_downloader'),
-                    Icons.music_note,
+                    Icons.library_music,
                     accentColor,
                   ),
                 ),
@@ -279,13 +281,15 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: _NavigationCard(
-                  icon: Icons.library_music,
+                  // Icono del music player sincronizado con desktop:
+                  // play_circle_fill (antes library_music).
+                  icon: Icons.play_circle_fill,
                   title: LanguageService().getText('local_music'),
                   color: Colors.purpleAccent,
                   onTap: () => _navigateToScreen(
                     '/local-music',
                     LanguageService().getText('local_music'),
-                    Icons.library_music,
+                    Icons.play_circle_fill,
                     Colors.purpleAccent,
                   ),
                 ),

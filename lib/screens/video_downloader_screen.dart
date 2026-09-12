@@ -518,8 +518,10 @@ class _VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Icono de sección sincronizado con home
+                        // (video_collection en ambos proyectos).
                         Icon(
-                          Icons.video_library,
+                          Icons.video_collection,
                           size: 48,
                           color: Colors.white.withOpacity(0.24),
                         ),
