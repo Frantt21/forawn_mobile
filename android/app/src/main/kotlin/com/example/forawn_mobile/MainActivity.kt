@@ -10,6 +10,7 @@ import androidx.annotation.NonNull
 import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import android.media.MediaMetadataRetriever
 import java.io.File
@@ -22,6 +23,7 @@ import com.ryanheise.audioservice.AudioServiceActivity
 class MainActivity : AudioServiceActivity() {
   private val CHANNEL = "forawn/saf"
   private val YTDLP_CHANNEL = "forawn/ytdlp"
+  private val YTDLP_PROGRESS_CHANNEL = "forawn/ytdlp/progress"
   private val PICK_DIR_REQUEST = 1001
   private var pendingResult: MethodChannel.Result? = null
   private var ytDlpHandler: YtDlpHandler? = null
@@ -39,6 +41,11 @@ class MainActivity : AudioServiceActivity() {
         else -> result.notImplemented()
       }
     }
+    // Progreso en tiempo real de yt-dlp (0..1).
+    EventChannel(
+      flutterEngine.dartExecutor.binaryMessenger,
+      YTDLP_PROGRESS_CHANNEL,
+    ).setStreamHandler(ytDlpHandler)
     // Inicializar youtubedl-android en background (extrae Python/yt-dlp/FFmpeg).
     Thread {
       try {

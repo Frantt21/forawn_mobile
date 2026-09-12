@@ -1,10 +1,13 @@
 package com.example.forawn_mobile
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CoroutineScope
@@ -18,17 +21,30 @@ import java.net.URL
 /**
  * Wraps youtubedl-android (com.yausername.youtubedl_android) to run yt-dlp
  * on Android. Handles init, download, cancel and version check.
- * Portado de Scrup (YtDlpHandler.kt).
+ * Portado de Scrup (YtDlpHandler.kt). También emite progreso en tiempo real
+ * por el canal "forawn/ytdlp/progress" (EventChannel).
  */
-class YtDlpHandler(private val context: Context) {
+class YtDlpHandler(private val context: Context) : EventChannel.StreamHandler {
     companion object {
         private const val TAG = "YtDlpHandler"
         private const val YTDLP_LATEST_URL =
             "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+        private const val PROGRESS_CHANNEL = "forawn/ytdlp/progress"
     }
 
     private var initialized = false
     private var currentProcessId: String? = null
+    private var progressSink: EventChannel.EventSink? = null
+
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+        progressSink = events
+        Log.i(TAG, "progress listener conectado")
+    }
+
+    override fun onCancel(arguments: Any?) {
+        progressSink = null
+        Log.i(TAG, "progress listener desconectado")
+    }
 
     fun init() {
         if (initialized) return
@@ -207,7 +223,17 @@ class YtDlpHandler(private val context: Context) {
                 val processId = "forawn_${System.currentTimeMillis()}"
                 currentProcessId = processId
 
-                val response = YoutubeDL.getInstance().execute(request, processId)
+                val response = YoutubeDL.getInstance().execute(request, processId) { progress, _, _ ->
+                    // yt-dlp reporta 0..100; normalizar a 0..1. -1.0 = descarga
+                    // de algo extra (EVA/thumbnail); ignorar en esos casos.
+                    if (progress != null && progress >= 0f) {
+                        val pct = (progress / 100f).coerceIn(0f, 1f)
+                        val mainHandler = Handler(Looper.getMainLooper())
+                        mainHandler.post {
+                            progressSink?.success(hashMapOf("progress" to pct))
+                        }
+                    }
+                }
                 currentProcessId = null
 
                 Log.i(TAG, "yt-dlp exit=${response.exitCode} out=${response.out.take(200)}")

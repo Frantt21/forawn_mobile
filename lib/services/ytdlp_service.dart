@@ -12,6 +12,7 @@
 // Basado en la lógica de Scrup (ytdlp_service.dart) y Forawn desktop
 // (download_manager.dart).
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -49,6 +50,11 @@ class YtDlpService {
   YtDlpService._internal();
 
   static const MethodChannel _channel = MethodChannel('forawn/ytdlp');
+
+  /// Progreso en tiempo real de yt-dlp emitido por YtDlpHandler.kt durante
+  /// [downloadAudio] (0.0..1.0). Sin listener no emite nada.
+  static const EventChannel _progressChannel =
+      EventChannel('forawn/ytdlp/progress');
 
   static const String _watchUrlBase = 'https://www.youtube.com/watch?v=';
 
@@ -195,20 +201,70 @@ class YtDlpService {
     final output = StringBuffer();
     var exitCode = -1;
 
+    // Progreso suavizado: yt-dlp emite pocos eventos reales (solo líneas
+    // "[download] NN.N%") y para audio pequeño saltan casi directo a 100%.
+    // Este easing hace que la barra avance de forma estable hacia el destino
+    // real y no salte de 5% a completo: un timer acerca `displayed` a `target`
+    // en pasos pequeños, y `displayed` llega a 1.0 recién al completar.
+    const double capAtRun = 0.9; // tope durante la ejecución de yt-dlp
+    double shown = 0.0; // último valor entregado a onProgress (monótono)
+    double displayed = 0.0; // valor actual de la barra (easing)
+    double target = capAtRun; // valor real hacia el que nos acercamos
+    final ticker = Timer.periodic(const Duration(milliseconds: 120), (_) {
+      if (displayed >= target) return;
+      final step = (target - displayed) * 0.18;
+      displayed = (displayed + step).clamp(0.0, 1.0);
+      if (displayed > shown) {
+        shown = displayed;
+        onProgress?.call(displayed);
+      }
+    });
+
+    // Salto inmediato (fases sintéticas: 0.05 al iniciar, ~1.0 al finalizar).
+    void snap(double p) {
+      final v = p.clamp(0.0, 1.0);
+      if (v <= shown) return;
+      target = v;
+      displayed = v;
+      shown = v;
+      onProgress?.call(v);
+    }
+
+    // El progreso real (EventChannel) solo sube `target`; la barra se acerca
+    // de forma suave vía ticker. Nunca baja, y se topa en capAtRun hasta que
+    // la fase completa haga snap a 1.0.
+    void followNative(double p) {
+      final v = p.clamp(0.0, capAtRun);
+      if (v > target) target = v;
+    }
+
+    // Escucha el progreso real emitido por YtDlpHandler en el canal
+    // "forawn/ytdlp/progress" mientras se ejecuta la descarga.
+    final progressSub = _progressChannel.receiveBroadcastStream().listen(
+      (e) {
+        final p = (e as Map?)?['progress'];
+        if (p is num) followNative(p.toDouble());
+      },
+      onError: (_) {},
+    );
+
     try {
       // youtubedl-android no streamea stdout a Dart: ejecuta y devuelve
-      // todo el output. El progreso real vendría por YoutubeDLCallback;
-      // aquí reportamos fases (0.05 init, 0.4 descarga, 0.95 post).
-      onProgress?.call(0.05);
+      // todo el output; el progreso llega por el EventChannel de arriba.
+      snap(0.05);
       final res = await _channel
           .invokeMethod<Map<dynamic, dynamic>>('ytdlpRun', {'args': args});
       exitCode = (res?['exitCode'] as num?)?.toInt() ?? 1;
       output.write((res?['output'] as String?) ?? '');
       final err = (res?['error'] as String?) ?? '';
       if (err.isNotEmpty && exitCode != 0) output.write('\n$err');
-      onProgress?.call(0.95);
+      // Post-proceso (conversión/renombrado) = última etapa hacia 1.0.
+      snap(0.98);
     } on PlatformException catch (e) {
       throw YtDlpException('yt-dlp falló: ${e.message ?? e.code}');
+    } finally {
+      await progressSub.cancel();
+      ticker.cancel();
     }
 
     if (exitCode != 0) {
