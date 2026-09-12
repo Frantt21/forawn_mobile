@@ -274,6 +274,24 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _NavigationCard(
+                  icon: Icons.video_collection,
+                  title: LanguageService().getText('video_downloader'),
+                  color: Colors.blueAccent,
+                  onTap: () => _navigateToScreen(
+                    '/video-downloader',
+                    LanguageService().getText('video_downloader'),
+                    Icons.video_collection,
+                    Colors.blueAccent,
+                  ),
+                ),
+              ),
+            ],
+          ),
 
           const SizedBox(height: 24),
 
