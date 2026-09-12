@@ -62,3 +62,24 @@
 # Audio Players
 -keep class xyz.luan.audioplayers.** { *; }
 -dontwarn xyz.luan.audioplayers.**
+
+# youtubedl-android (bundled yt-dlp + python + ffmpeg): keep JNI-bridged
+# classes so R8 doesn't strip them in release builds (same as Scrup).
+-keep class com.yausername.youtubedl_android.** { *; }
+-dontwarn com.yausername.youtubedl_android.**
+
+# Python / CPython JNI bridge
+-keep class org.python.** { *; }
+-dontwarn org.python.**
+
+# FFmpeg JNI
+-keep class com.yausername.youtubedl_android.ffmpeg.** { *; }
+-dontwarn com.yausername.youtubedl_android.ffmpeg.**
+
+# QuickJS
+-keep class com.yausername.youtubedl_android.quickjs.** { *; }
+-dontwarn com.yausername.youtubedl_android.quickjs.**
+
+# aria2c
+-keep class com.yausername.youtubedl_android.aria2c.** { *; }
+-dontwarn com.yausername.youtubedl_android.aria2c.**

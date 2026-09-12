@@ -77,6 +77,16 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    // Empaquetado legacy de jniLibs: igual que Scrup, youtubedl-android
+    // necesita las libs nativas extraídas a disco (libpython.zip.so en
+    // nativeLibraryDir); el empaquetado por defecto las deja comprimidas
+    // dentro del APK y el init de Python falla con ENOENT.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 flutter {
