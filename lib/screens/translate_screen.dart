@@ -191,14 +191,14 @@ class _TranslateScreenState extends State<TranslateScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          LanguageService().getText('enter_text_translate'),
-                          style: TextStyle(
-                            color: textColor.withOpacity(0.5),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        // Text(
+                        //   LanguageService().getText('enter_text_translate'),
+                        //   style: TextStyle(
+                        //     color: textColor.withOpacity(0.5),
+                        //     fontSize: 12,
+                        //     fontWeight: FontWeight.w500,
+                        //   ),
+                        // ),
                         const SizedBox(height: 8),
                         Expanded(
                           child: TextField(
@@ -234,10 +234,10 @@ class _TranslateScreenState extends State<TranslateScreen> {
                   color: cardBackgroundColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: accentColor.withOpacity(0.15),
-                      width: 1,
-                    ),
+                    // side: BorderSide(
+                    //   color: accentColor.withOpacity(0.15),
+                    //   width: 1,
+                    // ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
