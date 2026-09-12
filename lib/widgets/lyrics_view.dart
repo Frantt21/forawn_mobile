@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/lyrics_service.dart';
@@ -13,7 +11,6 @@ class LyricsView extends StatefulWidget {
   final Function(Duration) onSeek;
   final Duration offset;
   final Color textColor;
-  final String? audioPath;
 
   const LyricsView({
     super.key,
@@ -22,7 +19,6 @@ class LyricsView extends StatefulWidget {
     required this.onSeek,
     this.offset = Duration.zero,
     this.textColor = Colors.white,
-    this.audioPath,
   });
 
   @override
@@ -43,11 +39,6 @@ class _LyricsViewState extends State<LyricsView> {
   bool _firstEvent = true;
 
   late Stream<PlaybackProgress> _broadcastStream;
-
-  // Waveform data
-  final PlayerController _playerController = PlayerController();
-  List<double> _waveformData = [];
-  bool _isWaveformLoading = false;
 
   bool _isSweepEnabled = false;
 
@@ -110,7 +101,6 @@ class _LyricsViewState extends State<LyricsView> {
     super.initState();
     _broadcastStream = widget.progressStream.asBroadcastStream();
     _subscribeToProgress();
-    _extractWaveform();
     _loadSweepSettings();
   }
 
@@ -131,42 +121,10 @@ class _LyricsViewState extends State<LyricsView> {
       _broadcastStream = widget.progressStream.asBroadcastStream();
       _subscribeToProgress();
     }
-    // Si cambian las lyrics o el audio, resetear
-    if (widget.lyrics != oldWidget.lyrics ||
-        widget.audioPath != oldWidget.audioPath) {
+    // Si cambian las lyrics, resetear
+    if (widget.lyrics != oldWidget.lyrics) {
       _currentIndexNotifier.value = -1;
       _firstEvent = true;
-      _waveformData = [];
-      _extractWaveform();
-    }
-  }
-
-  Future<void> _extractWaveform() async {
-    if (widget.audioPath == null) return;
-
-    // Solo extraer si el archivo existe
-    try {
-      final file = File(widget.audioPath!);
-      if (!await file.exists()) return;
-
-      setState(() => _isWaveformLoading = true);
-
-      // Extraemos 1000 muestras para toda la canción
-      // Esto nos da una resolución de ~0.2-0.4s por muestra en canciones normales
-      final data = await _playerController.extractWaveformData(
-        path: widget.audioPath!,
-        noOfSamples: 1000,
-      );
-
-      if (mounted) {
-        setState(() {
-          _waveformData = data;
-          _isWaveformLoading = false;
-        });
-      }
-    } catch (e) {
-      print("[LyricsView] Error extracting waveform: $e");
-      if (mounted) setState(() => _isWaveformLoading = false);
     }
   }
 
@@ -206,7 +164,6 @@ class _LyricsViewState extends State<LyricsView> {
   void dispose() {
     _progressSubscription?.cancel();
     _currentIndexNotifier.dispose();
-    _playerController.dispose();
     super.dispose();
   }
 
@@ -366,10 +323,6 @@ class _LyricsViewState extends State<LyricsView> {
                     progressStream: _broadcastStream,
                     offset: widget.offset,
                     textColor: widget.textColor,
-                    waveformData: _waveformData,
-                    songDuration: widget.lyrics?.duration != null
-                        ? Duration(seconds: widget.lyrics!.duration!)
-                        : null,
                     isSweepEnabled: _isSweepEnabled,
                     tagWords: line.words,
                   ),
@@ -414,8 +367,6 @@ class _KaraokeLine extends StatelessWidget {
   final Stream<PlaybackProgress> progressStream;
   final Duration offset;
   final Color textColor;
-  final List<double> waveformData;
-  final Duration? songDuration;
   final bool isSweepEnabled;
   final List<KaraokeWord>? tagWords;
 
@@ -428,61 +379,9 @@ class _KaraokeLine extends StatelessWidget {
     required this.progressStream,
     required this.offset,
     required this.textColor,
-    this.waveformData = const [],
-    this.songDuration,
     this.isSweepEnabled = true,
     this.tagWords,
   });
-
-  /// Calcula el progreso de la línea basado en la energía del audio (waveformData)
-  /// Esto permite que el barrido siga fielmente el ritmo real de la canción.
-  double _getWaveformProgress(Duration current) {
-    if (waveformData.isEmpty ||
-        songDuration == null ||
-        songDuration!.inMilliseconds == 0)
-      return -1.0;
-
-    final startMs = startTime.inMilliseconds;
-    final endMs = endTime.inMilliseconds;
-    final currentMs = current.inMilliseconds;
-    final totalSongMs = songDuration!.inMilliseconds;
-
-    if (currentMs <= startMs) return 0.0;
-    if (currentMs >= endMs) return 1.0;
-
-    // Índices en el array de muestras correspondientes al rango de esta línea
-    final startIndex = (startMs * waveformData.length / totalSongMs)
-        .floor()
-        .clamp(0, waveformData.length - 1);
-    final endIndex = (endMs * waveformData.length / totalSongMs).floor().clamp(
-      0,
-      waveformData.length - 1,
-    );
-    final currentIndex = (currentMs * waveformData.length / totalSongMs)
-        .floor()
-        .clamp(0, waveformData.length - 1);
-
-    if (startIndex >= endIndex) return -1.0;
-
-    double totalEnergy = 0.0;
-    double currentEnergy = 0.0;
-
-    // Calculamos la energía acumulada
-    for (int i = startIndex; i <= endIndex; i++) {
-      final sample = waveformData[i].abs();
-      // Añadimos un pequeño "piso" de energía para que el barrido no se detenga
-      // por completo durante silencios absolutos, sino que avance muy lento.
-      final energy = sample + 0.05;
-
-      totalEnergy += energy;
-      if (i <= currentIndex) {
-        currentEnergy += energy;
-      }
-    }
-
-    if (totalEnergy == 0) return -1.0;
-    return (currentEnergy / totalEnergy).clamp(0.0, 1.0);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -494,28 +393,9 @@ class _KaraokeLine extends StatelessWidget {
       fontFamily: 'Roboto',
     );
 
-    // Dividir texto en palabras para animación granular
+    // Dividir texto en palabras para el layout estático (mismo Wrap que la
+    // línea activa para que el salto de línea no se mueva).
     final words = text.split(' ');
-    // Usar la longitud completa incluyendo espacios como métrica
-    final totalChars = text.length;
-
-    // CÁLCULO DE DURACIÓN DINÁMICO:
-    // Evitamos usar el (endTime - startTime) ya que a veces incluye silencios largos y
-    // estropea el ritmo visual del barrido. En vez de eso, usamos una aproximación basada
-    // en el tiempo de canto promedio
-    final charsPerSecond = 12.0; // Velocidad de canto promedio ajustada
-
-    final realDurationMs = (endTime - startTime).inMilliseconds;
-    final estimatedDurationMs = ((totalChars / charsPerSecond) * 1000).toInt();
-
-    // Tomamos la menor entre la duración real y la estimada (para no superponernos con la otra)
-    int dynamicDurationMs = estimatedDurationMs < realDurationMs
-        ? estimatedDurationMs
-        : realDurationMs;
-    // Garantizamos que el barrido dure al menos algo razonable
-    if (dynamicDurationMs < 1000 && realDurationMs > 1000)
-      dynamicDurationMs = 1000;
-    if (dynamicDurationMs > realDurationMs) dynamicDurationMs = realDurationMs;
 
     // Calculamos el layout constante para ambas (activa e inactiva)
     // Usamos Wrap en ambas para que el salto de línea siempre caiga en el mismo lugar exacto.
@@ -556,155 +436,62 @@ class _KaraokeLine extends StatelessWidget {
             : Container(
                 key: const ValueKey('active'),
                 width: double.infinity,
-                child: isSweepEnabled
-                    ? _buildActiveKaraoke(
-                        baseStyle,
-                        dynamicDurationMs,
-                        totalChars,
-                        words,
-                      )
+                child: isSweepEnabled && (tagWords?.isNotEmpty ?? false)
+                    ? _buildActiveKaraoke(baseStyle)
                     : _buildSimpleActiveLine(baseStyle, staticWordWidgets),
               ),
       ),
     );
   }
 
-  Widget _buildActiveKaraoke(
-    TextStyle textStyle,
-    int totalDurationMs,
-    int totalChars,
-    List<String> words,
-  ) {
+  /// Línea activa con sweep palabra por palabra usando SOLO los timestamps
+  /// reales del proveedor (KPoe/SyncLRC). Sin timestamps no hay sweep.
+  Widget _buildActiveKaraoke(TextStyle textStyle) {
     return StreamBuilder<PlaybackProgress>(
       stream: progressStream,
       builder: (context, snapshot) {
         final position = snapshot.data?.position ?? Duration.zero;
         final current = position - offset;
 
-        // Intentar obtener progreso por Waveform (más preciso)
-        double lineProgress = _getWaveformProgress(current);
+        final wordWidgets = <Widget>[];
+        for (int i = 0; i < tagWords!.length; i++) {
+          final w = tagWords![i];
+          final wStart = w.timestamp;
+          final wEnd = (i < tagWords!.length - 1)
+              ? tagWords![i + 1].timestamp
+              : endTime;
 
-        if (tagWords != null && tagWords!.isNotEmpty) {
-          // Si tenemos timestamps de karaoke reales (ej: de SyncLRC), no aplicamos matemática,
-          // renderizamos exactamente según el timing de cada palabra enviada por el proveedor.
-          List<Widget> wordWidgets = [];
-          for (int i = 0; i < tagWords!.length; i++) {
-            final w = tagWords![i];
-            final wStart = w.timestamp;
-            final wEnd = (i < tagWords!.length - 1)
-                ? tagWords![i + 1].timestamp
-                : endTime;
-
-            double wordProgress = 0.0;
-            if (current >= wEnd) {
+          double wordProgress = 0.0;
+          if (current >= wEnd) {
+            wordProgress = 1.0;
+          } else if (current > wStart) {
+            final durationMs = (wEnd - wStart).inMilliseconds;
+            if (durationMs > 0) {
+              wordProgress = ((current - wStart).inMilliseconds / durationMs)
+                  .clamp(0.0, 1.0);
+            } else {
               wordProgress = 1.0;
-            } else if (current > wStart) {
-              final durationMs = (wEnd - wStart).inMilliseconds;
-              if (durationMs > 0) {
-                wordProgress = ((current - wStart).inMilliseconds / durationMs)
-                    .clamp(0.0, 1.0);
-              } else {
-                wordProgress = 1.0;
-              }
             }
-
-            wordWidgets.add(
-              _KaraokeWord(
-                // Solo añadir espacio si no es la última palabra para mantener el layout general
-                word: w.text + (i < tagWords!.length - 1 ? ' ' : ''),
-                progress: wordProgress,
-                style: textStyle,
-                activeColor: textColor,
-                inactiveColor: textColor.withOpacity(0.3),
-              ),
-            );
           }
 
-          return Wrap(
-            alignment: WrapAlignment.start,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 0.0,
-            runSpacing: 4.0,
-            children: wordWidgets,
+          wordWidgets.add(
+            _KaraokeWord(
+              // Solo añadir espacio si no es la última palabra para mantener el layout general
+              word: w.text + (i < tagWords!.length - 1 ? ' ' : ''),
+              progress: wordProgress,
+              style: textStyle,
+              activeColor: textColor,
+              inactiveColor: textColor.withOpacity(0.3),
+            ),
           );
         }
 
-        // Si no hay waveform o falló, usar el cálculo por tiempo (fallback)
-        if (lineProgress < 0) {
-          if (current >= endTime) {
-            lineProgress = 1.0;
-          } else if (current > startTime) {
-            final elapsed = (current - startTime).inMilliseconds;
-            if (totalDurationMs > 0) {
-              lineProgress = (elapsed / totalDurationMs).clamp(0.0, 1.0);
-            }
-          } else {
-            lineProgress = 0.0;
-          }
-        }
-
-        // Interpolación fluida
-        return TweenAnimationBuilder<double>(
-          duration: const Duration(
-            milliseconds: 300,
-          ), // Aumentamos para suavizar el avance por energía
-          curve: Curves.easeOutCubic, // Curva suave para cambios de intensidad
-          tween: Tween<double>(begin: lineProgress, end: lineProgress),
-          builder: (context, smoothProgress, child) {
-            // Determinar "char index" actual global
-            final currentCharIndex = smoothProgress * totalChars;
-
-            List<Widget> wordWidgets = [];
-            int charAccumulator = 0;
-
-            for (int i = 0; i < words.length; i++) {
-              final word = words[i];
-              final wordLen = word.length;
-
-              final wordStartChar = charAccumulator;
-              final wordEndChar = wordStartChar + wordLen;
-
-              double wordProgress = 0.0;
-
-              // Ajuste de "Overlap" (Suavidad)
-              // Hace que el barrido parezca que cruza ligeramente antes y después
-              // del límite de la palabra para que la transición entre palabras fluya
-              const overlap = 0.5;
-
-              if (currentCharIndex >= wordEndChar + overlap) {
-                wordProgress = 1.0;
-              } else if (currentCharIndex <= wordStartChar - overlap) {
-                wordProgress = 0.0;
-              } else {
-                final localCurrent =
-                    currentCharIndex - (wordStartChar - overlap);
-                final localTotal = wordLen + (overlap * 2);
-                wordProgress = (localCurrent / localTotal).clamp(0.0, 1.0);
-              }
-
-              wordWidgets.add(
-                _KaraokeWord(
-                  word:
-                      word +
-                      (i < words.length - 1 ? ' ' : ''), // Usar espacio normal
-                  progress: wordProgress,
-                  style: textStyle,
-                  activeColor: textColor,
-                  inactiveColor: textColor.withOpacity(0.3),
-                ),
-              );
-
-              charAccumulator += wordLen + (i < words.length - 1 ? 1 : 0);
-            }
-
-            return Wrap(
-              alignment: WrapAlignment.start,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 0.0, // Espacios integrados en las palabras
-              runSpacing: 4.0, // Espacio vertical entre líneas si hace wrap
-              children: wordWidgets,
-            );
-          },
+        return Wrap(
+          alignment: WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 0.0,
+          runSpacing: 4.0,
+          children: wordWidgets,
         );
       },
     );

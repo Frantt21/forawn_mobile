@@ -125,6 +125,9 @@ class Lyrics {
   final List<LyricLine> syncedLyrics;
   final List<LyricLine>? karaokeLyrics;
 
+  /// Proveedor de las letras ('KPoe' word-by-word o 'LRCLIB' line-by-line).
+  final String? source;
+
   Lyrics({
     required this.trackName,
     required this.artistName,
@@ -134,6 +137,7 @@ class Lyrics {
     required this.plainLyrics,
     required this.syncedLyrics,
     this.karaokeLyrics,
+    this.source,
   });
 
   int get lineCount => syncedLyrics.length;
@@ -147,6 +151,7 @@ class Lyrics {
     'plainLyrics': plainLyrics,
     'syncedLyrics': syncedLyrics.map((l) => l.toJson()).toList(),
     'karaokeLyrics': karaokeLyrics?.map((l) => l.toJson()).toList(),
+    'source': source,
   };
 
   factory Lyrics.fromJson(Map<String, dynamic> json) => Lyrics(
@@ -166,6 +171,7 @@ class Lyrics {
               .map((l) => LyricLine.fromJson(l as Map<String, dynamic>))
               .toList()
         : null,
+    source: json['source'] as String?,
   );
 }
 
@@ -178,6 +184,14 @@ class LyricsService {
   static const String _cachePrefix = 'lyrics_cache_';
   final Dio _dio = Dio();
   CancelToken? _currentSongCancelToken;
+
+  // Espejos KPoe (LyricsPlus), igual que Scrup: letras word-by-word.
+  // Todos se lanzan EN PARALELO; gana el primero (en orden) que responda.
+  static const List<String> _kpoeServers = [
+    'https://lyricsplus.prjktla.my.id',
+    'https://lyricsplus.binimum.org',
+    'https://lyricsplus.prjktla.workers.dev',
+  ];
 
   // State Management
   final BehaviorSubject<Lyrics?> _currentLyricsSubject =
@@ -276,10 +290,27 @@ class LyricsService {
         return Lyrics.fromJson(json);
       }
 
-      // Si no está en caché, obtener desde LRCLIB API
+      // Si no está en caché, obtener desde las APIs
       // Limpiar título y artista antes de buscar
       final cleanTrack = _cleanTitle(trackName);
       final cleanArtist = _cleanArtist(artistName);
+
+      // 1) KPoe (word-by-word), espejos en paralelo — igual que Scrup.
+      final kpoe = await _fetchKpoe(
+        cleanTrack,
+        cleanArtist,
+        trackName,
+        artistName,
+        cancelToken,
+      );
+      if (kpoe != null) {
+        print('[LyricsService] Lyrics (KPoe, word-by-word) found for: $trackName');
+        await DatabaseHelper().insertLyrics(
+          cacheKey,
+          jsonEncode(kpoe.toJson()),
+        );
+        return kpoe;
+      }
 
       print(
         '[LyricsService] Fetching lyrics from LRCLIB for: $cleanTrack by $cleanArtist',
@@ -380,6 +411,7 @@ class LyricsService {
               instrumental: data['instrumental'] as bool? ?? false,
               plainLyrics: plainLyrics,
               syncedLyrics: syncedLines,
+              source: 'LRCLIB',
             );
 
             await DatabaseHelper().insertLyrics(
@@ -423,6 +455,7 @@ class LyricsService {
               instrumental: false,
               plainLyrics: lyricsText.trim(),
               syncedLyrics: [],
+              source: 'lyrics.ovh',
             );
             await DatabaseHelper().insertLyrics(
               cacheKey,
@@ -447,10 +480,138 @@ class LyricsService {
     }
   }
 
+  // ── KPoe (LyricsPlus) — letras word-by-word ─────────────────────────
+
+  Future<Lyrics?> _fetchKpoe(
+    String cleanTrack,
+    String cleanArtist,
+    String originalTitle,
+    String originalArtist,
+    CancelToken? cancelToken,
+  ) async {
+    final attempts = <Future<Lyrics?>>[
+      for (final server in _kpoeServers)
+        _tryKpoeServer(
+          server,
+          cleanTrack,
+          cleanArtist,
+          originalTitle,
+          originalArtist,
+          cancelToken,
+        ),
+    ];
+    for (final result in await Future.wait(attempts)) {
+      if (result != null) return result;
+    }
+    return null;
+  }
+
+  Future<Lyrics?> _tryKpoeServer(
+    String server,
+    String cleanTrack,
+    String cleanArtist,
+    String originalTitle,
+    String originalArtist,
+    CancelToken? cancelToken,
+  ) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$server/v2/lyrics/get',
+        queryParameters: {'title': cleanTrack, 'artist': cleanArtist},
+        cancelToken: cancelToken,
+        options: Options(receiveTimeout: const Duration(seconds: 6)),
+      );
+      if (response.statusCode != 200) return null;
+      final data = response.data;
+      if (data == null) return null;
+      final lyricsList = data['lyrics'] as List?;
+      if (lyricsList == null || lyricsList.isEmpty) return null;
+
+      final lines = <LyricLine>[];
+      final plain = <String>[];
+      var hasAnyWords = false;
+      for (final item in lyricsList) {
+        final ld = item as Map<String, dynamic>;
+        final lineTimeMs = (ld['time'] as num?)?.toInt() ?? 0;
+        final lineText = ((ld['text'] as String?) ?? '').trim();
+        final syllabus = ld['syllabus'] as List?;
+
+        List<KaraokeWord>? words;
+        if (syllabus != null && syllabus.isNotEmpty) {
+          words = [];
+          for (final syl in syllabus) {
+            final sd = syl as Map<String, dynamic>;
+            final stext = (sd['text'] as String?) ?? '';
+            final stimeMs = (sd['time'] as num?)?.toInt() ?? 0;
+            if (stext.isNotEmpty) {
+              words.add(
+                KaraokeWord(
+                  timestamp: Duration(milliseconds: stimeMs),
+                  text: stext,
+                ),
+              );
+            }
+          }
+          if (words.isEmpty) words = null;
+        }
+        if (words != null) hasAnyWords = true;
+
+        if (lineText.isNotEmpty) {
+          lines.add(
+            LyricLine(
+              timestamp: Duration(milliseconds: lineTimeMs),
+              text: lineText,
+              words: words,
+            ),
+          );
+          plain.add(lineText);
+        }
+      }
+      if (lines.isEmpty) return null;
+
+      final meta = data['metadata'] as Map<String, dynamic>?;
+      return Lyrics(
+        trackName: (meta?['title'] as String?)?.isNotEmpty == true
+            ? meta!['title'] as String
+            : originalTitle,
+        artistName: (meta?['artist'] as String?)?.isNotEmpty == true
+            ? meta!['artist'] as String
+            : originalArtist,
+        instrumental: false,
+        plainLyrics: plain.join('\n'),
+        syncedLyrics: lines,
+        karaokeLyrics: hasAnyWords ? lines : null,
+        source: 'KPoe',
+      );
+    } catch (e) {
+      if (e is DioException && CancelToken.isCancel(e)) rethrow;
+      return null; // Try next server
+    }
+  }
+
   /// Busca lyrics manualmente
   Future<List<Lyrics>> searchLyrics(String query) async {
+    final results = <Lyrics>[];
     try {
-      // Default: LRCLIB
+      final lrclibResults = <Lyrics>[];
+
+      // 1) KPoe (word-by-word): candidatos "Artista - Título" y espejos
+      // en paralelo. El LRC reconstruido con tags <mm:ss.xx> se parsea con
+      // LyricLine.fromString, que puebla `words` automáticamente.
+      for (final cand in _searchCandidates(query)) {
+        final attempts = <Future<Lyrics?>>[
+          for (final server in _kpoeServers) _kpoeSearchOne(server, cand.$1, cand.$2),
+        ];
+        for (final res in await Future.wait(attempts)) {
+          if (res != null) {
+            results.add(res);
+            break;
+          }
+        }
+        if (results.isNotEmpty) break;
+      }
+
+      // 2) LRCLIB (line-by-line), respaldo de KPoe.
       final response = await _dio.get(
         '${ApiConfig.lyricsBaseUrl}/search',
         queryParameters: {'q': query},
@@ -461,8 +622,9 @@ class LyricsService {
       );
 
       if (response.statusCode == 200) {
-        final List results = response.data;
-        return results.map<Lyrics>((item) {
+        final List items = response.data;
+        lrclibResults.addAll(
+          items.map<Lyrics>((item) {
           final data = item as Map<String, dynamic>;
           final syncedLyricsRaw = data['syncedLyrics'] as String?;
           final plainLyrics = data['plainLyrics'] as String? ?? '';
@@ -485,14 +647,129 @@ class LyricsService {
             instrumental: data['instrumental'] as bool? ?? false,
             plainLyrics: plainLyrics,
             syncedLyrics: syncedLines,
+            source: 'LRCLIB',
           );
-        }).toList();
+        }),
+        );
+        results.addAll(lrclibResults);
       }
-      return [];
+      return results;
     } catch (e) {
       print('[LyricsService] Error searching lyrics: $e');
-      return [];
+      return results;
     }
+  }
+
+  /// Consulta un espejo de KPoe para la búsqueda manual; null si no
+  /// responde o no trae letras. Reconstruye LRC con tags <mm:ss.xx> por
+  /// sílaba para preservar el modo word-by-word al aplicar el resultado.
+  Future<Lyrics?> _kpoeSearchOne(
+    String server,
+    String title,
+    String artist,
+  ) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$server/v2/lyrics/get',
+        queryParameters: {'title': title, 'artist': artist},
+        options: Options(receiveTimeout: const Duration(seconds: 6)),
+      );
+      if (response.statusCode != 200) return null;
+      final data = response.data;
+      if (data == null) return null;
+      final lyricsList = data['lyrics'] as List?;
+      if (lyricsList == null || lyricsList.isEmpty) return null;
+      final meta = data['metadata'] as Map<String, dynamic>?;
+
+      final lrcLines = <String>[];
+      final plainLines = <String>[];
+      for (final item in lyricsList) {
+        final ld = item as Map<String, dynamic>;
+        final t = (ld['time'] as num?)?.toInt() ?? 0;
+        final text = ((ld['text'] as String?) ?? '').trim();
+        final syllabus = ld['syllabus'] as List?;
+        var line = '[${_lrcTs(t)}]';
+        var hasWords = false;
+        if (syllabus != null && syllabus.isNotEmpty) {
+          final words = <String>[];
+          for (final syl in syllabus) {
+            final sd = syl as Map<String, dynamic>;
+            final st = (sd['time'] as num?)?.toInt() ?? 0;
+            final stext = (sd['text'] as String?) ?? '';
+            if (stext.isEmpty) continue;
+            words.add('<${_lrcTs(st)}>$stext');
+          }
+          if (words.isNotEmpty) {
+            line += ' ${words.join(' ')}';
+            hasWords = true;
+          }
+        }
+        if (!hasWords) line += ' $text';
+        lrcLines.add(line);
+        plainLines.add(text);
+      }
+
+      final syncedLines = lrcLines
+          .map((line) => LyricLine.fromString(line))
+          .where((line) => line.text.isNotEmpty)
+          .toList();
+      if (syncedLines.isEmpty) return null;
+
+      return Lyrics(
+        trackName: (meta?['title'] as String?)?.isNotEmpty == true
+            ? meta!['title'] as String
+            : title,
+        artistName: (meta?['artist'] as String?)?.isNotEmpty == true
+            ? meta!['artist'] as String
+            : artist,
+        instrumental: false,
+        plainLyrics: plainLines.join('\n'),
+        syncedLyrics: syncedLines,
+        karaokeLyrics: syncedLines.any((l) => l.words != null) ? syncedLines : null,
+        source: 'KPoe',
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Genera candidatos (título, artista) para KPoe a partir de la query
+  /// libre ("Artista - Título", "Título by Artista", o texto tal cual).
+  static List<(String, String)> _searchCandidates(String query) {
+    final candidates = <(String, String)>[];
+    void add(String t, String a) {
+      t = t.trim();
+      a = a.trim();
+      if (t.isEmpty || a.isEmpty) return;
+      final pair = (t.toLowerCase(), a.toLowerCase());
+      for (final c in candidates) {
+        if (c.$1 == pair.$1 && c.$2 == pair.$2) return;
+      }
+      candidates.add((t, a));
+    }
+
+    final q = query.trim();
+    final dashParts = q.split(RegExp(r'\s+[-–—]\s+'));
+    if (dashParts.length == 2) {
+      add(dashParts[0], dashParts[1]);
+      add(dashParts[1], dashParts[0]);
+    }
+    final byMatch = RegExp(
+      r'^(.*?)\s+by\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(q);
+    if (byMatch != null) {
+      add(byMatch.group(1)!, byMatch.group(2)!);
+    }
+    return candidates;
+  }
+
+  static String _lrcTs(int ms) {
+    final mins = ms ~/ 60000;
+    final secs = (ms % 60000) ~/ 1000;
+    final cs = (ms % 1000) ~/ 10;
+    return '${mins.toString().padLeft(2, '0')}:'
+        '${secs.toString().padLeft(2, '0')}.${cs.toString().padLeft(2, '0')}';
   }
 
   /// Guarda lyrics en caché asociados a una canción local

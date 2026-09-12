@@ -388,7 +388,6 @@ class _LyricsSheetState extends State<LyricsSheet> {
                       },
                       offset: _offset,
                       textColor: textColor,
-                      audioPath: _currentSong.filePath,
                     ),
             ),
           ],
