@@ -247,14 +247,14 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: _NavigationCard(
-                  icon: Icons.library_music,
-                  title: LanguageService().getText('local_music'),
-                  color: Colors.purpleAccent,
+                  icon: Icons.video_collection,
+                  title: LanguageService().getText('video_downloader'),
+                  color: Colors.blueAccent,
                   onTap: () => _navigateToScreen(
-                    '/local-music',
-                    LanguageService().getText('local_music'),
-                    Icons.library_music,
-                    Colors.purpleAccent,
+                    '/video-downloader',
+                    LanguageService().getText('video_downloader'),
+                    Icons.video_collection,
+                    Colors.blueAccent,
                   ),
                 ),
               ),
@@ -279,14 +279,14 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: _NavigationCard(
-                  icon: Icons.video_collection,
-                  title: LanguageService().getText('video_downloader'),
-                  color: Colors.blueAccent,
+                  icon: Icons.library_music,
+                  title: LanguageService().getText('local_music'),
+                  color: Colors.purpleAccent,
                   onTap: () => _navigateToScreen(
-                    '/video-downloader',
-                    LanguageService().getText('video_downloader'),
-                    Icons.video_collection,
-                    Colors.blueAccent,
+                    '/local-music',
+                    LanguageService().getText('local_music'),
+                    Icons.library_music,
+                    Colors.purpleAccent,
                   ),
                 ),
               ),
