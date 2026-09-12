@@ -12,6 +12,7 @@ import '../services/saf_helper.dart';
 import '../services/language_service.dart';
 import '../widgets/mini_player.dart' show MiniPlayerVisibility;
 import '../services/local_music_state_service.dart';
+import '../widgets/app_search_field.dart';
 import '../widgets/lazy_music_tile.dart';
 
 import '../widgets/song_options_bottom_sheet.dart';
@@ -453,57 +454,22 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
       builder: (context, child) {
         return FadeTransition(
           opacity: _fadeAnimation,
-          // Estilo de inputs de Forawn desktop: píldora blanca 5%, radio 16,
-          // icono de búsqueda y botón de limpiar.
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: TextField(
-              controller: _searchController,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              cursorColor: Colors.purpleAccent,
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-              decoration: InputDecoration(
-                isCollapsed: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                hintText: 'Buscar canciones...',
-                hintStyle: TextStyle(
-                  color: Colors.white.withOpacity(0.3),
-                  fontSize: 16,
-                ),
-                border: InputBorder.none,
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: Colors.white.withOpacity(0.5),
-                  size: 20,
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(
-                          Icons.close,
-                          color: Colors.white54,
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                      )
-                    : null,
-              ),
-            ),
+          // Estilo unificado: widget compartido del input del video
+          // downloader (píldora blanca 5% + botón circular incrustado).
+          child: AppSearchField(
+            controller: _searchController,
+            hintText: 'Buscar canciones...',
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+              });
+            },
+            onClear: () {
+              _searchController.clear();
+              setState(() {
+                _searchQuery = '';
+              });
+            },
           ),
         );
       },

@@ -8,6 +8,7 @@ import '../services/language_service.dart';
 import 'lyrics_view.dart';
 import 'dart:ui';
 import 'artwork_widget.dart';
+import 'app_search_field.dart';
 import '../models/playback_state.dart';
 
 class LyricsSheet extends StatefulWidget {
@@ -928,41 +929,12 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
               ),
               const SizedBox(height: 24),
 
-              // Search Input
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  // border: Border.all(color: Colors.white.withOpacity(0.1)), // Eliminado borde
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                child: TextField(
-                  controller: _controller,
-                  style: const TextStyle(color: Colors.white),
-                  textAlignVertical:
-                      TextAlignVertical.center, // Centrado vertical
-                  decoration: InputDecoration(
-                    hintText: LanguageService().getText('title_artist'),
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                    border: InputBorder.none,
-                    isCollapsed: true, // Importante para centrado preciso
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 16,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: const Icon(
-                        Icons.search,
-                        color: Colors.purpleAccent,
-                      ),
-                      onPressed: () => _performSearch(_controller.text),
-                    ),
-                  ),
-                  onSubmitted: _performSearch,
-                ),
+              // Search Input (estilo unificado del video downloader)
+              AppSearchField(
+                controller: _controller,
+                hintText: LanguageService().getText('title_artist'),
+                isLoading: _searching,
+                onSearch: () => _performSearch(_controller.text),
               ),
               const SizedBox(height: 16),
 

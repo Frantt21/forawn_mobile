@@ -16,6 +16,7 @@ import '../widgets/song_options_bottom_sheet.dart';
 import '../services/music_metadata_cache.dart';
 import '../widgets/playlist_form_sheet.dart';
 import '../widgets/add_songs_sheet.dart';
+import '../widgets/app_search_field.dart';
 import '../services/metadata_service.dart';
 
 import '../utils/id_generator.dart';
@@ -334,52 +335,22 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
           ), // Slide from right
           child: Opacity(
             opacity: _fadeAnimation.value,
-            child: TextField(
+            // Estilo unificado: widget compartido del input del video
+            // downloader (píldora blanca 5% + botón circular incrustado).
+            child: AppSearchField(
               controller: _searchController,
-              autofocus: true,
-              style: TextStyle(color: textColor, fontSize: 16),
+              hintText: LanguageService().getText('search_songs'),
               onChanged: (value) {
                 setState(() {
                   _searchQuery = value;
                 });
               },
-              decoration: InputDecoration(
-                hintText: LanguageService().getText('search_songs'),
-                hintStyle: TextStyle(
-                  color: textColor.withOpacity(0.5),
-                  fontSize: 16,
-                ),
-                prefixIcon: Icon(Icons.search, color: textColor, size: 20),
-                filled: true,
-                // Fondo con el color del texto con opacidad ligera
-                // (igual que Forawn desktop).
-                fillColor: textColor.withOpacity(0.1),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(
-                    24,
-                  ), // Redondeado como botones
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(
-                          Icons.clear,
-                          color: textColor.withOpacity(0.7),
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                      )
-                    : null,
-              ),
+              onClear: () {
+                _searchController.clear();
+                setState(() {
+                  _searchQuery = '';
+                });
+              },
             ),
           ),
         );

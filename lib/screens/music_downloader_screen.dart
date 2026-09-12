@@ -8,6 +8,7 @@ import '../services/innertube_service.dart';
 import '../services/saf_helper.dart';
 import '../services/global_download_manager.dart';
 import '../services/language_service.dart';
+import '../widgets/app_search_field.dart';
 import 'download_history_screen.dart';
 
 class MusicDownloaderScreen extends StatefulWidget {
@@ -398,56 +399,14 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
                           const SizedBox(height: 12),
-                          Card(
-                            color: const Color(0xFF1C1C1E),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          // Input estilo video downloader (widget compartido).
+                          AppSearchField(
+                            controller: _searchController,
+                            hintText: LanguageService().getText(
+                              'song_or_artist',
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: TextField(
-                                controller: _searchController,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                ),
-                                cursorColor: Colors.purpleAccent,
-                                decoration: InputDecoration(
-                                  hintText: LanguageService().getText(
-                                    'song_or_artist',
-                                  ),
-                                  hintStyle: TextStyle(
-                                    color: Colors.white.withOpacity(0.3),
-                                    fontSize: 16,
-                                  ),
-                                  prefixIcon: Icon(
-                                    Icons.search,
-                                    color: Colors.white.withOpacity(0.5),
-                                    size: 20,
-                                  ),
-                                  suffixIcon: _searchController
-                                          .text.isNotEmpty
-                                      ? IconButton(
-                                          icon: const Icon(
-                                            Icons.close,
-                                            color: Colors.white54,
-                                            size: 20,
-                                          ),
-                                          onPressed: () {
-                                            _searchController.clear();
-                                            setState(() {});
-                                          },
-                                        )
-                                      : null,
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                                onSubmitted: (_) => _searchSongs(),
-                                textInputAction: TextInputAction.search,
-                              ),
-                            ),
+                            isLoading: _isSearching,
+                            onSearch: _isSearching ? null : _searchSongs,
                           ),
                           // const SizedBox(height: 16),
                           // SizedBox(

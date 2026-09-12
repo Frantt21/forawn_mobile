@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+import 'app_search_field.dart';
+
 class AnimatedSearchAppBar extends StatefulWidget
     implements PreferredSizeWidget {
   final String title;
@@ -154,64 +156,20 @@ class _AnimatedSearchAppBarState extends State<AnimatedSearchAppBar>
           ), // Slide from right
           child: Opacity(
             opacity: _fadeAnimation.value,
-            // Estilo de inputs de Forawn desktop: píldora blanca 5%,
-            // radio 16 (antes Card 0xFF1C1C1E / radio 12).
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: SizedBox(
-                height: 40, // Height fija para evitar saltos
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    height:
-                        1.0, // Altura de línea estricta para centrado perfecto
-                  ),
-                  onChanged: (value) {
-                    setState(() {});
-                  },
-                  decoration: InputDecoration(
-                    isCollapsed: true, // Desactivar defaults
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical:
-                          11, // (40px - 16px) / 2 = 12px (aprox 11 para compensar baseline)
-                    ),
-                    hintText: 'Buscar...',
-                    hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 16,
-                      height:
-                          1.0, // Coincidir exactamente con el estilo del texto
-                    ),
-                    border: InputBorder.none,
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(
-                              Icons.clear,
-                              color: Colors.white70,
-                              size: 20,
-                            ),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
-                            // Asegura que el icono no rompa el centrado
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
-                            ),
-                            iconSize: 20,
-                          )
-                        : null,
-                  ),
-                ),
+            // Estilo unificado: widget compartido del input del video
+            // downloader (píldora blanca 5% + botón circular incrustado).
+            child: SizedBox(
+              height: 48, // Altura fija para evitar saltos en el app bar
+              child: AppSearchField(
+                controller: _searchController,
+                hintText: 'Buscar...',
+                onChanged: (value) {
+                  setState(() {});
+                },
+                onClear: () {
+                  _searchController.clear();
+                  setState(() {});
+                },
               ),
             ),
           ),

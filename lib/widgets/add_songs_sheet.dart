@@ -7,6 +7,7 @@ import '../services/playlist_service.dart';
 import '../services/local_music_state_service.dart';
 import '../services/metadata_service.dart';
 import 'artwork_widget.dart';
+import 'app_search_field.dart';
 
 class AddSongsSheet extends StatefulWidget {
   final Playlist playlist;
@@ -263,51 +264,21 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
                   ),
                 ),
 
-                // Search bar
+                // Search bar (estilo unificado del video downloader)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 8,
                   ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                      cursorColor: widget.accentColor ?? Colors.purpleAccent,
-                      decoration: InputDecoration(
-                        hintText: LanguageService().getText('search'),
-                        hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        border: InputBorder.none,
-                        prefixIcon: Icon(
-                          Icons.search,
-                          color: Colors.white.withOpacity(0.5),
-                          size: 20,
-                        ),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: Icon(
-                                  Icons.clear,
-                                  color: Colors.white.withOpacity(0.5),
-                                ),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _filterSongs('');
-                                },
-                              )
-                            : null,
-                      ),
-                      onChanged: _filterSongs,
-                    ),
+                  child: AppSearchField(
+                    controller: _searchController,
+                    hintText: LanguageService().getText('search'),
+                    cursorColor: widget.accentColor,
+                    onChanged: _filterSongs,
+                    onClear: () {
+                      _searchController.clear();
+                      _filterSongs('');
+                    },
                   ),
                 ),
 

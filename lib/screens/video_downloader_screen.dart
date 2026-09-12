@@ -9,6 +9,7 @@ import '../models/spotify_track.dart';
 import '../services/global_download_manager.dart';
 import '../services/language_service.dart';
 import '../services/ytdlp_service.dart';
+import '../widgets/app_search_field.dart';
 import 'download_history_screen.dart';
 
 class VideoDownloaderScreen extends StatefulWidget {
@@ -430,58 +431,13 @@ class _VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // URL input (estilo pill del resto de inputs de la app).
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.all(8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        cursorColor: Colors.purpleAccent,
-                        decoration: InputDecoration(
-                          hintText: LanguageService().getText('video_url_label'),
-                          hintStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.3),
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          isDense: true,
-                        ),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                        ),
-                        onSubmitted: (_) => _onInspectUrl(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: _loadingMeta
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.search, color: Colors.white),
-                      onPressed: _loadingMeta ? null : _onInspectUrl,
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        padding: const EdgeInsets.all(8),
-                      ),
-                    ),
-                  ],
-                ),
+              // URL input (widget compartido: estilo pill del video
+              // downloader usado ahora en toda la app).
+              AppSearchField(
+                controller: _controller,
+                hintText: LanguageService().getText('video_url_label'),
+                isLoading: _loadingMeta,
+                onSearch: _loadingMeta ? null : _onInspectUrl,
               ),
               const SizedBox(height: 12),
 
