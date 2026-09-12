@@ -3,11 +3,12 @@ import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import 'package:dio/dio.dart';
 import '../models/download_history_item.dart';
 import '../models/spotify_track.dart';
 import 'download_service.dart';
-import 'spotify_service.dart';
+import 'ytdlp_service.dart';
+import 'innertube_service.dart';
+import 'saf_helper.dart';
 import 'download_history_service.dart';
 import 'notification_history_service.dart';
 import 'lyrics_service.dart';
@@ -47,10 +48,9 @@ class GlobalDownloadManager {
   final StreamController<Map<String, ActiveDownload>> _downloadsController =
       StreamController<Map<String, ActiveDownload>>.broadcast();
 
-  // Map para trackear los CancelTokens activos y poder cancelarlos
-  final Map<String, CancelToken> _activeCancelTokens = {};
+  // Map para trackear las descargas canceladas por el usuario.
+  final Set<String> _cancelledDownloads = {};
 
-  final SpotifyService _spotifyService = SpotifyService();
   final DownloadService _downloadService = DownloadService();
 
   bool _isInitialized = false;
@@ -176,72 +176,38 @@ class GlobalDownloadManager {
         }
       }
 
-      String? downloadUrl;
-
-      // ⚡ DETECTAR SI ES URL DE GOOGLE DRIVE (CACHÉ)
-      final isGoogleDriveUrl = track.url.contains('drive.google.com');
-
-      // ⚡ DETECTAR SI ES URL DE YOUTUBE
-      final isYouTubeUrl =
-          track.url.contains('youtube.com') || track.url.contains('youtu.be');
-
-      if (isGoogleDriveUrl) {
-        // Usar URL de Google Drive directamente (desde caché)
-        print('[GlobalDownloadManager] ⚡ Using cached Google Drive URL');
-        downloadUrl = track.url;
-      } else if (isYouTubeUrl) {
-        // ⚡ SI ES URL DE YOUTUBE, PASAR URL DIRECTA A FORANLY
-        print(
-          '[GlobalDownloadManager] ⚡ YouTube URL detected → Sending directly to Foranly',
-        );
-        print('[GlobalDownloadManager]    URL: ${track.url}');
-        downloadUrl = track.url; // ✅ Pasar URL de YouTube directamente
-      } else if (forceYouTubeFallback) {
-        // ⚡ SI SE FUERZA FORANLY (Youtube Fallback), SALTAR SPOTIFY SERVICE
-        print(
-          '[GlobalDownloadManager] ⚡ Forzando modo búsqueda Foranly (Skip Spotify APIs)',
-        );
-        downloadUrl = ""; // Dejar vacío para que DownloadService use fallback
+      // Resolver el videoId de YouTube: o viene en track.url como watch?v=,
+      // o se busca con Innertube por título+artista (metadata exacta).
+      String? videoId;
+      final ytIdRe = RegExp(
+        r'(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})',
+      );
+      final idMatch = ytIdRe.firstMatch(track.url);
+      if (idMatch != null) {
+        videoId = idMatch.group(1);
       } else {
-        // Intentar obtener URL de descarga desde Spotify Direct (FabDL)
-        // SOLO si la URL es de Spotify
-        try {
-          final downloadInfo = await _spotifyService.getDownloadUrl(
-            track.url,
-            trackName: trackName,
-            artistName: artistName,
-          );
+        final query = '$trackName $artistName'.trim();
+        final results = await InnertubeService().searchTracks(
+          query,
+          limit: 1,
+        );
+        if (results.isNotEmpty) videoId = results.first.videoId;
+      }
 
-          // ⚠️ VERIFICAR CANCELACIÓN INMEDIATAMENTE DESPUÉS DE OBTENER URL
-          if (_activeDownloads[downloadId]?.isCancelled == true) {
-            print(
-              '[GlobalDownloadManager] Descarga cancelada después de obtener URL: $downloadId',
-            );
-            _activeDownloads.remove(downloadId);
-            _notificationsPlugin.cancel(downloadId.hashCode);
-            return;
-          }
+      if (videoId == null) {
+        throw Exception(
+          'No se pudo resolver la pista de YouTube para "$trackName"',
+        );
+      }
 
-          if (downloadInfo.downloadUrl.isNotEmpty) {
-            downloadUrl = downloadInfo.downloadUrl;
-            if (downloadInfo.name.isNotEmpty) trackName = downloadInfo.name;
-            if (downloadInfo.artists.isNotEmpty) {
-              artistName = downloadInfo.artists;
-            }
-          }
-        } catch (e) {
-          print('[GlobalDownloadManager] API failed: $e');
-
-          // Verificar si fue cancelada durante el error
-          if (_activeDownloads[downloadId]?.isCancelled == true) {
-            print(
-              '[GlobalDownloadManager] Descarga cancelada durante error de API: $downloadId',
-            );
-            _activeDownloads.remove(downloadId);
-            _notificationsPlugin.cancel(downloadId.hashCode);
-            return;
-          }
-        }
+      // Verificar si fue cancelada antes de iniciar la descarga
+      if (_cancelledDownloads.contains(downloadId)) {
+        print(
+          '[GlobalDownloadManager] Descarga cancelada antes de iniciar: $downloadId',
+        );
+        _activeDownloads.remove(downloadId);
+        _notifyListeners();
+        return;
       }
 
       // Crear nombre de archivo
@@ -251,25 +217,22 @@ class GlobalDownloadManager {
       final cleanFileName = fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
 
       // Verificar si fue cancelada antes de iniciar la descarga
-      if (_activeDownloads[downloadId]?.isCancelled == true) {
+      if (_cancelledDownloads.contains(downloadId)) {
         print(
           '[GlobalDownloadManager] Descarga cancelada antes de iniciar: $downloadId',
         );
-        _activeCancelTokens.remove(downloadId);
         _activeDownloads.remove(downloadId);
         _notifyListeners();
         return;
       }
 
-      // Crear CancelToken para esta descarga
-      final cancelToken = CancelToken();
-      _activeCancelTokens[downloadId] = cancelToken;
-
-      // Descargar archivo
-      await _downloadService.downloadAndSave(
-        url: downloadUrl ?? '',
-        fileName: cleanFileName,
-        treeUri: treeUri,
+      // Descargar con yt-dlp+ffmpeg EMBEBIDOS (sin servidores externos).
+      // Los metadatos (título, artista, portada) salen de Innertube y se
+      // incrustan con ffmpeg durante la extracción.
+      final result = await YtDlpService().downloadAudio(
+        videoId,
+        title: trackName,
+        artist: artistName,
         onProgress: (progress) {
           if (_activeDownloads.containsKey(downloadId)) {
             _activeDownloads[downloadId]!.progress = progress;
@@ -287,23 +250,20 @@ class GlobalDownloadManager {
             }
           }
         },
-        cancelToken: cancelToken,
-        trackTitle: trackName,
-        artistName: artistName,
-        enableYoutubeFallback:
-            !forceYouTubeFallback, // Deshabilitar API si se fuerza YouTube
-        forceYouTubeFallback: forceYouTubeFallback, // Nuevo parámetro
       );
 
-      // Limpiar el CancelToken después de completar
-      _activeCancelTokens.remove(downloadId);
+      // Mover el mp3 temporal a su destino final (SAF o Download/).
+      await _saveToDestination(
+        result.filePath,
+        cleanFileName,
+        treeUri,
+      );
 
       // Verificar una última vez si fue cancelada (por si acaso)
       if (_activeDownloads[downloadId]?.isCancelled == true) {
         print(
           '[GlobalDownloadManager] Descarga completada pero estaba cancelada, limpiando: $downloadId',
         );
-        _activeCancelTokens.remove(downloadId);
         _activeDownloads.remove(downloadId);
         _notifyListeners();
         return;
@@ -327,9 +287,9 @@ class GlobalDownloadManager {
             name: trackName,
             artists: artistName,
             imageUrl: pinterestImageUrl,
-            downloadUrl: downloadUrl ?? '',
+            downloadUrl: track.url,
             downloadedAt: DateTime.now(),
-            source: downloadUrl != null ? 'spotify' : 'youtube',
+            source: 'youtube',
             durationMs: null,
           );
           await DownloadHistoryService.addToHistory(historyItem);
@@ -366,12 +326,12 @@ class GlobalDownloadManager {
         });
       }
     } catch (e) {
-      // Ignorar si es error de cancelación (ya se manejó o no es error real)
-      if (e is DioException && CancelToken.isCancel(e)) {
+      // Ignorar si la descarga fue cancelada por el usuario.
+      if (_cancelledDownloads.contains(downloadId)) {
         print(
           '[GlobalDownloadManager] Cancelación capturada en catch: $downloadId',
         );
-        _activeCancelTokens.remove(downloadId);
+        _cancelledDownloads.remove(downloadId);
         _activeDownloads.remove(downloadId);
         _notifyListeners();
         _notificationsPlugin.cancel(downloadId.hashCode);
@@ -380,8 +340,8 @@ class GlobalDownloadManager {
 
       print('[GlobalDownloadManager] Download error: $e');
 
-      // Limpiar el CancelToken en caso de error
-      _activeCancelTokens.remove(downloadId);
+      // Limpiar el estado de cancelación en caso de error
+      _cancelledDownloads.remove(downloadId);
 
       if (_activeDownloads.containsKey(downloadId)) {
         _activeDownloads[downloadId]!.error = e.toString();
@@ -417,23 +377,9 @@ class GlobalDownloadManager {
       _activeDownloads[downloadId]!.isCancelled = true;
       _notifyListeners();
 
-      // Cancelar el CancelToken para detener la descarga en curso
-      if (_activeCancelTokens.containsKey(downloadId)) {
-        try {
-          _activeCancelTokens[downloadId]?.cancel(
-            'Descarga cancelada por el usuario',
-          );
-          _activeCancelTokens.remove(downloadId);
-          print(
-            '[GlobalDownloadManager] CancelToken cancelado para $downloadId',
-          );
-        } catch (e) {
-          print('[GlobalDownloadManager] Error cancelando CancelToken: $e');
-        }
-      }
-
-      // NO remover de _activeDownloads aquí - dejar que downloadTrack() lo detecte y limpie
-      // _activeDownloads.remove(downloadId); ← REMOVIDO
+      // Marcar como cancelada y abortar yt-dlp si está corriendo.
+      _cancelledDownloads.add(downloadId);
+      YtDlpService().cancel();
 
       // Cancelar notificación
       _notificationsPlugin.cancel(downloadId.hashCode);
@@ -442,6 +388,59 @@ class GlobalDownloadManager {
         '[GlobalDownloadManager] Descarga marcada como cancelada: $downloadId',
       );
     }
+  }
+
+  /// Mueve el mp3 descargado a su destino final: SAF treeUri si existe,
+  /// o la carpeta pública Download/ como fallback.
+  Future<void> _saveToDestination(
+    String tempPath,
+    String fileName,
+    String? treeUri,
+  ) async {
+    if (treeUri != null) {
+      final savedUri = await SafHelper.saveFileFromPath(
+        treeUri: treeUri,
+        tempPath: tempPath,
+        fileName: fileName,
+      );
+      if (savedUri == null) {
+        throw Exception('No se pudo guardar el archivo en la carpeta seleccionada');
+      }
+      print('[GlobalDownloadManager] Archivo guardado vía SAF en: $savedUri');
+    } else {
+      final downloadsDir = Directory('/storage/emulated/0/Download');
+      if (!await downloadsDir.exists()) {
+        try {
+          await downloadsDir.create(recursive: true);
+        } catch (_) {}
+      }
+
+      String destPath = '${downloadsDir.path}/$fileName';
+
+      // Manejar colisiones de nombre: agregar (1), (2), etc.
+      if (await File(destPath).exists()) {
+        int counter = 1;
+        String nameWithoutExt = fileName;
+        String ext = '';
+        if (fileName.contains('.')) {
+          nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+          ext = fileName.substring(fileName.lastIndexOf('.'));
+        }
+        while (await File(destPath).exists()) {
+          destPath = '${downloadsDir.path}/$nameWithoutExt ($counter)$ext';
+          counter++;
+        }
+      }
+
+      await File(tempPath).copy(destPath);
+      print('[GlobalDownloadManager] Archivo guardado en: $destPath');
+    }
+
+    // Limpia el archivo temporal
+    try {
+      final tmp = File(tempPath);
+      if (await tmp.exists()) await tmp.delete();
+    } catch (_) {}
   }
 
   /// Mostrar notificación de descarga en progreso

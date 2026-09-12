@@ -4,6 +4,7 @@ import '../services/language_service.dart';
 import '../services/music_history_service.dart';
 import '../services/playlist_service.dart';
 import '../services/local_music_state_service.dart';
+import '../widgets/mini_player.dart' show MiniCoverService;
 
 import 'package:audio_service/audio_service.dart';
 import '../services/audio_handler.dart';
@@ -28,6 +29,9 @@ class _MainWrapperState extends State<MainWrapper>
   @override
   void initState() {
     super.initState();
+
+    // Mientras el splash está visible, tapa al miniplayer persistente.
+    MiniCoverService.instance.pushCover();
 
     // Controller used for timing the splash screen duration and fade out
     _animationController = AnimationController(
@@ -118,6 +122,7 @@ class _MainWrapperState extends State<MainWrapper>
 
   @override
   void dispose() {
+    MiniCoverService.instance.popCover();
     _animationController.dispose();
     super.dispose();
   }

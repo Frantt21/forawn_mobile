@@ -21,11 +21,32 @@ import com.ryanheise.audioservice.AudioServiceActivity
 
 class MainActivity : AudioServiceActivity() {
   private val CHANNEL = "forawn/saf"
+  private val YTDLP_CHANNEL = "forawn/ytdlp"
   private val PICK_DIR_REQUEST = 1001
   private var pendingResult: MethodChannel.Result? = null
+  private var ytDlpHandler: YtDlpHandler? = null
 
   override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
     super.configureFlutterEngine(flutterEngine)
+
+    // Canal de yt-dlp (youtubedl-android): init/run/cancel/version.
+    ytDlpHandler = YtDlpHandler(this)
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, YTDLP_CHANNEL).setMethodCallHandler { call, result ->
+      when (call.method) {
+        "ytdlpInit", "ytdlpRun", "ytdlpCancel", "ytdlpVersion" -> {
+          ytDlpHandler!!.handleMethodCall(call, result)
+        }
+        else -> result.notImplemented()
+      }
+    }
+    // Inicializar youtubedl-android en background (extrae Python/yt-dlp/FFmpeg).
+    Thread {
+      try {
+        ytDlpHandler?.init()
+      } catch (e: Exception) {
+        android.util.Log.e("forawn", "Failed to init youtubedl-android", e)
+      }
+    }.start()
 
     MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
       when (call.method) {

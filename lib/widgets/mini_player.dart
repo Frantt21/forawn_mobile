@@ -8,6 +8,66 @@ import '../models/playback_state.dart';
 import '../screens/music_player_screen.dart';
 import '../widgets/artwork_widget.dart';
 
+/// Controla qué capas tapan al miniplayer persistente.
+/// El reproductor completo y el splash lo tapan explícitamente; los
+/// diálogos/bottom-sheets lo tapan automáticamente vía MiniPlayerNavObserver.
+class MiniCoverService {
+  MiniCoverService._();
+  static final MiniCoverService instance = MiniCoverService._();
+
+  final ValueNotifier<int> _covers = ValueNotifier<int>(0);
+
+  void pushCover() => _covers.value = _covers.value + 1;
+
+  void popCover() {
+    if (_covers.value > 0) _covers.value = _covers.value - 1;
+  }
+}
+
+/// Observador que tapa el miniplayer mientras hay diálogos/rutas modales
+/// abiertas.
+class MiniPlayerNavObserver extends NavigatorObserver {
+  bool _isOpaqueModal(Route<dynamic> route) {
+    if (route is PopupRoute) return true;
+    return route is ModalRoute<dynamic> && route.fullscreenDialog;
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (_isOpaqueModal(route)) MiniCoverService.instance.pushCover();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (_isOpaqueModal(route)) MiniCoverService.instance.popCover();
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (_isOpaqueModal(route)) MiniCoverService.instance.popCover();
+  }
+}
+
+/// Host del miniplayer persistente: se monta UNA sola vez en
+/// MaterialApp.builder, sobre todas las rutas. Cuando un screen lo tapa se
+/// oculta con Offstage (el widget sigue vivo, sin flash al volver).
+class MiniPlayerHost extends StatelessWidget {
+  const MiniPlayerHost({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: MiniCoverService.instance._covers,
+      builder: (context, covers, _) {
+        return Offstage(
+          offstage: covers > 0,
+          child: SafeArea(child: MiniPlayer()),
+        );
+      },
+    );
+  }
+}
+
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
 

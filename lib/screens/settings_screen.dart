@@ -7,7 +7,6 @@ import '../services/language_service.dart';
 
 import '../services/metadata_service.dart';
 import '../services/lyrics_service.dart';
-import '../services/groq_assistant_service.dart';
 import '../services/audio_player_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -632,49 +631,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     contentPadding: EdgeInsets.zero,
                   ),
 
-                  ListTile(
-                    leading: const Icon(Icons.chat, color: Colors.orangeAccent),
-                    title: Text(
-                      LanguageService().getText('clear_assistant_history'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    subtitle: Text(
-                      LanguageService().getText('clear_assistant_history_desc'),
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_sweep),
-                      color: Colors.orangeAccent,
-                      onPressed: () async {
-                        // Limpiar historial del servicio
-                        GroqAssistantService().clearHistory();
-
-                        // Limpiar historial de SharedPreferences
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.remove(
-                          'assistant_chat_history',
-                        ); // Assistant Dialog
-                        await prefs.remove('foraai_sessions'); // ForaAI Screen
-
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                LanguageService().getText(
-                                  'assistant_history_cleared',
-                                ),
-                              ),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                    contentPadding: EdgeInsets.zero,
-                  ),
                 ],
               ),
             ),

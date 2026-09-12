@@ -11,12 +11,10 @@ import '../services/audio_player_service.dart';
 import '../services/saf_helper.dart';
 import '../services/language_service.dart';
 import '../services/local_music_state_service.dart';
-import '../widgets/mini_player.dart';
 import '../widgets/lazy_music_tile.dart';
 
 import '../widgets/song_options_bottom_sheet.dart';
 import '../services/music_metadata_cache.dart';
-import '../widgets/assistant_chat_dialog.dart';
 import '../widgets/playlist_form_sheet.dart';
 
 import '../services/playlist_service.dart';
@@ -513,7 +511,11 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
               appBar: AppBar(
                 title: _isSearching
                     ? _buildSearchField()
-                    : const Text('Local Music'),
+                    : Text(
+                        LanguageService().getText(
+                          'local_music',
+                        ),
+                      ),
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 actions: [
@@ -535,33 +537,6 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                       },
                       tooltip: _isSearching ? 'Cerrar búsqueda' : 'Buscar',
                     ),
-                  // AI Assistant button
-                  IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(6),
-                      // decoration: BoxDecoration(
-                      //   gradient: LinearGradient(
-                      //     colors: [
-                      //       Theme.of(context).primaryColor,
-                      //       Theme.of(context).primaryColor.withOpacity(0.7),
-                      //     ],
-                      //   ),
-                      //   borderRadius: BorderRadius.circular(8),
-                      // ),
-                      child: const Icon(
-                        Icons.smart_toy_outlined,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    tooltip: 'Asistente Musical',
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => const AssistantChatDialog(),
-                      );
-                    },
-                  ),
                   // Folder picker button
                   IconButton(
                     icon: const Icon(Icons.folder_open),
@@ -800,13 +775,9 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
                       ),
                     ),
 
-                  // 4. Mini Player
-                  const Positioned(
-                    bottom: 16,
-                    left: 16,
-                    right: 16,
-                    child: SafeArea(child: MiniPlayer()),
-                  ),
+                  // 4. Mini Player: ahora es un host persistente global
+                  // (MiniPlayerHost en MaterialApp.builder), ya no se
+                  // monta por-screen.
                 ],
               ),
             );

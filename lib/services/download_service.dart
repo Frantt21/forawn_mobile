@@ -4,12 +4,12 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/saf_helper.dart';
-import '../services/foranly_service.dart';
+import '../services/innertube_service.dart';
+import '../services/ytdlp_service.dart';
 import '../services/permission_helper.dart';
 
 class DownloadService {
   final Dio _dio = Dio();
-  final ForanlyService _foranlyService = ForanlyService();
 
   /// Solicitar permisos de almacenamiento
   Future<bool> requestStoragePermission() async {
@@ -108,8 +108,8 @@ class DownloadService {
     }
   }
 
-  /// Descarga desde Foranly como fallback
-  /// Retorna la ruta del archivo temporal
+  /// Fallback de descarga por YouTube: ahora resuelve con Innertube y
+  /// descarga con yt-dlp/ffmpeg embebidos (sin servidores Foranly).
   Future<String?> downloadFromYoutubeFallback({
     required String trackTitle,
     required String artistName,
@@ -117,29 +117,25 @@ class DownloadService {
   }) async {
     try {
       print(
-        '[DownloadService] Iniciando búsqueda en Foranly: $trackTitle - $artistName',
+        '[DownloadService] Fallback YouTube: $trackTitle - $artistName',
       );
 
-      final query = '$trackTitle - $artistName';
-      final downloadUrl = await _foranlyService.getDownloadUrlWait(
+      final query = '$trackTitle $artistName'.trim();
+      final results = await InnertubeService().searchTracks(
         query,
+        limit: 1,
+      );
+      if (results.isEmpty) return null;
+
+      final result = await YtDlpService().downloadAudio(
+        results.first.videoId,
         title: trackTitle,
         artist: artistName,
+        onProgress: onProgress,
       );
-
-      if (downloadUrl != null) {
-        print('[DownloadService] URL obtenida de Foranly: $downloadUrl');
-        return await downloadToTempFile(
-          url: downloadUrl,
-          onProgress: onProgress,
-          customFileName: '$trackTitle - $artistName.mp3',
-        );
-      } else {
-        print('[DownloadService] Foranly no pudo encontrar/generar la URL');
-        return null;
-      }
+      return result.filePath;
     } catch (e, st) {
-      print('[DownloadService] Error en fallback de Foranly: $e');
+      print('[DownloadService] Error en fallback de YouTube: $e');
       print(st);
       return null;
     }
@@ -166,37 +162,35 @@ class DownloadService {
         url.contains('youtube.com') || url.contains('youtu.be');
 
     try {
-      // 1) Si es URL de YouTube, usar Foranly directamente (SIN BÚSQUEDA)
+      // 1) URL de YouTube: resolver con yt-dlp/ffmpeg embebidos vía videoId
       if (isYouTubeUrl && !useYoutube) {
         print(
-          '[DownloadService] 🎵 YouTube URL detected → Using Foranly directly (NO SEARCH)',
+          '[DownloadService] 🎵 YouTube URL detected → yt-dlp embebido',
         );
         print('[DownloadService]    URL: $url');
 
-        final downloadUrl = await _foranlyService.getDownloadUrlFromYouTubeUrl(
-          url,
-          trackTitle: trackTitle,
-          artistName: artistName,
-        );
-
-        if (downloadUrl != null) {
-          print('[DownloadService] URL obtenida de Foranly: $downloadUrl');
-          tempPath = await downloadToTempFile(
-            url: downloadUrl,
-            onProgress: onProgress,
-            customFileName: fileName,
-          );
-          print('[DownloadService] Descarga desde Foranly exitosa');
-        } else {
-          throw Exception('Foranly no pudo procesar la URL de YouTube');
+        final videoId = RegExp(
+          r'(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})',
+        ).firstMatch(url)?.group(1);
+        if (videoId == null) {
+          throw Exception('URL de YouTube no reconocida: $url');
         }
+
+        final result = await YtDlpService().downloadAudio(
+          videoId,
+          title: trackTitle ?? fileName,
+          artist: artistName ?? '',
+          onProgress: onProgress,
+        );
+        tempPath = result.filePath;
+        print('[DownloadService] Descarga yt-dlp exitosa: $tempPath');
       }
-      // 2) Si la URL está vacía o se fuerza YouTube, saltar directo a Foranly Search
+      // 2) Si la URL está vacía o se fuerza YouTube, saltar directo al fallback
       else if (useYoutube) {
         if (forceYouTubeFallback) {
-          print('[DownloadService] Forzando Foranly Search (App Logic)');
+          print('[DownloadService] Forzando búsqueda YouTube (yt-dlp)');
         } else {
-          print('[DownloadService] URL vacía, usando Foranly directamente');
+          print('[DownloadService] URL vacía, usando fallback YouTube');
         }
         throw Exception('Empty URL or forced YouTube, forcing fallback');
       }
@@ -226,7 +220,7 @@ class DownloadService {
         rethrow;
       }
 
-      // 3) Si falla y el fallback está habilitado, intenta Foranly
+      // 3) Si falla y el fallback está habilitado, intenta YouTube (yt-dlp)
       if (enableYoutubeFallback || forceYouTubeFallback) {
         // Validar que tengamos al menos el título de la canción
         final hasTitle = trackTitle != null && trackTitle.trim().isNotEmpty;
@@ -234,11 +228,11 @@ class DownloadService {
 
         if (!hasTitle && !hasArtist) {
           throw Exception(
-            'No se puede usar Foranly fallback: no hay información de track/artist',
+            'No se puede usar el fallback de YouTube: no hay información de track/artist',
           );
         }
 
-        print('[DownloadService] Activando fallback de Foranly...');
+        print('[DownloadService] Activando fallback de YouTube...');
         tempPath = await downloadFromYoutubeFallback(
           trackTitle: trackTitle ?? '',
           artistName: artistName ?? '',

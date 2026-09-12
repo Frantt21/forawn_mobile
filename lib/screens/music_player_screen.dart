@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
+import '../widgets/mini_player.dart' show MiniCoverService;
 import '../services/audio_player_service.dart';
 import '../services/language_service.dart';
 import '../services/playlist_service.dart';
@@ -15,7 +16,7 @@ import 'package:audiotags/audiotags.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '../services/deezer_service.dart';
-import '../services/foranly_service.dart';
+import '../services/innertube_service.dart';
 import '../services/metadata_service.dart';
 import '../services/saf_helper.dart';
 import '../services/music_library_service.dart';
@@ -42,7 +43,16 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   @override
   void initState() {
     super.initState();
+    // El miniplayer persistente vive sobre todas las rutas: este screen
+    // de reproducción completa lo tapa vía MiniCoverService.
+    MiniCoverService.instance.pushCover();
     _loadArtworkMode();
+  }
+
+  @override
+  void dispose() {
+    MiniCoverService.instance.popCover();
+    super.dispose();
   }
 
   Future<void> _loadArtworkMode() async {
@@ -285,13 +295,13 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       curve: Curves.easeOutCubic,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: isPlaying ? 25 : 10,
-                            offset: Offset(0, isPlaying ? 12 : 4),
-                          ),
-                        ],
+                        // boxShadow: [
+                        //   BoxShadow(
+                        //     color: Colors.black.withOpacity(0.3),
+                        //     blurRadius: isPlaying ? 25 : 10,
+                        //     offset: Offset(0, isPlaying ? 12 : 4),
+                        //   ),
+                        // ],
                       ),
                       child: Stack(
                         alignment: Alignment.center,
@@ -1597,7 +1607,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                                   alignment: Alignment.center,
                                   child: Text(
                                     LanguageService().getText(
-                                      'spotify_less_precise',
+                                      'youtube_music_source',
                                     ),
                                     style: TextStyle(
                                       color: selectedSource == 'Server'
@@ -1712,17 +1722,28 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                                       }
                                     });
                                   } else {
-                                    // Server (Foranly)
-                                    final result = await ForanlyService()
-                                        .searchMetadata(
-                                          titleController.text,
-                                          artistController.text,
-                                        );
+                                    // YouTube Music (Innertube): metadatos
+                                    // limpios del resultado, sin servidores
+                                    // propios (reemplaza a Foranly).
+                                    final query =
+                                        '${titleController.text} ${artistController.text}'.trim();
+                                    final tracks = await InnertubeService()
+                                        .searchTracks(query, limit: 5);
+                                    final results = tracks
+                                        .map(
+                                          (t) => {
+                                            'title': t.rawTitle,
+                                            'artist': t.channel,
+                                            'album': t.album,
+                                            'albumArtUrl': t.thumbnailUrl,
+                                            'source': 'YouTube Music',
+                                          },
+                                        )
+                                        .toList();
                                     setState(() {
                                       isLoading = false;
-                                      if (result != null) {
-                                        searchResults = [result];
-                                      } else {
+                                      searchResults = results;
+                                      if (results.isEmpty) {
                                         errorMessage = LanguageService()
                                             .getText('no_results');
                                       }

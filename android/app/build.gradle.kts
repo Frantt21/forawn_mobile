@@ -48,10 +48,12 @@ android {
 
     defaultConfig {
         applicationId = "com.example.forawn_mobile"
-        minSdk = flutter.minSdkVersion
+        // youtubedl-android requiere minSdk 24+.
+        minSdk = maxOf(24, flutter.minSdkVersion)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -84,4 +86,9 @@ flutter {
 dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // yt-dlp + FFmpeg embebidos (Python/yt-dlp/FFmpeg dentro del APK),
+    // mismo enfoque que Scrup.
+    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    implementation("io.github.junkfood02.youtubedl-android:aria2c:0.18.1")
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.2")
 }

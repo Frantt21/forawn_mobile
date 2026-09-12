@@ -39,6 +39,7 @@ dependencies:
   # Permissions
   permission_handler: ^11.1.0
   path_provider: ^2.1.1
+  path: ^1.8.3
 
   
   # # FFmpeg for audio conversion
@@ -72,7 +73,7 @@ dependencies:
   palette_generator: ^0.3.3+7
   text_scroll: ^0.2.1
   audioplayers: ^6.5.1
-  home_widget: ^0.9.0
+  home_widget: ^0.9.4
   audio_waveforms: ^1.2.0
 
 dev_dependencies:

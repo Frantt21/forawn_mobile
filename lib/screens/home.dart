@@ -203,8 +203,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final titleMap = {
       'Descargador de Música': 'music_downloader',
       'Music Downloader': 'music_downloader',
-      'Generador de Imágenes': 'image_generator',
-      'Image Generator': 'image_generator',
       'Traductor': 'translator',
       'Translator': 'translator',
       'Generador QR': 'qr_generator',
@@ -293,20 +291,6 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: _NavigationCard(
-                  icon: Icons.image,
-                  title: LanguageService().getText('image_generator'),
-                  color: Colors.yellowAccent,
-                  onTap: () => _navigateToScreen(
-                    '/images-ia',
-                    LanguageService().getText('image_generator'),
-                    Icons.image,
-                    Colors.yellowAccent,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _NavigationCard(
                   icon: Icons.translate,
                   title: LanguageService().getText('translator'),
                   color: Colors.greenAccent,
@@ -318,11 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
+              const SizedBox(width: 8),
               Expanded(
                 child: _NavigationCard(
                   icon: Icons.qr_code,
@@ -334,15 +314,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     Icons.qr_code,
                     Colors.orangeAccent,
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _NavigationCard(
-                  icon: Icons.notifications_outlined,
-                  title: LanguageService().getText('notifications'),
-                  color: Colors.blueAccent,
-                  onTap: () => Navigator.pushNamed(context, '/notifications'),
                 ),
               ),
             ],
@@ -547,6 +518,17 @@ class _HomeScreenState extends State<HomeScreen> {
             leading: null,
             actions: [
               IconButton(
+                icon: const Icon(
+                  Icons.notifications,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                tooltip: 'Notificaciones',
+                onPressed: () {
+                  Navigator.pushNamed(context, '/notifications');
+                },
+              ),
+              IconButton(
                 icon: const Icon(Icons.settings),
                 onPressed: () => Navigator.pushNamed(context, '/settings'),
                 tooltip: LanguageService().getText('settings'),
@@ -674,10 +656,10 @@ class _TimeHeaderState extends State<TimeHeader> {
   Color _greetingIconColor() {
     final hour = _now.hour;
     if (hour >= 5 && hour < 12) {
-      return Colors.orange; // Morning - vibrant orange
+      return Colors.amber; // Morning - vibrant orange
     }
     if (hour >= 12 && hour < 19) return Colors.amber; // Afternoon - warm amber
-    return Colors.deepPurple.shade300; // Night - soft purple
+      return Colors.amber; // Night - soft purple
   }
 
   @override

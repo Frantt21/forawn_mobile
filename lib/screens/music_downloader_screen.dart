@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/spotify_track.dart';
-import '../services/youtube_service.dart';
+import '../services/innertube_service.dart';
 import '../services/saf_helper.dart';
 import '../services/global_download_manager.dart';
 import '../services/language_service.dart';
@@ -20,11 +20,10 @@ class MusicDownloaderScreen extends StatefulWidget {
 class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
-  final YouTubeService _youtubeService = YouTubeService();
   final GlobalDownloadManager _downloadManager = GlobalDownloadManager();
 
   String? _treeUri;
-  List<YouTubeVideo> _searchResults = [];
+  List<InnertubeTrack> _searchResults = [];
   bool _isSearching = false;
   bool _hasSearched = false; // Indica si ya se realizó una búsqueda
   late AnimationController _animationController;
@@ -109,7 +108,10 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
     });
 
     try {
-      final results = await _youtubeService.search(query, limit: 20);
+      // Búsqueda directa por Innertube (YT Music + fallback WEB):
+      // título/artista limpios, artwork cuadrado y videoId exacto — sin
+      // servidores propios. Reutiliza la lógica de Forawn desktop.
+      final results = await InnertubeService().searchTracks(query, limit: 20);
 
       setState(() {
         _searchResults = results;
@@ -145,82 +147,35 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
     }
   }
 
-  Future<void> _downloadTrack(YouTubeVideo video) async {
+  Future<void> _downloadTrack(InnertubeTrack video) async {
     try {
-      // Verificar caché primero
-      final cachedSong = await _youtubeService.checkCache(
-        video.parsedSong.isNotEmpty ? video.parsedSong : video.title,
-        video.parsedArtist.isNotEmpty ? video.parsedArtist : video.author,
+      // El resultado de Innertube ya trae videoId exacto, título y artista
+      // limpios y artwork cuadrado. La descarga la hace yt-dlp+ffmpeg
+      // embebidos (YtDlpService) incrustando estos metadatos.
+      _showDownloadAddedAnimation(video.rawTitle);
+
+      print('[MusicDownloaderScreen] 🎵 Downloading:');
+      print('[MusicDownloaderScreen]   - videoId: ${video.videoId}');
+      print('[MusicDownloaderScreen]   - Title: ${video.rawTitle}');
+
+      final track = SpotifyTrack(
+        title: video.rawTitle,
+        artists: video.channel,
+        url: video.watchUrl, // ✅ watch?v=VIDEOID exacto del resultado
+        duration:
+            '${video.durationMs ~/ 60000}:${((video.durationMs % 60000) ~/ 1000).toString().padLeft(2, '0')}',
+        popularity: '0',
       );
 
-      if (cachedSong.cached && cachedSong.downloadUrl != null) {
-        // ⚡ DESCARGA DESDE CACHÉ (Google Drive)
-        // Mostrar animación indicando que está en el historial
-        _showDownloadAddedAnimation(video.displayTitle);
+      final downloadId = await _downloadManager.addDownload(
+        track: track,
+        pinterestImageUrl: video.thumbnailUrl,
+        treeUri: _treeUri,
+      );
 
-        print('[CACHE] Using cached download URL: ${cachedSong.downloadUrl}');
-
-        // Usar URL de Google Drive en lugar de YouTube
-        final track = SpotifyTrack(
-          title: video.parsedSong.isNotEmpty ? video.parsedSong : video.title,
-          artists: video.parsedArtist.isNotEmpty
-              ? video.parsedArtist
-              : video.author,
-          url: cachedSong.downloadUrl!, // URL de Google Drive
-          duration: video.durationText,
-          popularity: '0',
-        );
-
-        // Agregar descarga desde caché (sin YouTube fallback)
-        final downloadId = await _downloadManager.addDownload(
-          track: track,
-          pinterestImageUrl: video.thumbnail,
-          treeUri: _treeUri,
-          forceYouTubeFallback:
-              false, // No usar YouTube, descargar desde Google Drive
-        );
-
-        print(
-          '[MusicDownloaderScreen] Cache download added with ID: $downloadId',
-        );
-      } else {
-        // 📥 DESCARGA NORMAL DESDE YOUTUBE
-        // Mostrar animación indicando que está en el historial
-        _showDownloadAddedAnimation(video.displayTitle);
-
-        print('[MusicDownloaderScreen] 🎵 Downloading selected video:');
-        print('[MusicDownloaderScreen]   - Title: ${video.title}');
-        print('[MusicDownloaderScreen]   - URL: ${video.url}');
-        print('[MusicDownloaderScreen]   - Parsed Song: ${video.parsedSong}');
-        print(
-          '[MusicDownloaderScreen]   - Parsed Artist: ${video.parsedArtist}',
-        );
-
-        // Convertir YouTubeVideo a SpotifyTrack
-        // IMPORTANTE: Usar video.url directamente para evitar búsqueda adicional
-        final track = SpotifyTrack(
-          title: video.parsedSong.isNotEmpty ? video.parsedSong : video.title,
-          artists: video.parsedArtist.isNotEmpty
-              ? video.parsedArtist
-              : video.author,
-          url: video.url, // ✅ URL DIRECTA del video seleccionado
-          duration: video.durationText,
-          popularity: '0',
-        );
-
-        // Agregar descarga con la URL directa del video
-        // forceYouTubeFallback: false para que use la URL directamente
-        final downloadId = await _downloadManager.addDownload(
-          track: track,
-          pinterestImageUrl: video.thumbnail,
-          treeUri: _treeUri,
-          forceYouTubeFallback: false, // ✅ NO hacer búsqueda, usar URL directa
-        );
-
-        print(
-          '[MusicDownloaderScreen] ✅ Download added with direct URL: $downloadId',
-        );
-      }
+      print(
+        '[MusicDownloaderScreen] ✅ Download added with exact videoId: $downloadId',
+      );
     } catch (e) {
       print('[MusicDownloaderScreen] Error adding download: $e');
 
@@ -580,9 +535,9 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
                                       width: 56,
                                       height: 56,
                                       color: accentColor.withOpacity(0.2),
-                                      child: video.thumbnail.isNotEmpty
+                                      child: video.thumbnailUrl.isNotEmpty
                                           ? Image.network(
-                                              video.thumbnail,
+                                              video.thumbnailUrl,
                                               fit: BoxFit.cover,
                                               errorBuilder: (_, _, _) =>
                                                   Icon(
@@ -597,16 +552,14 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
                                     ),
                                   ),
                                   title: Text(
-                                    video.parsedSong.isNotEmpty
-                                        ? video.parsedSong
-                                        : video.title,
+                                    video.rawTitle,
                                     style: TextStyle(
                                       color: textColor,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   subtitle: Text(
-                                    '${video.parsedArtist.isNotEmpty ? video.parsedArtist : video.author} • ${video.durationText}',
+                                    '${video.channel} • ${video.album.isNotEmpty ? '${video.album} • ' : ''}${video.durationMs ~/ 60000}:${((video.durationMs % 60000) ~/ 1000).toString().padLeft(2, '0')}',
                                     style: TextStyle(
                                       color: textColor.withOpacity(0.6),
                                     ),

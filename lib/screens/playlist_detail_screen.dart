@@ -10,7 +10,6 @@ import '../services/audio_player_service.dart';
 import '../services/language_service.dart';
 import '../utils/text_utils.dart';
 import '../widgets/lazy_music_tile.dart';
-import '../widgets/mini_player.dart';
 import '../widgets/song_options_bottom_sheet.dart';
 
 import '../services/music_metadata_cache.dart';
@@ -1186,13 +1185,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             ),
           ),
 
-          // ── Mini Player ──
-          const Positioned(
-            bottom: 16,
-            left: 16,
-            right: 16,
-            child: SafeArea(child: MiniPlayer()),
-          ),
+          // ── Mini Player: ahora es un host persistente global ──
         ],
       ),
     );

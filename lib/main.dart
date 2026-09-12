@@ -1,18 +1,19 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'widgets/mini_player.dart';
 import 'package:flutter/services.dart';
 import 'screens/home.dart';
 import 'screens/local_music_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/music_downloader_screen.dart';
-import 'screens/images_ia_screen.dart';
 import 'screens/translate_screen.dart';
 import 'screens/qr_generator_screen.dart';
 import 'services/global_download_manager.dart';
 import 'services/version_check_service.dart';
 import 'services/language_service.dart';
 import 'screens/main_wrapper.dart';
+import 'screens/video_downloader_screen.dart';
 
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 
@@ -217,12 +218,13 @@ class _ForawnAppState extends State<ForawnApp> {
         '/notifications': (context) => const NotificationsScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/music-downloader': (context) => const MusicDownloaderScreen(),
-        '/images-ia': (context) => const ImagesIAScreen(),
         '/translate': (context) => const TranslateScreen(),
         '/qr-generator': (context) => const QRGeneratorScreen(),
+        '/video-downloader': (context) => const VideoDownloaderScreen(),
       },
 
       // Handle unknown routes
+      navigatorObservers: [MiniPlayerNavObserver()],
       onUnknownRoute: (settings) {
         return MaterialPageRoute(builder: (context) => const HomeScreen());
       },
@@ -236,7 +238,20 @@ class _ForawnAppState extends State<ForawnApp> {
             systemNavigationBarIconBrightness: Brightness.light,
             systemNavigationBarContrastEnforced: false,
           ),
-          child: child!,
+          child: Stack(
+            children: [
+              child!,
+              // Miniplayer persistente: sobre todas las rutas. Los screens
+              // de reproducción completa/splash lo tapan vía MiniCoverService;
+              // los diálogos los tapa MiniPlayerNavObserver.
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 16,
+                child: const MiniPlayerHost(),
+              ),
+            ],
+          ),
         );
       },
     );
