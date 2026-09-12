@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Anillo del logo (versión blanca para la status bar, solo alpha) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,6.67 A5.33,5.33 0 1,1 11.99,6.67 Z M12,7.33 A4.67,4.67 0 1,0 12,16.67 A4.67,4.67 0 1,0 12,7.33 Z"/>
+    <!-- Barra de reproducción -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.33,9.11 L11.56,9.11 L11.56,14.89 L9.33,14.89 Z"/>
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.56,11.11 H11.33 V12.22 H9.56 Z"/>
+</vector>
