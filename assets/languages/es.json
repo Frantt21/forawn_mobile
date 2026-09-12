@@ -162,7 +162,7 @@
   "storage_permission_needed": "Se necesitan permisos de almacenamiento",
   "enter_description": "Escribe una descripción para generar la imagen",
   "source_language": "Idioma Origen",
-  "enter_text_translate": "Ingresa texto para traducir...",
+  "enter_text_translate": "Escribe el texto aquí",
   "translation": "Traducción",
   "enter_text_to_translate": "Ingresa texto para traducir",
   "translation_error": "Error de traducción",
