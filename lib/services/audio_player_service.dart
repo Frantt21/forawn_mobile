@@ -411,6 +411,9 @@ class AudioPlayerService {
     _savePlaybackPreferences();
   }
 
+  /// Estado actual del aleatorio (espejo público del playlist interno).
+  bool get isShuffle => _playlist.isShuffle;
+
   void toggleRepeat() {
     final current = _playlist.repeatMode;
     var next = app_state.RepeatMode.off;

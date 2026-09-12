@@ -10,6 +10,7 @@ import '../services/music_history_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/saf_helper.dart';
 import '../services/language_service.dart';
+import '../widgets/mini_player.dart' show MiniPlayerVisibility;
 import '../services/local_music_state_service.dart';
 import '../widgets/lazy_music_tile.dart';
 
@@ -70,6 +71,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     super.initState();
     // Los servicios ya están inicializados en SplashScreen, solo agregamos listeners
     _musicState.addListener(_onMusicStateChanged);
+    MiniPlayerVisibility.instance.pushScreen('local_music');
 
     RecentScreensService().addScreen(
       LanguageService().getText('local_music'),
@@ -165,6 +167,7 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     MusicLibraryService.onMetadataUpdated.removeListener(_onMetadataUpdated);
     _progressSubscription?.cancel();
     _songSubscription?.cancel();
+    MiniPlayerVisibility.instance.popScreen('local_music');
     // Clear loading message on dispose
     _loadingMessage = null;
     _loadingProgress = null;

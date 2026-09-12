@@ -290,32 +290,18 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        LanguageService().getText('enter_qr_data'),
-                        style: TextStyle(
-                          color: textColor.withOpacity(0.5),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                  child: TextField(
+                    controller: _textController,
+                    style: TextStyle(color: textColor, fontSize: 16),
+                    maxLines: 3,
+                    cursorColor: accentColor,
+                    decoration: InputDecoration(
+                      hintText: LanguageService().getText('enter_qr_data'),
+                      hintStyle: TextStyle(
+                        color: textColor.withOpacity(0.3),
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _textController,
-                        style: TextStyle(color: textColor, fontSize: 16),
-                        maxLines: 3,
-                        cursorColor: accentColor,
-                        decoration: InputDecoration(
-                          hintText: LanguageService().getText('enter_qr_data'),
-                          hintStyle: TextStyle(
-                            color: textColor.withOpacity(0.3),
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ],
+                      border: InputBorder.none,
+                    ),
                   ),
                 ),
               ),

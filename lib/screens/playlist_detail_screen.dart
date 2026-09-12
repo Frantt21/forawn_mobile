@@ -10,6 +10,7 @@ import '../services/audio_player_service.dart';
 import '../services/language_service.dart';
 import '../utils/text_utils.dart';
 import '../widgets/lazy_music_tile.dart';
+import '../widgets/mini_player.dart' show MiniPlayerVisibility;
 import '../widgets/song_options_bottom_sheet.dart';
 
 import '../services/music_metadata_cache.dart';
@@ -50,6 +51,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
   @override
   void initState() {
     super.initState();
+    MiniPlayerVisibility.instance.pushScreen('playlist_detail');
     // Create a mutable copy to allow sorting/removing
     _virtualSongs = List.from(widget.playlist.songs);
     _lastImagePath = widget.playlist.imagePath; // Initialize with current image
@@ -101,6 +103,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
 
   @override
   void dispose() {
+    MiniPlayerVisibility.instance.popScreen('playlist_detail');
     _scrollController.dispose();
 
     _searchController.dispose();

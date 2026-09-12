@@ -160,52 +160,41 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        LanguageService().getText('search_in_history'),
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _filterHistory,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                    cursorColor: Colors.purpleAccent,
+                    decoration: InputDecoration(
+                      hintText: LanguageService().getText('song_or_artist'),
+                      hintStyle: TextStyle(
+                        color: Colors.white.withOpacity(0.3),
+                        fontSize: 16,
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _searchController,
-                        onChanged: _filterHistory,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                        cursorColor: Colors.purpleAccent,
-                        decoration: InputDecoration(
-                          hintText: LanguageService().getText('song_or_artist'),
-                          hintStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.3),
-                            fontSize: 16,
-                          ),
-                          border: InputBorder.none,
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Colors.white.withOpacity(0.5),
-                            size: 20,
-                          ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 20),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _filterHistory('');
-                                  },
-                                  color: Colors.white.withOpacity(0.5),
-                                )
-                              : null,
-                        ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Colors.white.withOpacity(0.5),
+                        size: 20,
                       ),
-                    ],
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                _searchController.clear();
+                                _filterHistory('');
+                              },
+                              color: Colors.white.withOpacity(0.5),
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
+                    ),
                   ),
                 ),
               ),

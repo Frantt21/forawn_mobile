@@ -4,7 +4,7 @@ import '../services/language_service.dart';
 import '../services/music_history_service.dart';
 import '../services/playlist_service.dart';
 import '../services/local_music_state_service.dart';
-import '../widgets/mini_player.dart' show MiniCoverService;
+import '../widgets/mini_player.dart' show MiniPlayerVisibility;
 
 import 'package:audio_service/audio_service.dart';
 import '../services/audio_handler.dart';
@@ -31,7 +31,9 @@ class _MainWrapperState extends State<MainWrapper>
     super.initState();
 
     // Mientras el splash está visible, tapa al miniplayer persistente.
-    MiniCoverService.instance.pushCover();
+    // Bandera explícita (no contador): la ruta raíz nunca se destruye, y
+    // el pop en dispose() jamás correría.
+    MiniPlayerVisibility.instance.setSplashActive(true);
 
     // Controller used for timing the splash screen duration and fade out
     _animationController = AnimationController(
@@ -93,6 +95,8 @@ class _MainWrapperState extends State<MainWrapper>
         if (mounted) {
           setState(() => _initialized = true);
         }
+        // El splash terminó: el miniplayer vuelve a su elegibilidad normal.
+        MiniPlayerVisibility.instance.setSplashActive(false);
       });
     } catch (e) {
       print("[MainWrapper] Initialization Error: $e");
@@ -100,6 +104,7 @@ class _MainWrapperState extends State<MainWrapper>
       if (mounted) {
         setState(() => _initialized = true);
       }
+      MiniPlayerVisibility.instance.setSplashActive(false);
     }
   }
 
@@ -107,14 +112,18 @@ class _MainWrapperState extends State<MainWrapper>
     try {
       await AudioService.init(
         builder: () => MyAudioHandler(),
-        config: AudioServiceConfig(
+        config: const AudioServiceConfig(
           androidNotificationChannelId: 'com.forawnt.app.audio',
           androidNotificationChannelName: 'Music Playback',
+          // ongoing + stopForegroundOnPause=false es una combinación
+          // PROHIBIDA: audio_service lanza un assertion y el init muere
+          // (sin sesión de medios → ni notificación ni controles).
           androidNotificationOngoing: true,
-          androidStopForegroundOnPause: false, // Keep alive even when paused
+          androidStopForegroundOnPause: true,
           androidNotificationIcon: 'drawable/ic_stat_logo',
         ),
       );
+      print('[MainWrapper] AudioService initialized OK');
     } catch (e) {
       print('[MainWrapper] AudioService Init Error: $e');
     }
@@ -122,7 +131,9 @@ class _MainWrapperState extends State<MainWrapper>
 
   @override
   void dispose() {
-    MiniCoverService.instance.popCover();
+    // Seguridad: nunca dejar la bandera puesta si la raíz llegara a
+    // destruirse.
+    MiniPlayerVisibility.instance.setSplashActive(false);
     _animationController.dispose();
     super.dispose();
   }

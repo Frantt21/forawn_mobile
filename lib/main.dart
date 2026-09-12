@@ -163,6 +163,11 @@ class _ForawnAppState extends State<ForawnApp> {
       title: 'Forawn',
       debugShowCheckedModeBanner: false,
 
+      // Navigator global: el MiniPlayer (montado en builder, fuera del
+      // Navigator) abre el reproductor con esta key. Sin ella su
+      // Navigator.of(context) lanza la excepción "does not include a
+      // Navigator".
+      navigatorKey: appNavigatorKey,
       // Theme configuration
       theme: ThemeData(
         brightness: Brightness.dark,

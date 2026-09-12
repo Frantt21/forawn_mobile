@@ -3,7 +3,9 @@ package com.example.forawn_mobile
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import androidx.annotation.NonNull
@@ -284,6 +286,21 @@ class MainActivity : AudioServiceActivity() {
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
     startActivityForResult(intent, PICK_DIR_REQUEST)
+  }
+
+  override fun onResume() {
+    super.onResume()
+    // Android 13+ (API 33): POST_NOTIFICATIONS es un permiso en runtime.
+    // Sin él la notificación multimedia no aparece (Scrup lo pide igual).
+    requestNotificationPermission()
+  }
+
+  private fun requestNotificationPermission() {
+    if (Build.VERSION.SDK_INT < 33) return
+    if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+      PackageManager.PERMISSION_GRANTED
+    ) return
+    requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
   }
 
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

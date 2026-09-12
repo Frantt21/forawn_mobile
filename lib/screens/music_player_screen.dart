@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
-import '../widgets/mini_player.dart' show MiniCoverService;
+import '../widgets/mini_player.dart' show MiniPlayerVisibility;
 import '../services/audio_player_service.dart';
 import '../services/language_service.dart';
 import '../services/playlist_service.dart';
@@ -43,15 +43,15 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    // El miniplayer persistente vive sobre todas las rutas: este screen
-    // de reproducción completa lo tapa vía MiniCoverService.
-    MiniCoverService.instance.pushCover();
+    // El reproductor completo abre sobre el screen de música: el miniplayer
+    // se esconde vía MiniPlayerVisibility hasta que se cierra.
+    MiniPlayerVisibility.instance.setFullPlayerOpen(true);
     _loadArtworkMode();
   }
 
   @override
   void dispose() {
-    MiniCoverService.instance.popCover();
+    MiniPlayerVisibility.instance.setFullPlayerOpen(false);
     super.dispose();
   }
 

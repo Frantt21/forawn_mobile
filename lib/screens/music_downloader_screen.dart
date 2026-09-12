@@ -404,102 +404,74 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    LanguageService().getText('search_music'),
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.5),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: TextField(
+                                controller: _searchController,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                                cursorColor: Colors.purpleAccent,
+                                decoration: InputDecoration(
+                                  hintText: LanguageService().getText(
+                                    'song_or_artist',
                                   ),
-                                  const SizedBox(height: 8),
-                                  // Estilo de inputs de Forawn desktop:
-                                  // píldora blanca 5%, radio 16, icono de
-                                  // búsqueda y botón de limpiar.
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.05),
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: TextField(
-                                      controller: _searchController,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                      ),
-                                      cursorColor: Colors.purpleAccent,
-                                      decoration: InputDecoration(
-                                        isCollapsed: true,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 14,
-                                        ),
-                                        hintText: LanguageService().getText(
-                                          'song_or_artist',
-                                        ),
-                                        hintStyle: TextStyle(
-                                          color:
-                                              Colors.white.withOpacity(0.3),
-                                          fontSize: 16,
-                                        ),
-                                        border: InputBorder.none,
-                                        prefixIcon: Icon(
-                                          Icons.search,
-                                          color:
-                                              Colors.white.withOpacity(0.5),
-                                          size: 20,
-                                        ),
-                                        suffixIcon: _searchController
-                                                .text.isNotEmpty
-                                            ? IconButton(
-                                                icon: const Icon(
-                                                  Icons.close,
-                                                  color: Colors.white54,
-                                                  size: 20,
-                                                ),
-                                                onPressed: () {
-                                                  _searchController.clear();
-                                                  setState(() {});
-                                                },
-                                              )
-                                            : null,
-                                      ),
-                                      onSubmitted: (_) => _searchSongs(),
-                                      textInputAction: TextInputAction.search,
-                                    ),
+                                  hintStyle: TextStyle(
+                                    color: Colors.white.withOpacity(0.3),
+                                    fontSize: 16,
                                   ),
-                                ],
+                                  prefixIcon: Icon(
+                                    Icons.search,
+                                    color: Colors.white.withOpacity(0.5),
+                                    size: 20,
+                                  ),
+                                  suffixIcon: _searchController
+                                          .text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(
+                                            Icons.close,
+                                            color: Colors.white54,
+                                            size: 20,
+                                          ),
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            setState(() {});
+                                          },
+                                        )
+                                      : null,
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
+                                onSubmitted: (_) => _searchSongs(),
+                                textInputAction: TextInputAction.search,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _isSearching ? null : _searchSongs,
-                              icon: _isSearching
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.black,
-                                      ),
-                                    )
-                                  : const Icon(Icons.search),
-                              label: Text(
-                                _isSearching
-                                    ? LanguageService().getText('searching')
-                                    : LanguageService().getText('search'),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
+                          // const SizedBox(height: 16),
+                          // SizedBox(
+                          //   width: double.infinity,
+                          //   child: ElevatedButton.icon(
+                          //     onPressed: _isSearching ? null : _searchSongs,
+                          //     icon: _isSearching
+                          //         ? const SizedBox(
+                          //             width: 20,
+                          //             height: 20,
+                          //             child: CircularProgressIndicator(
+                          //               strokeWidth: 2,
+                          //               color: Colors.black,
+                          //             ),
+                          //           )
+                          //         : const Icon(Icons.search),
+                          //     label: Text(
+                          //       _isSearching
+                          //           ? LanguageService().getText('searching')
+                          //           : LanguageService().getText('search'),
+                          //     ),
+                          //   ),
+                          // ),
+                          // const SizedBox(height: 24),
                         ]),
                       ),
                     ),

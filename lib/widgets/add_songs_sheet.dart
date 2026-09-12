@@ -466,7 +466,7 @@ class _AddSongsSheetState extends State<AddSongsSheet> {
                             return ListView.builder(
                               controller: controller,
                               padding: EdgeInsets.only(
-                                bottom: 100 + bottomInset,
+                                bottom: bottomInset,
                               ),
                               itemCount: _filteredSongs.length,
                               itemBuilder: (context, index) {
