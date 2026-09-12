@@ -15,6 +15,45 @@ import '../widgets/artwork_widget.dart';
 /// Sus pushes usan esta key, igual que Forawn desktop.
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
+/// Guard síncrono contra el doble push del reproductor: onVerticalDragUpdate
+/// dispara POR CADA evento de movimiento del gesto, y cada evento con delta
+/// < -5 apilaba OTRO MusicPlayerScreen encima (el screen se abría dos veces:
+/// una normal y otra con el miniplayer visible encima). El flag de
+/// [MiniPlayerVisibility.fullPlayerOpen] NO sirve de guard porque su
+/// asignación se difiere a post-frame (fix del "markNeedsBuild during
+/// build"), así que un segundo gesto en el mismo frame no lo vería en true.
+bool _playerRouteOpen = false;
+
+/// Abre el reproductor completo una sola vez aunque el gesto dispare varios
+/// eventos. La ruta se nombra '/music-player' para que
+/// [MiniPlayerNavObserver] libere el guard al cerrarla.
+void _openFullPlayer() {
+  if (_playerRouteOpen) return;
+  _playerRouteOpen = true;
+  appNavigatorKey.currentState?.push(
+    PageRouteBuilder(
+      settings: const RouteSettings(name: '/music-player'),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          const MusicPlayerScreen(),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(0.0, 1.0);
+        const end = Offset.zero;
+        const curve = Curves.easeOutCubic;
+
+        var tween = Tween(
+          begin: begin,
+          end: end,
+        ).chain(CurveTween(curve: curve));
+
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: child,
+        );
+      },
+    ),
+  );
+}
+
 /// Controla qué capas tapan al miniplayer persistente.
 /// Los diálogos/bottom-sheets lo tapan automáticamente vía MiniPlayerNavObserver.
 class MiniCoverService {
@@ -138,11 +177,15 @@ class MiniPlayerNavObserver extends NavigatorObserver {
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    // Al cerrarse el reproductor abierto desde el miniplayer, liberar el
+    // guard de doble push para que se pueda volver a abrir.
+    if (route.settings.name == '/music-player') _playerRouteOpen = false;
     if (_isOpaqueModal(route)) MiniCoverService.instance.popCover();
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route.settings.name == '/music-player') _playerRouteOpen = false;
     if (_isOpaqueModal(route)) MiniCoverService.instance.popCover();
   }
 }
@@ -259,57 +302,17 @@ class MiniPlayer extends StatelessWidget {
           // Detectar arrastre vertical
           onVerticalDragUpdate: song != null
               ? (details) {
-                  // Si arrastra hacia arriba (delta negativo), abrir reproductor
+                  // Si arrastra hacia arriba (delta negativo), abrir reproductor.
+                  // _openFullPlayer tiene guard síncrono: aunque este callback
+                  // dispare en cada evento del gesto, solo se apila UNA ruta.
                   if (details.primaryDelta! < -5) {
-                    appNavigatorKey.currentState?.push(
-                      PageRouteBuilder(
-                        pageBuilder: (context, animation, secondaryAnimation) =>
-                            const MusicPlayerScreen(),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                              const begin = Offset(0.0, 1.0);
-                              const end = Offset.zero;
-                              const curve = Curves.easeOutCubic;
-
-                              var tween = Tween(
-                                begin: begin,
-                                end: end,
-                              ).chain(CurveTween(curve: curve));
-
-                              return SlideTransition(
-                                position: animation.drive(tween),
-                                child: child,
-                              );
-                            },
-                      ),
-                    );
+                    _openFullPlayer();
                   }
                 }
               : null,
           onTap: song != null
               ? () {
-                  appNavigatorKey.currentState?.push(
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) =>
-                          const MusicPlayerScreen(),
-                      transitionsBuilder:
-                          (context, animation, secondaryAnimation, child) {
-                            const begin = Offset(0.0, 1.0);
-                            const end = Offset.zero;
-                            const curve = Curves.easeInOut;
-
-                            var tween = Tween(
-                              begin: begin,
-                              end: end,
-                            ).chain(CurveTween(curve: curve));
-
-                            return SlideTransition(
-                              position: animation.drive(tween),
-                              child: child,
-                            );
-                          },
-                    ),
-                  );
+                  _openFullPlayer();
                 }
               : null,
           child: Container(
