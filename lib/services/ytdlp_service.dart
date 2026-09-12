@@ -285,8 +285,8 @@ class YtDlpService {
   /// Descarga la pista [videoId] como mp3 con metadatos incrustados.
   ///
   /// - [title]/[artist]: metadatos exactos del resultado de Innertube; se
-  ///   fuerzan en el archivo con --parse-metadata para que no dependan de
-  ///   la limpieza heurística de yt-dlp.
+  ///   fuerzan en el archivo con --parse-metadata/--replace-in-metadata
+  ///   para que no dependan de la limpieza heurística de yt-dlp.
   /// - [onProgress]: progreso 0.0..1.0 (fase de descarga 0..0.9,
   ///   conversión 0.9..1.0).
   Future<YtDlpDownloadResult> downloadAudio(
@@ -301,6 +301,13 @@ class YtDlpService {
         'El motor de descargas no está disponible (youtubedl-android no inicializado)',
       );
     }
+
+    final cleanTitle = title.trim();
+    // Canal "X - Topic" → "X" (defensivo; Innertube ya lo trae limpio).
+    final cleanArtist = artist
+        .trim()
+        .replaceAll(RegExp(r'\s*-\s*Topic\s*$'), '')
+        .trim();
 
     final outDir = await _ensureOutputDir();
     // Nombre seguro y único: yt-dlp escribe "<base>.mp3" al terminar.
@@ -328,9 +335,25 @@ class YtDlpService {
       '--convert-thumbnails', 'jpg',
       // Metadatos exactos de Innertube: el título y artista del resultado
       // mandan sobre el raw de YouTube.
-      '--parse-metadata', 'Title:(?P<title>.*)',
-      '--parse-metadata', 'Uploader:(?P<artist>.*)',
+      //
+      // IMPORTANTE: no usar prefijos 'Uploader:'/'Title:' — el campo
+      // 'uploader' es None en el info dict moderno de YouTube, por lo que
+      // yt-dlp SALTABA el parse y el archivo quedaba SIN artista (los
+      // templates de campos faltantes se renderizan como "NA"). Patrón
+      // probado (igual que desktop y Scrup/ytdlnis):
+      //  1. Crear 'artist' desde 'channel' (siempre presente en YouTube).
+      //  2. Sobrescribir title/artist con los valores EXACTOS de Innertube
+      //     vía --replace-in-metadata (solo escapa '\\'; '$' es literal en
+      //     los reemplazos de Python re).
+      '--parse-metadata', 'channel:(?P<artist>.*)',
+      '--replace-in-metadata', 'title', r'^.*$',
+      _literalReplacement(cleanTitle),
+      if (cleanArtist.isNotEmpty) ...[
+        '--replace-in-metadata', 'artist', r'^.*$',
+        _literalReplacement(cleanArtist),
+      ],
       '--replace-in-metadata', 'title', r'^\s+|\s+$', '',
+      '--replace-in-metadata', 'artist', r'^\s+|\s+$', '',
       '--add-header', 'User-Agent: Mozilla/5.0',
       '--add-header', 'Referer: https://www.youtube.com',
       '--print', 'after_move:filepath',
@@ -348,7 +371,9 @@ class YtDlpService {
 
     // Renombrar al nombre limpio título-artista (sin videoId) para que el
     // archivo final sea igual al de desktop.
-    final cleanName = '${_safeName(title)}.mp3';
+    final cleanName = cleanArtist.isNotEmpty
+        ? '${_safeName('$cleanTitle - $cleanArtist')}.mp3'
+        : '${_safeName(cleanTitle)}.mp3';
     final finalPath = p.join(outDir, cleanName);
     try {
       if (p.basename(foundPath).toLowerCase() != cleanName.toLowerCase()) {
@@ -368,6 +393,12 @@ class YtDlpService {
       elapsedMs: sw.elapsedMilliseconds,
     );
   }
+
+  /// Escapa un valor para usarlo como REEMPLAZO literal de
+  /// --replace-in-metadata (yt-dlp aplica Python re.sub: solo '\\' es
+  /// especial en el reemplazo; '$' es literal y NO debe escaparse).
+  static String _literalReplacement(String value) =>
+      value.replaceAll(r'\', r'\\');
 
   /// Descarga un vídeo de YouTube con la lógica del video_downloader de
   /// Forawn desktop, adaptada a Android:
