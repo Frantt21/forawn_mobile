@@ -272,5 +272,19 @@
   "server_search_explanation": "Search music from a broader database (Spotify), useful if you can't find your song, but data might not be 100% accurate.",
   "square_artwork_mode": "Square Mode",
   "full_artwork_mode": "Full Mode",
-  "youtube_music_source": "YouTube Music"
+  "youtube_music_source": "YouTube Music",
+  "tab_in_progress": "In progress",
+  "tab_queued": "Queued",
+  "tab_completed": "Completed",
+  "no_downloads_in_progress": "No downloads in progress",
+  "no_downloads_queued": "No queued downloads",
+  "badge_queued": "Waiting for turn",
+  "video_url_label": "YouTube URL",
+  "invalid_url": "Invalid URL",
+  "meta_error": "Could not fetch video metadata",
+  "choose_resolution": "Choose resolution",
+  "no_formats_yet": "No formats available",
+  "no_title": "Untitled",
+  "enter_url_desc": "Enter a YouTube URL to start",
+  "added_to_queue": "Added to download queue"
 }

@@ -13,11 +13,21 @@ import 'download_history_service.dart';
 import 'notification_history_service.dart';
 import 'lyrics_service.dart';
 
+/// Estado de una descarga dentro de la lista de activas.
+enum DownloadPhase { queued, downloading, completed, failed }
+
 /// Modelo para una descarga en progreso
 class ActiveDownload {
   final String id;
   final SpotifyTrack track;
   final String? pinterestImageUrl;
+
+  /// Para descargas de VIDEO: format_id elegido en el diálogo de
+  /// resoluciones. null = descarga de AUDIO (mp3).
+  final String? videoFormatId;
+
+  /// Fase actual: en cola → descargando → completada/fallida.
+  final DownloadPhase phase;
   double progress;
   bool isCompleted;
   bool isCancelled;
@@ -27,11 +37,30 @@ class ActiveDownload {
     required this.id,
     required this.track,
     this.pinterestImageUrl,
+    this.videoFormatId,
+    this.phase = DownloadPhase.downloading,
     this.progress = 0.0,
     this.isCompleted = false,
     this.isCancelled = false,
     this.error,
   });
+
+  /// true si el job es de vídeo (mp4), false si es de audio (mp3).
+  bool get isVideo => videoFormatId != null;
+
+  ActiveDownload copyWith({DownloadPhase? phase, double? progress}) {
+    return ActiveDownload(
+      id: id,
+      track: track,
+      pinterestImageUrl: pinterestImageUrl,
+      videoFormatId: videoFormatId,
+      phase: phase ?? this.phase,
+      progress: progress ?? this.progress,
+      isCompleted: isCompleted,
+      isCancelled: isCancelled,
+      error: error,
+    );
+  }
 }
 
 /// Servicio global de descargas con notificaciones
@@ -48,6 +77,10 @@ class GlobalDownloadManager {
   final StreamController<Map<String, ActiveDownload>> _downloadsController =
       StreamController<Map<String, ActiveDownload>>.broadcast();
 
+  /// Parámetros de descargas en cola para arrancarlas vía [_processQueue].
+  final Map<String, ({String? treeUri, bool forceYouTubeFallback, String? videoFormatId})>
+  _queuedParams = {};
+
   // Map para trackear las descargas canceladas por el usuario.
   final Set<String> _cancelledDownloads = {};
 
@@ -55,9 +88,19 @@ class GlobalDownloadManager {
 
   bool _isInitialized = false;
 
-  /// Stream de descargas activas
+  /// Stream de descargas activas (cualquier fase).
   Stream<Map<String, ActiveDownload>> get downloadsStream =>
       _downloadsController.stream;
+
+  /// Descargas en estado "en cola" (esperando que termine la actual).
+  List<ActiveDownload> get queuedDownloads => _activeDownloads.values
+      .where((d) => d.phase == DownloadPhase.queued)
+      .toList();
+
+  /// Descargas en estado "en curso".
+  List<ActiveDownload> get downloadingDownloads => _activeDownloads.values
+      .where((d) => d.phase == DownloadPhase.downloading)
+      .toList();
 
   /// Obtener descargas activas
   Map<String, ActiveDownload> get activeDownloads =>
@@ -106,21 +149,41 @@ class GlobalDownloadManager {
   }
 
   /// Agregar una descarga a la cola
+  ///
+  /// [startNow]: false encola la descarga sin ejecutarla (fase "en cola");
+  /// la lista se procesa FIFO: al no quedar nada en curso, arranca la
+  /// primera en cola. true (default) la descarga inmediatamente.
   Future<String> addDownload({
     required SpotifyTrack track,
     String? pinterestImageUrl,
     String? treeUri,
     bool forceYouTubeFallback = false,
+    bool startNow = true,
+
+    /// Para VIDEO: format_id del diálogo de resoluciones. null = audio.
+    String? videoFormatId,
   }) async {
     // Lazy init
     if (!_isInitialized) await initialize();
 
     final downloadId = const Uuid().v4();
 
+    final hasActiveJob = _activeDownloads.values.any(
+      (d) => d.phase == DownloadPhase.downloading,
+    );
+    // Auto-cola: si ya hay una descarga en curso, la nueva entra "en cola"
+    // aunque el caller pida startNow, para no saturar el dispositivo con
+    // varios yt-dlp+ffmpeg en paralelo.
+    final effectiveStart = startNow && !hasActiveJob;
+
     final activeDownload = ActiveDownload(
       id: downloadId,
       track: track,
       pinterestImageUrl: pinterestImageUrl,
+      videoFormatId: videoFormatId,
+      phase: effectiveStart
+          ? DownloadPhase.downloading
+          : DownloadPhase.queued,
     );
 
     _activeDownloads[downloadId] = activeDownload;
@@ -132,26 +195,75 @@ class GlobalDownloadManager {
     );
     _notifyListeners();
 
-    // Iniciar descarga en segundo plano
-    _startDownload(
-      downloadId,
-      track,
-      pinterestImageUrl,
-      treeUri,
-      forceYouTubeFallback,
-    );
+    // Iniciar descarga en segundo plano (solo si no quedó en cola)
+    if (effectiveStart) {
+      _startDownload(
+        downloadId,
+        track,
+        pinterestImageUrl,
+        treeUri,
+        forceYouTubeFallback,
+        videoFormatId: videoFormatId,
+      );
+    } else {
+      _queuedParams[downloadId] = (
+        treeUri: treeUri,
+        forceYouTubeFallback: forceYouTubeFallback,
+        videoFormatId: videoFormatId,
+      );
+    }
 
     return downloadId;
   }
 
-  /// Iniciar descarga
+  /// Procesa la cola FIFO: arranca la primera descarga "en cola" si no hay
+  /// ninguna en curso. Se llama al completar (o fallar) cada descarga.
+  void _processQueue() {
+    final hasActiveJob = _activeDownloads.values.any(
+      (d) => d.phase == DownloadPhase.downloading,
+    );
+    if (hasActiveJob) return;
+
+    final next = _activeDownloads.values
+        .where((d) => d.phase == DownloadPhase.queued && !d.isCancelled)
+        .toList();
+    if (next.isEmpty) return;
+
+    // Orden de llegada: insertar preserva el orden en el Map literal de
+    // inserción de Dart; usamos el id como desempate estable.
+    next.sort((a, b) => a.id.compareTo(b.id));
+    final job = next.first;
+
+    _activeDownloads[job.id] = job.copyWith(phase: DownloadPhase.downloading);
+    _notifyListeners();
+
+    // Reanudar con los parámetros guardados.
+    final params = _queuedParams.remove(job.id);
+    if (params == null) {
+      _activeDownloads.remove(job.id);
+      _notifyListeners();
+      _processQueue();
+      return;
+    }
+    _startDownload(
+      job.id,
+      job.track,
+      job.pinterestImageUrl,
+      params.treeUri,
+      params.forceYouTubeFallback,
+      videoFormatId: params.videoFormatId,
+    );
+  }
+
+  /// Iniciar descarga (audio mp3 o video mp4 según [videoFormatId]).
   Future<void> _startDownload(
     String downloadId,
     SpotifyTrack track,
     String? pinterestImageUrl,
     String? treeUri,
-    bool forceYouTubeFallback,
-  ) async {
+    bool forceYouTubeFallback, {
+    String? videoFormatId,
+  }) async {
     final download = _activeDownloads[downloadId];
     if (download == null || download.isCancelled) return;
 
@@ -207,14 +319,23 @@ class GlobalDownloadManager {
         );
         _activeDownloads.remove(downloadId);
         _notifyListeners();
+        _processQueue();
         return;
       }
 
       // Crear nombre de archivo
-      final fileName = artistName.isNotEmpty
-          ? '$trackName - $artistName.mp3'
-          : '$trackName.mp3';
-      final cleanFileName = fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      String cleanFileName;
+      if (videoFormatId != null) {
+        // VIDEO: la extensión real se conoce DESPUÉS de descargar (yt-dlp
+        // decide el contenedor según el formato elegido: webm, mp4, mkv...).
+        // Se ajusta más abajo, tras la descarga, antes de guardar.
+        cleanFileName = '';
+      } else {
+        final fileName = artistName.isNotEmpty
+            ? '$trackName - $artistName.mp3'
+            : '$trackName.mp3';
+        cleanFileName = fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      }
 
       // Verificar si fue cancelada antes de iniciar la descarga
       if (_cancelledDownloads.contains(downloadId)) {
@@ -223,36 +344,71 @@ class GlobalDownloadManager {
         );
         _activeDownloads.remove(downloadId);
         _notifyListeners();
+        _processQueue();
         return;
       }
 
       // Descargar con yt-dlp+ffmpeg EMBEBIDOS (sin servidores externos).
-      // Los metadatos (título, artista, portada) salen de Innertube y se
-      // incrustan con ffmpeg durante la extracción.
-      final result = await YtDlpService().downloadAudio(
-        videoId,
-        title: trackName,
-        artist: artistName,
-        onProgress: (progress) {
-          if (_activeDownloads.containsKey(downloadId)) {
-            _activeDownloads[downloadId]!.progress = progress;
-            _notifyListeners();
-
-            // Actualizar notificación con progreso
-            // Evitar actualizar al 100% aquí para no dejar la notificación "pegada" como ongoing
-            if (progress < 0.99) {
-              _showDownloadNotification(
-                downloadId,
-                track.title,
-                'Descargando...',
-                (progress * 100).toInt(),
-              );
+      // AUDIO: los metadatos (título, artista, portada) salen de Innertube y
+      // se incrustan con ffmpeg durante la extracción.
+      // VIDEO: lógica del video_downloader de Forawn desktop (format_id del
+      // diálogo de resoluciones + mux mp4).
+      final YtDlpDownloadResult result;
+      if (videoFormatId != null) {
+        result = await YtDlpService().downloadVideo(
+          track.url,
+          formatId: videoFormatId,
+          title: trackName,
+          onProgress: (progress) {
+            if (_activeDownloads.containsKey(downloadId)) {
+              _activeDownloads[downloadId]!.progress = progress;
+              _notifyListeners();
+              if (progress < 0.99) {
+                _showDownloadNotification(
+                  downloadId,
+                  track.title,
+                  'Descargando...',
+                  (progress * 100).toInt(),
+                );
+              }
             }
-          }
-        },
-      );
+          },
+        );
+      } else {
+        result = await YtDlpService().downloadAudio(
+          videoId,
+          title: trackName,
+          artist: artistName,
+          onProgress: (progress) {
+            if (_activeDownloads.containsKey(downloadId)) {
+              _activeDownloads[downloadId]!.progress = progress;
+              _notifyListeners();
 
-      // Mover el mp3 temporal a su destino final (SAF o Download/).
+              // Actualizar notificación con progreso
+              // Evitar actualizar al 100% aquí para no dejar la notificación "pegada" como ongoing
+              if (progress < 0.99) {
+                _showDownloadNotification(
+                  downloadId,
+                  track.title,
+                  'Descargando...',
+                  (progress * 100).toInt(),
+                );
+              }
+            }
+          },
+        );
+      }
+
+      // Mover el mp3/mp4/webm temporal a su destino final (SAF o Download/).
+      if (videoFormatId != null) {
+        // VIDEO: extensión real del archivo descargado (no la supuesta).
+        final ext = result.filePath.contains('.')
+            ? result.filePath.substring(result.filePath.lastIndexOf('.') + 1)
+                  .toLowerCase()
+            : 'mp4';
+        final vName = '$trackName.$ext';
+        cleanFileName = vName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      }
       await _saveToDestination(
         result.filePath,
         cleanFileName,
@@ -274,9 +430,17 @@ class GlobalDownloadManager {
 
       // Marcar como completada
       if (_activeDownloads.containsKey(downloadId)) {
-        _activeDownloads[downloadId]!.isCompleted = true;
-        _activeDownloads[downloadId]!.progress = 1.0;
+        _activeDownloads[downloadId]!
+          ..isCompleted = true
+          ..progress = 1.0
+          ..error = null;
+        _activeDownloads[downloadId] = _activeDownloads[downloadId]!
+            .copyWith(phase: DownloadPhase.completed);
         _notifyListeners();
+
+        // Lanzar la siguiente descarga en cola de inmediato (el item
+        // completado permanece 3s en la lista para feedback visual).
+        _processQueue();
 
         // 🛡️ Safe Block: Ejecutar acciones post-descarga con manejo de errores independiente
         // para asegurar que si falla una notificación o historial, NO se marque la descarga como fallida
@@ -289,7 +453,7 @@ class GlobalDownloadManager {
             imageUrl: pinterestImageUrl,
             downloadUrl: track.url,
             downloadedAt: DateTime.now(),
-            source: 'youtube',
+            source: videoFormatId != null ? 'video' : 'youtube',
             durationMs: null,
           );
           await DownloadHistoryService.addToHistory(historyItem);
@@ -335,6 +499,7 @@ class GlobalDownloadManager {
         _activeDownloads.remove(downloadId);
         _notifyListeners();
         _notificationsPlugin.cancel(downloadId.hashCode);
+        _processQueue();
         return;
       }
 
@@ -344,8 +509,14 @@ class GlobalDownloadManager {
       _cancelledDownloads.remove(downloadId);
 
       if (_activeDownloads.containsKey(downloadId)) {
-        _activeDownloads[downloadId]!.error = e.toString();
+        _activeDownloads[downloadId]!
+          ..error = e.toString();
+        _activeDownloads[downloadId] = _activeDownloads[downloadId]!
+            .copyWith(phase: DownloadPhase.failed);
         _notifyListeners();
+
+        // Continuar con la cola aunque esta descarga haya fallado.
+        _processQueue();
 
         // Mostrar notificación de error
         await _showErrorNotification(downloadId, track.title, e.toString());
@@ -383,6 +554,14 @@ class GlobalDownloadManager {
 
       // Cancelar notificación
       _notificationsPlugin.cancel(downloadId.hashCode);
+
+      // Si estaba en cola (sin proceso activo), sacarla directamente.
+      final d = _activeDownloads[downloadId];
+      if (d != null && d.phase == DownloadPhase.queued) {
+        _activeDownloads.remove(downloadId);
+        _queuedParams.remove(downloadId);
+        _notifyListeners();
+      }
 
       print(
         '[GlobalDownloadManager] Descarga marcada como cancelada: $downloadId',

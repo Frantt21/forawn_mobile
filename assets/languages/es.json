@@ -272,5 +272,19 @@
   "paste_lrc_lyrics_tooltip": "Pegar Letras LRC",
   "volume_accessibility_title": "Salto por Volumen",
   "volume_accessibility_desc": "Habilita el servicio de accesibilidad para saltar canciones manteniendo presionados los botones de volumen cuando la pantalla esté apagada",
-  "youtube_music_source": "YouTube Music"
+  "youtube_music_source": "YouTube Music",
+  "tab_in_progress": "En curso",
+  "tab_queued": "En cola",
+  "tab_completed": "Completadas",
+  "no_downloads_in_progress": "No hay descargas en curso",
+  "no_downloads_queued": "No hay descargas en cola",
+  "badge_queued": "Esperando turno",
+  "video_url_label": "URL de YouTube",
+  "invalid_url": "URL no valida",
+  "meta_error": "No se pudo obtener los metadatos del video",
+  "choose_resolution": "Elegir resolucion",
+  "no_formats_yet": "No hay formatos disponibles",
+  "no_title": "Sin titulo",
+  "enter_url_desc": "Ingresa una URL de YouTube para empezar",
+  "added_to_queue": "Anadido a la cola de descargas"
 }

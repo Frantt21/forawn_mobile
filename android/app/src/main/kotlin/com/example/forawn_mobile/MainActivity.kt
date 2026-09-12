@@ -345,7 +345,10 @@ class MainActivity : AudioServiceActivity() {
 
   private fun saveFileToTree(treeUri: Uri, tempFilePath: String, fileName: String): Uri? {
       val dir = DocumentFile.fromTreeUri(this, treeUri) ?: return null
-      val newFile = dir.createFile("audio/mpeg", fileName) ?: return null
+      // MIME derivado de la extensión real del archivo. Antes se forzaba
+      // "audio/mpeg" y SAF le AÑADÍA ".mp3" a cualquier nombre que no
+      // coincidiera (ej. "Video.mp4" -> "Video.mp4.mp3").
+      val newFile = dir.createFile(mimeForFileName(fileName), fileName) ?: return null
       
       try {
           val sourceFile = File(tempFilePath)
@@ -379,6 +382,25 @@ class MainActivity : AudioServiceActivity() {
           throw e
       }
       return null
+  }
+
+  /** MIME type según la extensión del nombre de archivo destino. */
+  private fun mimeForFileName(name: String): String {
+      val ext = name.substringAfterLast('.', "").lowercase()
+      return when (ext) {
+          "mp3" -> "audio/mpeg"
+          "m4a" -> "audio/mp4"
+          "opus", "ogg" -> "audio/ogg"
+          "wav" -> "audio/wav"
+          "flac" -> "audio/flac"
+          "mp4" -> "video/mp4"
+          "webm" -> "video/webm"
+          "mkv" -> "video/x-matroska"
+          "mov" -> "video/quicktime"
+          "jpg", "jpeg" -> "image/jpeg"
+          "png" -> "image/png"
+          else -> "application/octet-stream"
+      }
   }
 
   private fun openSafFile(uri: Uri): Boolean {
