@@ -185,8 +185,14 @@ class _DownloadHistoryScreenState extends State<DownloadHistoryScreen>
                           hintText: LanguageService().getText('song_or_artist'),
                           hintStyle: TextStyle(
                             color: Colors.white.withOpacity(0.3),
+                            fontSize: 16,
                           ),
                           border: InputBorder.none,
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.white.withOpacity(0.5),
+                            size: 20,
+                          ),
                           suffixIcon: _searchController.text.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.clear, size: 20),

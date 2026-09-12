@@ -62,3 +62,4 @@ lib/backend/package.json
 lib/backend/.env.example
 /lib/backend
 
+android/java_pid24768.hprof

@@ -33,7 +33,7 @@ class MainActivity : AudioServiceActivity() {
     ytDlpHandler = YtDlpHandler(this)
     MethodChannel(flutterEngine.dartExecutor.binaryMessenger, YTDLP_CHANNEL).setMethodCallHandler { call, result ->
       when (call.method) {
-        "ytdlpInit", "ytdlpRun", "ytdlpCancel", "ytdlpVersion" -> {
+        "ytdlpInit", "ytdlpRun", "ytdlpCancel", "ytdlpVersion", "ytdlpUpdate" -> {
           ytDlpHandler!!.handleMethodCall(call, result)
         }
         else -> result.notImplemented()

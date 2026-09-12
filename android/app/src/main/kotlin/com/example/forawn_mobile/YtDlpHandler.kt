@@ -2,6 +2,7 @@ package com.example.forawn_mobile
 
 import android.content.Context
 import android.util.Log
+import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import io.flutter.plugin.common.MethodCall
@@ -10,6 +11,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * Wraps youtubedl-android (com.yausername.youtubedl_android) to run yt-dlp
@@ -19,6 +23,8 @@ import kotlinx.coroutines.withContext
 class YtDlpHandler(private val context: Context) {
     companion object {
         private const val TAG = "YtDlpHandler"
+        private const val YTDLP_LATEST_URL =
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
     }
 
     private var initialized = false
@@ -27,11 +33,14 @@ class YtDlpHandler(private val context: Context) {
     fun init() {
         if (initialized) return
         try {
-            // En el fork junkfood02, init también prepara el FFmpeg embebido
-            // (igual que Scrup: no se requiere init explícito de FFmpeg).
             YoutubeDL.getInstance().init(context)
+            // FFmpeg requiere SU PROPIO init (igual que el README de
+            // youtubedl-android). Sin esto, yt-dlp no encuentra ffmpeg y el
+            // post-proceso (--extract-audio/--embed-thumbnail) falla con
+            // "'NoneType' object has no attribute 'lower'".
+            FFmpeg.getInstance().init(context)
             initialized = true
-            Log.i(TAG, "youtubedl-android initialized OK")
+            Log.i(TAG, "youtubedl-android initialized OK (python + ffmpeg)")
         } catch (e: Exception) {
             Log.e(TAG, "Init failed: ${e.message}", e)
         }
@@ -77,7 +86,104 @@ class YtDlpHandler(private val context: Context) {
                     }
                 }
             }
+            "ytdlpUpdate" -> updateYtDlp(result)
             else -> result.notImplemented()
+        }
+    }
+
+    /**
+     * Actualiza yt-dlp embebido a la última versión ESTABLE desde GitHub
+     * (mismo enfoque que Forawn desktop: usar siempre el yt-dlp más reciente).
+     * YouTube rompe constantemente los clientes antiguos (HTTP 403), así que
+     * esto reemplaza el binario envuelto en el APK sin recompilar.
+     *
+     * El update de la librería (UpdateChannel.STABLE) a veces falla en el
+     * dispositivo (api.github.com bloqueada, timeouts cortos de la librería,
+     * etc.). Fallback: descarga directa desde el release latest de GitHub al
+     * MISMO path que lee la librería (<noBackupFilesDir>/youtubedl-android/)
+     * y reapunta con init_ytdlp para que el próximo execute() use el binario
+     * actualizado.
+     *
+     * Best-effort: nunca lanza error al canal, devuelve un status string.
+     */
+    private fun updateYtDlp(result: MethodChannel.Result) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                if (!initialized) init()
+                var status: String
+                try {
+                    val st =
+                        YoutubeDL.getInstance().updateYoutubeDL(
+                            context,
+                            YoutubeDL.UpdateChannel.STABLE,
+                        )
+                    status = st?.name?.takeIf { it.isNotBlank() } ?: "UPDATED"
+                    Log.i(TAG, "yt-dlp update (librería) status=$status")
+                } catch (e: Exception) {
+                    Log.w(TAG, "yt-dlp update (librería) falló: ${e.message}")
+                    // Fallback: descarga manual del zipapp latest.
+                    if (manualUpdateYtDlp()) {
+                        status = "UPDATED_DIRECT"
+                        Log.i(TAG, "yt-dlp actualizado por descarga directa")
+                    } else {
+                        status = "FAILED: ${e.message}"
+                    }
+                }
+                withContext(Dispatchers.Main) { result.success(status) }
+            } catch (e: Exception) {
+                Log.w(TAG, "yt-dlp update failed: ${e.message}")
+                withContext(Dispatchers.Main) { result.success("FAILED") }
+            }
+        }
+    }
+
+    /**
+     * Descarga el zipapp `yt-dlp` del release latest de yt-dlp (GitHub) y lo
+     * coloca donde la librería lo lee. Validación mínima del binario (hex de
+     * arranque de Python zipapp) para descartar páginas de error/HTML.
+     */
+    private fun manualUpdateYtDlp(): Boolean {
+        var tmp: File? = null
+        return try {
+            val dir = File(context.noBackupFilesDir, "youtubedl-android")
+            dir.mkdirs()
+            tmp = File.createTempFile("ytdlp", ".zipapp", context.cacheDir)
+            val conn = URL(YTDLP_LATEST_URL).openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+            conn.connectTimeout = 20_000
+            conn.readTimeout = 60_000
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                Log.w(TAG, "manualUpdateYtDlp: HTTP $code")
+                return false
+            }
+            conn.inputStream.use { input ->
+                tmp.outputStream().use { out -> input.copyTo(out) }
+            }
+            // yt-dlp zipapp empieza con shebang python (#!/usr/bin/env python3);
+            // una página de error/HTML de GitHub no lo tiene.
+            val bytes = tmp.inputStream().use { it.readNBytes(16) }
+            val head = String(bytes, Charsets.ISO_8859_1)
+            if (!head.startsWith("#!")) {
+                Log.w(TAG, "manualUpdateYtDlp: binario descargado no válido")
+                return false
+            }
+            val target = File(dir, "yt-dlp")
+            if (target.exists()) target.delete()
+            tmp.copyTo(target, overwrite = true)
+            target.setExecutable(true, false)
+            // Re-apunta la librería al binario nuevo (si no existe lo copia
+            // del raw; aquí ya existe así que no toca nada).
+            YoutubeDL.getInstance().init_ytdlp(context, dir)
+            Log.i(TAG, "manualUpdateYtDlp OK: ${target.length()} bytes -> ${target.path}")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "manualUpdateYtDlp falló: ${e.message}")
+            false
+        } finally {
+            tmp?.delete()
         }
     }
 

@@ -417,24 +417,61 @@ class _MusicDownloaderScreenState extends State<MusicDownloaderScreen>
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  TextField(
-                                    controller: _searchController,
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontSize: 16,
+                                  // Estilo de inputs de Forawn desktop:
+                                  // píldora blanca 5%, radio 16, icono de
+                                  // búsqueda y botón de limpiar.
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.05),
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
-                                    cursorColor: accentColor,
-                                    decoration: InputDecoration(
-                                      hintText: LanguageService().getText(
-                                        'song_or_artist',
+                                    child: TextField(
+                                      controller: _searchController,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
                                       ),
-                                      hintStyle: TextStyle(
-                                        color: textColor.withOpacity(0.3),
+                                      cursorColor: Colors.purpleAccent,
+                                      decoration: InputDecoration(
+                                        isCollapsed: true,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 14,
+                                        ),
+                                        hintText: LanguageService().getText(
+                                          'song_or_artist',
+                                        ),
+                                        hintStyle: TextStyle(
+                                          color:
+                                              Colors.white.withOpacity(0.3),
+                                          fontSize: 16,
+                                        ),
+                                        border: InputBorder.none,
+                                        prefixIcon: Icon(
+                                          Icons.search,
+                                          color:
+                                              Colors.white.withOpacity(0.5),
+                                          size: 20,
+                                        ),
+                                        suffixIcon: _searchController
+                                                .text.isNotEmpty
+                                            ? IconButton(
+                                                icon: const Icon(
+                                                  Icons.close,
+                                                  color: Colors.white54,
+                                                  size: 20,
+                                                ),
+                                                onPressed: () {
+                                                  _searchController.clear();
+                                                  setState(() {});
+                                                },
+                                              )
+                                            : null,
                                       ),
-                                      border: InputBorder.none,
+                                      onSubmitted: (_) => _searchSongs(),
+                                      textInputAction: TextInputAction.search,
                                     ),
-                                    onSubmitted: (_) => _searchSongs(),
-                                    textInputAction: TextInputAction.search,
                                   ),
                                 ],
                               ),

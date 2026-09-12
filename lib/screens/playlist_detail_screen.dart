@@ -348,9 +348,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                 ),
                 prefixIcon: Icon(Icons.search, color: textColor, size: 20),
                 filled: true,
-                // Fondo con el color de acento (botones) pero con opacidad ligera
-                // para mantener legibilidad y consistencia
-                fillColor: accentColor.withOpacity(0.2),
+                // Fondo con el color del texto con opacidad ligera
+                // (igual que Forawn desktop).
+                fillColor: textColor.withOpacity(0.1),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(
                     24,

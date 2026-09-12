@@ -154,11 +154,12 @@ class _AnimatedSearchAppBarState extends State<AnimatedSearchAppBar>
           ), // Slide from right
           child: Opacity(
             opacity: _fadeAnimation.value,
-            child: Card(
-              color: const Color(0xFF1C1C1E),
-              margin: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+            // Estilo de inputs de Forawn desktop: píldora blanca 5%,
+            // radio 16 (antes Card 0xFF1C1C1E / radio 12).
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: SizedBox(
                 height: 40, // Height fija para evitar saltos

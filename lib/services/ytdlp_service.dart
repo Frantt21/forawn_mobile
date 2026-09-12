@@ -14,6 +14,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -52,6 +53,7 @@ class YtDlpService {
   static const String _watchUrlBase = 'https://www.youtube.com/watch?v=';
 
   bool _initialized = false;
+  bool _updateChecked = false;
   String? _outputDir;
 
   /// Directorio donde se guardan los mp3 descargados (app-specific,
@@ -74,6 +76,7 @@ class YtDlpService {
     try {
       final ok = await _channel.invokeMethod<bool>('ytdlpInit');
       _initialized = ok ?? false;
+      if (_initialized) await _ensureYtDlpUpdated();
       return _initialized;
     } on PlatformException catch (e) {
       // "notInitialized" significa que el handler existe pero el init
@@ -81,6 +84,7 @@ class YtDlpService {
       try {
         final ok = await _channel.invokeMethod<bool>('ytdlpInit');
         _initialized = ok ?? false;
+        if (_initialized) await _ensureYtDlpUpdated();
         return _initialized;
       } catch (_) {
         throw YtDlpException(
@@ -91,6 +95,27 @@ class YtDlpService {
       throw YtDlpException(
         'Motor de descarga no disponible en esta build (ytdlp channel missing)',
       );
+    }
+  }
+
+  /// Actualiza yt-dlp embebido a la última versión estable (una sola vez por
+  /// proceso). YouTube bloquea con HTTP 403 los clientes antiguos, igual que
+  /// Forawn desktop descarga siempre el yt-dlp más reciente.
+  Future<void> _ensureYtDlpUpdated() async {
+    if (_updateChecked) return;
+    _updateChecked = true;
+    try {
+      final status = await _channel.invokeMethod<String>('ytdlpUpdate');
+      if (status == null || status.startsWith('FAILED')) {
+        debugPrint(
+          '[YtDlpService] yt-dlp update no pudo completarse: $status; '
+          'usando la versión disponible',
+        );
+      } else {
+        debugPrint('[YtDlpService] yt-dlp actualizado: $status');
+      }
+    } catch (e) {
+      debugPrint('[YtDlpService] yt-dlp update lanzó excepción; continuando: $e');
     }
   }
 
@@ -148,7 +173,9 @@ class YtDlpService {
       '--extract-audio',
       '--audio-format', 'mp3',
       '--audio-quality', '0',
-      '--ffmpeg-location', '.', // ffmpeg embebido lo resuelve la librería
+      // NOTA: sin --ffmpeg-location — la librería youtubedl-android ya
+      // inyecta la ruta correcta del ffmpeg embebido en cada execute()
+      // (YoutubeDL.kt lo añade automáticamente).
       '-o', outputTemplate,
       '--embed-metadata',
       '--embed-thumbnail',
