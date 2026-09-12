@@ -643,7 +643,7 @@ class _TimeHeaderState extends State<TimeHeader> {
     final lang = LanguageService();
     if (hour >= 5 && hour < 12) return lang.getText('good_morning');
     if (hour >= 12 && hour < 19) return lang.getText('good_afternoon');
-    return lang.getText('good_evening');
+    return lang.getText('good_night');
   }
 
   IconData _greetingIcon() {

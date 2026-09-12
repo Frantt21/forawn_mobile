@@ -98,7 +98,7 @@
   "clear_all": "Limpiar todo",
   "good_morning": "Buenos días",
   "good_afternoon": "Buenas tardes",
-  "good_evening": "Buenas noches",
+  "good_night": "Buenas noches",
   "visited_now": "Visitado ahora",
   "visited_min_ago": "Visitado hace {{min}} min",
   "visited_hours_ago": "Visitado hace {{hours}}h",

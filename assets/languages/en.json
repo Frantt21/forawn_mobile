@@ -98,7 +98,7 @@
   "clear_all": "Clear all",
   "good_morning": "Good morning",
   "good_afternoon": "Good afternoon",
-  "good_evening": "Good evening",
+  "good_night": "Good night",
   "visited_now": "Visited now",
   "visited_min_ago": "Visited {{min}} min ago",
   "visited_hours_ago": "Visited {{hours}}h ago",
