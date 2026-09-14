@@ -1027,8 +1027,36 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
                                 ],
                               ),
                             ),
+                            // Pill con la fuente de las lyrics
+                            if (l.source != null &&
+                                l.source!.trim().isNotEmpty)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.15),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  l.source!,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.55),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
                             if (l.syncedLyrics.isNotEmpty)
                               Container(
+                                margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                   vertical: 4,
