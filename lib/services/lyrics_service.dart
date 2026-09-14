@@ -187,10 +187,14 @@ class LyricsService {
 
   // Espejos KPoe (LyricsPlus), igual que Scrup: letras word-by-word.
   // Todos se lanzan EN PARALELO; gana el primero (en orden) que responda.
+  // Espejos KPoe (LyricsPlus). binimum.org es el espejo estable actualmente
+  // (verificado 2026-09); atomix.one es el respaldo oficial y los espejos
+  // prjktla siguen por si se recuperan.
   static const List<String> _kpoeServers = [
-    'https://lyricsplus.prjktla.my.id',
     'https://lyricsplus.binimum.org',
+    'https://lyricsplus.atomix.one',
     'https://lyricsplus.prjktla.workers.dev',
+    'https://lyricsplus.prjktla.my.id',
   ];
 
   // State Management
@@ -519,7 +523,8 @@ class LyricsService {
         '$server/v2/lyrics/get',
         queryParameters: {'title': cleanTrack, 'artist': cleanArtist},
         cancelToken: cancelToken,
-        options: Options(receiveTimeout: const Duration(seconds: 6)),
+        // 10s: los espejos pueden tardar ~8s en pistas no cacheadas.
+        options: Options(receiveTimeout: const Duration(seconds: 10)),
       );
       if (response.statusCode != 200) return null;
       final data = response.data;
@@ -672,7 +677,8 @@ class LyricsService {
       final response = await _dio.get<Map<String, dynamic>>(
         '$server/v2/lyrics/get',
         queryParameters: {'title': title, 'artist': artist},
-        options: Options(receiveTimeout: const Duration(seconds: 6)),
+        // 10s: los espejos pueden tardar ~8s en pistas no cacheadas.
+        options: Options(receiveTimeout: const Duration(seconds: 10)),
       );
       if (response.statusCode != 200) return null;
       final data = response.data;
