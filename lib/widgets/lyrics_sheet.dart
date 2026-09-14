@@ -684,6 +684,8 @@ class _LyricsSheetState extends State<LyricsSheet> {
       isScrollControlled: true,
       builder: (context) => LyricsSearchDialog(
         initialQuery: '${_currentSong.title} ${_currentSong.artist}',
+        titleHint: _currentSong.title,
+        artistHint: _currentSong.artist,
         dominantColor: _currentSong.dominantColor,
         onLyricSelected: (l) async {
           await LyricsService().saveLyricsToCache(
@@ -737,11 +739,18 @@ class LyricsSearchDialog extends StatefulWidget {
   final Function(Lyrics) onLyricSelected;
   final int? dominantColor;
 
+  /// Metadatos de la canción actual: generan el candidato exacto para
+  /// KPoe aunque el query sea "Título Artista" con espacio simple.
+  final String? titleHint;
+  final String? artistHint;
+
   const LyricsSearchDialog({
     super.key,
     required this.initialQuery,
     required this.onLyricSelected,
     this.dominantColor,
+    this.titleHint,
+    this.artistHint,
   });
 
   @override
@@ -774,7 +783,11 @@ class _LyricsSearchDialogState extends State<LyricsSearchDialog> {
       _results = [];
     });
     try {
-      final res = await LyricsService().searchLyrics(query);
+      final res = await LyricsService().searchLyrics(
+        query,
+        titleHint: widget.titleHint,
+        artistHint: widget.artistHint,
+      );
       if (mounted) {
         setState(() {
           _results = res;

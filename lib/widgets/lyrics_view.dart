@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/lyrics_service.dart';
 import '../models/playback_state.dart';
 
@@ -40,7 +39,6 @@ class _LyricsViewState extends State<LyricsView> {
 
   late Stream<PlaybackProgress> _broadcastStream;
 
-  bool _isSweepEnabled = false;
 
   List<LyricLine> _processedLyrics = [];
   Lyrics? _lastLyrics;
@@ -101,18 +99,6 @@ class _LyricsViewState extends State<LyricsView> {
     super.initState();
     _broadcastStream = widget.progressStream.asBroadcastStream();
     _subscribeToProgress();
-    _loadSweepSettings();
-  }
-
-  Future<void> _loadSweepSettings() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (mounted) {
-        setState(() {
-          _isSweepEnabled = prefs.getBool('lyrics_sweep_enabled') ?? false;
-        });
-      }
-    } catch (_) {}
   }
 
   void didUpdateWidget(LyricsView oldWidget) {
@@ -326,7 +312,7 @@ class _LyricsViewState extends State<LyricsView> {
                         progressStream: _broadcastStream,
                         offset: widget.offset,
                         textColor: widget.textColor,
-                        isSweepEnabled: _isSweepEnabled,
+                        isSweepEnabled: true,
                         tagWords: line.words,
                       ),
                     ),

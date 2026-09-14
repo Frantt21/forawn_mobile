@@ -1107,6 +1107,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                     isScrollControlled: true,
                     builder: (_) => LyricsSearchDialog(
                       initialQuery: '${song.title} ${song.artist}',
+                      titleHint: song.title,
+                      artistHint: song.artist,
                       dominantColor: song.dominantColor,
                       onLyricSelected: (l) {
                         LyricsService().saveLyricsToCache(

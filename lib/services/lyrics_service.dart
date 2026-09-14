@@ -29,9 +29,23 @@ class LyricLine {
   final String text;
   final List<KaraokeWord>? words;
 
-  LyricLine({required this.timestamp, required this.text, this.words});
+  /// Evidencia de convención de sílabas detectada al parsear (Scrup).
+  final bool conventionEvidence;
 
-  factory LyricLine.fromString(String line) {
+  LyricLine({
+    required this.timestamp,
+    required this.text,
+    this.words,
+    this.conventionEvidence = false,
+  });
+
+  bool get hasWords => words != null && words!.isNotEmpty;
+
+  /// Limpieza de timestamps de Scrup: tokeniza los tags <mm:ss.xx>
+  /// conservando el separador de cada token, detecta si la convención es
+  /// de sílabas (tokens pegados o con espacio nuevo) y une las sílabas
+  /// en palabras completas en consecuencia.
+  factory LyricLine.fromString(String line, {bool forceWordGlue = false}) {
     // Formato: [00:09.23] Texto de la línea
     final regex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2})\]\s*(.*)');
     final match = regex.firstMatch(line);
@@ -49,42 +63,83 @@ class LyricLine {
       );
 
       List<KaraokeWord>? words;
+      var evidence = false;
       final wordRegex = RegExp(r'(?:<(\d{2}):(\d{2})\.(\d{2,3})>)?([^<]+)');
       if (fullText.contains('<')) {
-        words = [];
-        final wordMatches = wordRegex.allMatches(fullText);
-        for (final wMatch in wordMatches) {
-          final wText = wMatch.group(4)!.trimRight();
-          if (wText.isEmpty) continue;
+        // 1) Tokenizar conservando el separador que sigue a cada token.
+        final tokens = <({Duration ts, String text, int sepAfter})>[];
+        for (final wMatch in wordRegex.allMatches(fullText)) {
+          final raw = wMatch.group(4)!;
+          final text = raw.trimRight();
+          final sepAfter = raw.length - text.length;
+          final ts = wMatch.group(1) != null
+              ? Duration(
+                  minutes: int.parse(wMatch.group(1)!),
+                  seconds: int.parse(wMatch.group(2)!),
+                  milliseconds:
+                      int.parse(wMatch.group(3)!) *
+                      (wMatch.group(3)!.length == 3 ? 1 : 10),
+                )
+              : timestamp;
 
-          Duration? wTime;
-          if (wMatch.group(1) != null) {
-            wTime = Duration(
-              minutes: int.parse(wMatch.group(1)!),
-              seconds: int.parse(wMatch.group(2)!),
-              milliseconds:
-                  int.parse(wMatch.group(3)!) *
-                  (wMatch.group(3)!.length == 3 ? 1 : 10),
+          if (text.isEmpty) {
+            // Token vacío: conservar su separador en el token anterior.
+            if (tokens.isNotEmpty) {
+              final p = tokens.removeLast();
+              tokens.add((
+                ts: p.ts,
+                text: p.text,
+                sepAfter: p.sepAfter + sepAfter,
+              ));
+            }
+            continue;
+          }
+          tokens.add((ts: ts, text: text, sepAfter: sepAfter));
+        }
+
+        // 2) Evidencia de convención de sílabas: algún token NO final
+        // termina en frontera de palabra (0 = pegado, >=2 = espacio nuevo).
+        evidence =
+            tokens.length >= 2 &&
+            tokens
+                .take(tokens.length - 1)
+                .any((t) => t.sepAfter >= 2 || t.sepAfter == 0);
+        final conventional = evidence || forceWordGlue;
+
+        // 3) Unir sílabas en palabras cuando la convención lo indica.
+        final merged = <KaraokeWord>[];
+        for (var i = 0; i < tokens.length; i++) {
+          final t = tokens[i];
+          if (conventional && i > 0 && tokens[i - 1].sepAfter <= 1) {
+            final p = merged.removeLast();
+            merged.add(
+              KaraokeWord(timestamp: p.timestamp, text: p.text + t.text),
             );
           } else {
-            wTime = timestamp; // Fallback al timestamp de la línea si no tiene
+            merged.add(KaraokeWord(timestamp: t.ts, text: t.text));
           }
-          words.add(KaraokeWord(timestamp: wTime, text: wText));
         }
+        words = merged;
       }
 
       // Limpiar etiquetas de tiempo interno tipo karaoke <00:11.68>
-      String cleanText = fullText.replaceAll(
-        RegExp(r'<\d{2}:\d{2}\.\d{2,3}>'),
-        '',
-      );
-      // Evitar dobles espacios
-      cleanText = cleanText.replaceAll(RegExp(r'\s+'), ' ');
+      String cleanText;
+      if (words != null && words.isNotEmpty && (evidence || forceWordGlue)) {
+        cleanText = words.map((w) => w.text).join(' ');
+      } else {
+        cleanText = fullText.replaceAll(
+          RegExp(r'<\d{2}:\d{2}\.\d{2,3}>'),
+          '',
+        );
+        // Evitar dobles espacios
+        cleanText = cleanText.replaceAll(RegExp(r'\s+'), ' ');
+      }
 
       return LyricLine(
         timestamp: timestamp,
         text: cleanText.trim(),
         words: words,
+        conventionEvidence: evidence,
       );
     }
 
@@ -101,6 +156,7 @@ class LyricLine {
     'timestamp': timestamp.inMilliseconds,
     'text': text,
     'words': words?.map((w) => w.toJson()).toList(),
+    if (conventionEvidence) 'conventionEvidence': true,
   };
 
   factory LyricLine.fromJson(Map<String, dynamic> json) => LyricLine(
@@ -111,7 +167,41 @@ class LyricLine {
               .map((i) => KaraokeWord.fromJson(Map<String, dynamic>.from(i)))
               .toList()
         : null,
+    conventionEvidence: json['conventionEvidence'] as bool? ?? false,
   );
+
+  /// Parsea un documento LRC completo con la limpieza de Scrup: si se
+  /// detecta la convención de sílabas en algunas líneas pero no en otras,
+  /// re-parsea todo forzando la unión de sílabas.
+  static List<LyricLine> parseLrcDocument(
+    String lrcContent, {
+    bool forceWordGlue = false,
+  }) {
+    final lines = <LyricLine>[];
+    for (final line in lrcContent.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      try {
+        final parsed = LyricLine.fromString(
+          trimmed,
+          forceWordGlue: forceWordGlue,
+        );
+        if (parsed.text.isNotEmpty) lines.add(parsed);
+      } catch (_) {
+        continue;
+      }
+    }
+    lines.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    // Convención mixta: algunas líneas con evidencia y otras con tokens
+    // sin ella → re-parseo forzado para que todo el documento sea consistente.
+    if (!forceWordGlue &&
+        lines.any((l) => l.conventionEvidence) &&
+        lines.any((l) => !l.conventionEvidence && l.hasWords)) {
+      return parseLrcDocument(lrcContent, forceWordGlue: true);
+    }
+    return lines;
+  }
 }
 
 /// Modelo para lyrics completos
@@ -263,12 +353,6 @@ class LyricsService {
     _currentTrackingId = null;
   }
 
-  /// Called from settings when the sweep preference changes.
-  /// If enabled, and current lyrics lacks karaoke data, forces a refetch.
-  Future<void> onSweepPreferenceChanged(bool isEnabled) async {
-    // Only changes mathematically locally now, no need to refetch
-  }
-
   /// Obtiene lyrics desde la API o caché
   Future<Lyrics?> fetchLyrics(
     String trackName,
@@ -285,13 +369,20 @@ class LyricsService {
             '_',
           );
 
-      // Intentar obtener desde SQLite (Rápido)
+      // Intentar obtener desde SQLite (Rápido). El cache previo a la
+      // limpieza de timestamps (sin campo 'source') se ignora para forzar
+      // un re-fetch con la lógica actual.
       final cachedData = await DatabaseHelper().getLyrics(cacheKey);
 
       if (cachedData != null) {
-        print('[LyricsService] Using cached lyrics for: $trackName');
         final json = jsonDecode(cachedData) as Map<String, dynamic>;
-        return Lyrics.fromJson(json);
+        if ((json['source'] as String?)?.trim().isNotEmpty == true) {
+          print('[LyricsService] Using cached lyrics for: $trackName');
+          return Lyrics.fromJson(json);
+        }
+        print(
+          '[LyricsService] Cache entry without source (legacy), refetching: $trackName',
+        );
       }
 
       // Si no está en caché, obtener desde las APIs
@@ -397,15 +488,10 @@ class LyricsService {
               '[LyricsService] Found best match from LRCLIB (Score: ${bestScore.toStringAsFixed(1)})',
             );
 
-            List<LyricLine> syncedLines = [];
-            if (syncedLyricsRaw != null && syncedLyricsRaw.isNotEmpty) {
-              syncedLines = syncedLyricsRaw
-                  .split('\n')
-                  .where((line) => line.trim().isNotEmpty)
-                  .map((line) => LyricLine.fromString(line))
-                  .where((line) => line.text.isNotEmpty)
-                  .toList();
-            }
+            final syncedLines = (syncedLyricsRaw != null &&
+                    syncedLyricsRaw.isNotEmpty)
+                ? LyricLine.parseLrcDocument(syncedLyricsRaw)
+                : <LyricLine>[];
 
             final lyrics = Lyrics(
               trackName: data['trackName'] as String? ?? trackName,
@@ -546,7 +632,9 @@ class LyricsService {
           words = [];
           for (final syl in syllabus) {
             final sd = syl as Map<String, dynamic>;
-            final stext = (sd['text'] as String?) ?? '';
+            // trim(): KPoe trae sílabas con espacio final ('Han ') y el
+            // render ya añade su propio espacio — sin esto hay doble espacio.
+            final stext = ((sd['text'] as String?) ?? '').trim();
             final stimeMs = (sd['time'] as num?)?.toInt() ?? 0;
             if (stext.isNotEmpty) {
               words.add(
@@ -594,8 +682,14 @@ class LyricsService {
     }
   }
 
-  /// Busca lyrics manualmente
-  Future<List<Lyrics>> searchLyrics(String query) async {
+  /// Busca lyrics manualmente. [titleHint]/[artistHint] (metadatos de la
+  /// canción actual) generan el candidato exacto para KPoe aunque el
+  /// usuario busque "Título Artista" con un espacio simple (igual que Scrup).
+  Future<List<Lyrics>> searchLyrics(
+    String query, {
+    String? titleHint,
+    String? artistHint,
+  }) async {
     final results = <Lyrics>[];
     try {
       final lrclibResults = <Lyrics>[];
@@ -603,7 +697,7 @@ class LyricsService {
       // 1) KPoe (word-by-word): candidatos "Artista - Título" y espejos
       // en paralelo. El LRC reconstruido con tags <mm:ss.xx> se parsea con
       // LyricLine.fromString, que puebla `words` automáticamente.
-      for (final cand in _searchCandidates(query)) {
+      for (final cand in _searchCandidates(query, titleHint, artistHint)) {
         final attempts = <Future<Lyrics?>>[
           for (final server in _kpoeServers) _kpoeSearchOne(server, cand.$1, cand.$2),
         ];
@@ -634,15 +728,10 @@ class LyricsService {
           final syncedLyricsRaw = data['syncedLyrics'] as String?;
           final plainLyrics = data['plainLyrics'] as String? ?? '';
 
-          List<LyricLine> syncedLines = [];
-          if (syncedLyricsRaw != null && syncedLyricsRaw.isNotEmpty) {
-            syncedLines = syncedLyricsRaw
-                .split('\n')
-                .where((line) => line.trim().isNotEmpty)
-                .map((line) => LyricLine.fromString(line))
-                .where((line) => line.text.isNotEmpty)
-                .toList();
-          }
+          final syncedLines = (syncedLyricsRaw != null &&
+                  syncedLyricsRaw.isNotEmpty)
+              ? LyricLine.parseLrcDocument(syncedLyricsRaw)
+              : <LyricLine>[];
 
           return Lyrics(
             trackName: data['trackName'] as String? ?? '',
@@ -715,10 +804,7 @@ class LyricsService {
         plainLines.add(text);
       }
 
-      final syncedLines = lrcLines
-          .map((line) => LyricLine.fromString(line))
-          .where((line) => line.text.isNotEmpty)
-          .toList();
+      final syncedLines = LyricLine.parseLrcDocument(lrcLines.join('\n'));
       if (syncedLines.isEmpty) return null;
 
       return Lyrics(
@@ -741,7 +827,12 @@ class LyricsService {
 
   /// Genera candidatos (título, artista) para KPoe a partir de la query
   /// libre ("Artista - Título", "Título by Artista", o texto tal cual).
-  static List<(String, String)> _searchCandidates(String query) {
+  /// Los hints de la canción actual van PRIMERO (candidato exacto, Scrup).
+  static List<(String, String)> _searchCandidates(
+    String query, [
+    String? titleHint,
+    String? artistHint,
+  ]) {
     final candidates = <(String, String)>[];
     void add(String t, String a) {
       t = t.trim();
@@ -752,6 +843,15 @@ class LyricsService {
         if (c.$1 == pair.$1 && c.$2 == pair.$2) return;
       }
       candidates.add((t, a));
+    }
+
+    // Hints de la canción actual PRIMERO: candidato exacto para KPoe
+    // aunque la query sea "Título Artista" con espacio simple (Scrup).
+    if (titleHint != null &&
+        artistHint != null &&
+        titleHint.trim().isNotEmpty &&
+        artistHint.trim().isNotEmpty) {
+      add(titleHint, artistHint);
     }
 
     final q = query.trim();
