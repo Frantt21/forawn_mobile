@@ -286,5 +286,7 @@
   "no_formats_yet": "No formats available",
   "no_title": "Untitled",
   "enter_url_desc": "Enter a YouTube URL to start",
-  "added_to_queue": "Added to download queue"
+  "added_to_queue": "Added to download queue",
+  "queue": "Queue",
+  "queue_empty": "Queue is empty"
 }

@@ -66,6 +66,68 @@ class Playlist {
     }
   }
 
+  /// Reordena una pista dentro de la cola (drag & drop del panel de cola,
+  /// misma lógica que Scrup reorderQueue). Ajusta el índice actual y el
+  /// orden shuffle en consecuencia.
+  void reorder(int oldIndex, int newIndex) {
+    if (oldIndex < 0 ||
+        oldIndex >= _songs.length ||
+        newIndex < 0 ||
+        newIndex >= _songs.length) {
+      return;
+    }
+    // ReorderableListView entrega newIndex ya consumido (mueve el item a
+    // newIndex - 1 si viene después del original); normalizar.
+    final adjusted = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    if (adjusted == oldIndex) return;
+
+    final moved = _songs.removeAt(oldIndex);
+    _songs.insert(adjusted, moved);
+
+    // Actualizar índice de la pista actual si fue movida.
+    if (_currentIndex == oldIndex) {
+      _currentIndex = adjusted;
+    } else if (oldIndex < _currentIndex && adjusted >= _currentIndex) {
+      _currentIndex--;
+    } else if (oldIndex > _currentIndex && adjusted <= _currentIndex) {
+      _currentIndex++;
+    }
+
+    // Sincronizar el orden shuffle.
+    if (_isShuffle) {
+      final movedIdx = _shuffledIndices.removeAt(oldIndex);
+      _shuffledIndices.insert(adjusted, movedIdx);
+    }
+  }
+
+  /// Elimina una pista de la cola. Ajusta el índice actual: si se elimina
+  /// la actual, la siguiente pasa a ser la actual (mismo índice); si es
+  /// posterior, el índice no cambia; si es anterior, retrocede uno.
+  /// Devuelve la canción eliminada (o null si el índice es inválido).
+  Song? removeAt(int index) {
+    if (index < 0 || index >= _songs.length) return null;
+    final removed = _songs.removeAt(index);
+
+    if (_isShuffle) {
+      final pos = _shuffledIndices.indexOf(index);
+      if (pos != -1) _shuffledIndices.removeAt(pos);
+      // Renumerar los índices posteriores al eliminado.
+      _shuffledIndices = _shuffledIndices
+          .map((i) => i > index ? i - 1 : i)
+          .toList();
+    }
+
+    if (_currentIndex == index) {
+      // La eliminada era la actual: la que ocupa su lugar es la actual.
+      if (_currentIndex >= _songs.length) {
+        _currentIndex = _songs.isEmpty ? -1 : _songs.length - 1;
+      }
+    } else if (index < _currentIndex) {
+      _currentIndex--;
+    }
+    return removed;
+  }
+
   void addAll(List<Song> newSongs) {
     for (var song in newSongs) {
       add(song);

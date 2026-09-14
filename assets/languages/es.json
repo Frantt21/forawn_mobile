@@ -286,5 +286,7 @@
   "no_formats_yet": "No hay formatos disponibles",
   "no_title": "Sin titulo",
   "enter_url_desc": "Ingresa una URL de YouTube para empezar",
-  "added_to_queue": "Anadido a la cola de descargas"
+  "added_to_queue": "Anadido a la cola de descargas",
+  "queue": "Cola",
+  "queue_empty": "La cola está vacía"
 }

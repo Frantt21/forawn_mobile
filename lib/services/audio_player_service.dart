@@ -404,6 +404,45 @@ class AudioPlayerService {
     _playlistSubject.add(_playlist);
   }
 
+  /// Cola completa (snapshot inmutable) para el panel de cola.
+  List<Song> get queueSongs => _playlist.songs;
+
+  /// Índice actual dentro de la cola.
+  int get queueIndex => _playlist.currentIndex;
+
+  /// Salta a una pista concreta de la cola (tap en el panel).
+  Future<void> playQueueAt(int index) async {
+    final songs = _playlist.songs;
+    if (index < 0 || index >= songs.length) return;
+    _playlist.setCurrentIndex(index);
+    _playlistSubject.add(_playlist);
+    await _playCurrentSong();
+  }
+
+  /// Reordena la cola (drag & drop del panel) y notifica.
+  void reorderQueue(int oldIndex, int newIndex) {
+    _playlist.reorder(oldIndex, newIndex);
+    _playlistSubject.add(_playlist);
+    _savePlaybackPreferences();
+  }
+
+  /// Elimina una pista de la cola. Si era la actual y estaba sonando,
+  /// reproduce la que ocupa su lugar; si la cola queda vacía, detiene.
+  Future<void> removeFromQueue(int index) async {
+    final wasCurrent = index == _playlist.currentIndex;
+    final removed = _playlist.removeAt(index);
+    if (removed == null) return;
+    _playlistSubject.add(_playlist);
+    if (_playlist.isEmpty) {
+      await stop();
+      return;
+    }
+    if (wasCurrent) {
+      await _playCurrentSong();
+    }
+    _savePlaybackPreferences();
+  }
+
   /// Cambiar modo de reproducción
   void toggleShuffle() {
     _playlist.setShuffle(!_playlist.isShuffle);

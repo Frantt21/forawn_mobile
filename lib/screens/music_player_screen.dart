@@ -10,6 +10,7 @@ import '../services/playlist_service.dart';
 import '../models/song.dart';
 import '../models/playback_state.dart' as player_state;
 import '../widgets/lyrics_sheet.dart';
+import '../widgets/queue_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/lyrics_service.dart';
 import 'package:audiotags/audiotags.dart';
@@ -853,6 +854,19 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen> {
                       size: 24, // smaller size
                     ),
                     onPressed: () => _showLyricsSheet(context, song),
+                  ),
+
+                  // Queue (estilo Scrup QueueSheet)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.queue_music_rounded,
+                      color: Colors.white54,
+                      size: 24,
+                    ),
+                    onPressed: () => showQueueSheet(
+                      context,
+                      dominantColor: song.dominantColor,
+                    ),
                   ),
 
                   // Shuffle Toggle
