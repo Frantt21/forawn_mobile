@@ -214,122 +214,157 @@ class _LyricsViewState extends State<LyricsView> {
     return ValueListenableBuilder<int>(
       valueListenable: _currentIndexNotifier,
       builder: (context, currentIndex, _) {
-        return ShaderMask(
-          shaderCallback: (rect) {
-            return const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Colors.black,
-                Colors.black,
-                Colors.transparent,
-              ],
-              stops: [0.0, 0.1, 0.9, 1.0],
-            ).createShader(rect);
-          },
-          blendMode: BlendMode.dstIn,
-          child: ScrollablePositionedList.builder(
-            // Initial scroll
-            initialScrollIndex: currentIndex >= 0 ? currentIndex + 1 : 0,
-            initialAlignment: _getAlignment(
-              currentIndex >= 0 ? currentIndex + 1 : 0,
-            ),
+        return Stack(
+          children: [
+            ShaderMask(
+              shaderCallback: (rect) {
+                return const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black,
+                    Colors.black,
+                    Colors.transparent,
+                  ],
+                  stops: [0.0, 0.1, 0.9, 1.0],
+                ).createShader(rect);
+              },
+              blendMode: BlendMode.dstIn,
+              child: ScrollablePositionedList.builder(
+                // Initial scroll
+                initialScrollIndex: currentIndex >= 0 ? currentIndex + 1 : 0,
+                initialAlignment: _getAlignment(
+                  currentIndex >= 0 ? currentIndex + 1 : 0,
+                ),
 
-            itemCount: _activeLyrics.length + 2, // +1 phantom, +1 credits
-            itemScrollController: _itemScrollController,
-            itemPositionsListener: _itemPositionsListener,
-            padding: EdgeInsets.only(
-              top: 0, // Phantom line now provides the space
-              bottom: MediaQuery.of(context).size.height / 2.5,
-            ),
-            itemBuilder: (context, index) {
-              // Index 0: Phantom line (invisible spacer, always "active")
-              if (index == 0) {
-                return Container(
-                  height: 60, // Match the old top padding
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 24,
-                  ),
-                  child: Text(
-                    '', // Empty text
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                      height: 1.5,
-                      color: widget.textColor.withOpacity(0), // Invisible
-                    ),
-                  ),
-                );
-              }
+                itemCount: _activeLyrics.length + 2, // +1 phantom, +1 credits
+                itemScrollController: _itemScrollController,
+                itemPositionsListener: _itemPositionsListener,
+                padding: EdgeInsets.only(
+                  top: 0, // Phantom line now provides the space
+                  bottom: MediaQuery.of(context).size.height / 2.5,
+                ),
+                itemBuilder: (context, index) {
+                  // Index 0: Phantom line (invisible spacer, always "active")
+                  if (index == 0) {
+                    return Container(
+                      height: 60, // Match the old top padding
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 24,
+                      ),
+                      child: Text(
+                        '', // Empty text
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          height: 1.5,
+                          color: widget.textColor.withOpacity(0), // Invisible
+                        ),
+                      ),
+                    );
+                  }
 
-              // Last item: Credits
-              if (index == _activeLyrics.length + 1) {
-                return Padding(
-                  padding: const EdgeInsets.only(top: 40, bottom: 80),
-                  child: Center(
-                    child: Text(
-                      'Lyrics provided by LRCLIB',
-                      style: TextStyle(
-                        color: widget.textColor.withOpacity(0.5),
-                        fontSize: 14,
-                        fontStyle: FontStyle.italic,
+                  // Last item: Credits (nombre real del proveedor)
+                  if (index == _activeLyrics.length + 1) {
+                    final provider = widget.lyrics!.source ?? 'LRCLIB';
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 40, bottom: 80),
+                      child: Center(
+                        child: Text(
+                          'Lyrics provided by $provider',
+                          style: TextStyle(
+                            color: widget.textColor.withOpacity(0.5),
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Real lyrics (index 1 to length)
+                  final lyricIndex = index - 1; // Adjust for phantom line
+                  final line = _activeLyrics[lyricIndex];
+                  final isCurrent = lyricIndex == currentIndex;
+
+                  // Calculate end time
+                  Duration endTime;
+                  if (lyricIndex < _activeLyrics.length - 1) {
+                    endTime = _activeLyrics[lyricIndex + 1].timestamp;
+                  } else {
+                    // Last line: use song duration or a default 5s buffer
+                    final durationSec = widget.lyrics!.duration;
+                    if (durationSec != null) {
+                      final songDuration = Duration(seconds: durationSec);
+                      endTime = songDuration > line.timestamp
+                          ? songDuration
+                          : line.timestamp + const Duration(seconds: 5);
+                    } else {
+                      endTime = line.timestamp + const Duration(seconds: 5);
+                    }
+                  }
+
+                  return GestureDetector(
+                    onTap: () {
+                      // Apply offset to seek position so it matches the synchronized time
+                      final seekPosition = line.timestamp + widget.offset;
+                      widget.onSeek(seekPosition);
+                    },
+                    behavior: HitTestBehavior.opaque, // Mejora touch
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12, // Más espacio para touch
+                        horizontal: 24,
+                      ),
+                      child: _KaraokeLine(
+                        text: line.text,
+                        isCurrent: isCurrent,
+                        startTime: line.timestamp,
+                        endTime: endTime,
+                        progressStream: _broadcastStream,
+                        offset: widget.offset,
+                        textColor: widget.textColor,
+                        isSweepEnabled: _isSweepEnabled,
+                        tagWords: line.words,
                       ),
                     ),
-                  ),
-                );
-              }
-
-              // Real lyrics (index 1 to length)
-              final lyricIndex = index - 1; // Adjust for phantom line
-              final line = _activeLyrics[lyricIndex];
-              final isCurrent = lyricIndex == currentIndex;
-
-              // Calculate end time
-              Duration endTime;
-              if (lyricIndex < _activeLyrics.length - 1) {
-                endTime = _activeLyrics[lyricIndex + 1].timestamp;
-              } else {
-                // Last line: use song duration or a default 5s buffer
-                final durationSec = widget.lyrics!.duration;
-                if (durationSec != null) {
-                  final songDuration = Duration(seconds: durationSec);
-                  endTime = songDuration > line.timestamp
-                      ? songDuration
-                      : line.timestamp + const Duration(seconds: 5);
-                } else {
-                  endTime = line.timestamp + const Duration(seconds: 5);
-                }
-              }
-
-              return GestureDetector(
-                onTap: () {
-                  // Apply offset to seek position so it matches the synchronized time
-                  final seekPosition = line.timestamp + widget.offset;
-                  widget.onSeek(seekPosition);
+                  );
                 },
-                behavior: HitTestBehavior.opaque, // Mejora touch
+              ),
+            ),
+            // Pill con el proveedor de las letras (KPoe / LRCLIB / lyrics.ovh)
+            if (widget.lyrics!.source != null &&
+                widget.lyrics!.source!.trim().isNotEmpty)
+              Positioned(
+                top: 8,
+                right: 16,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    vertical: 12, // Más espacio para touch
-                    horizontal: 24,
+                    horizontal: 10,
+                    vertical: 4,
                   ),
-                  child: _KaraokeLine(
-                    text: line.text,
-                    isCurrent: isCurrent,
-                    startTime: line.timestamp,
-                    endTime: endTime,
-                    progressStream: _broadcastStream,
-                    offset: widget.offset,
-                    textColor: widget.textColor,
-                    isSweepEnabled: _isSweepEnabled,
-                    tagWords: line.words,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.15),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    widget.lyrics!.source!,
+                    style: TextStyle(
+                      color: widget.textColor.withOpacity(0.55),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
-              );
-            },
-          ),
+              ),
+          ],
         );
       },
     );

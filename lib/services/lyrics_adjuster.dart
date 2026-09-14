@@ -63,6 +63,7 @@ class LyricsAdjuster {
       instrumental: lyrics.instrumental,
       plainLyrics: lyrics.plainLyrics,
       syncedLyrics: adjustedLines,
+      source: lyrics.source,
     );
   }
 
