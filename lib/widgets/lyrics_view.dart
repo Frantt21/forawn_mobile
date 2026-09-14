@@ -39,7 +39,6 @@ class _LyricsViewState extends State<LyricsView> {
 
   late Stream<PlaybackProgress> _broadcastStream;
 
-
   List<LyricLine> _processedLyrics = [];
   Lyrics? _lastLyrics;
 
@@ -320,36 +319,6 @@ class _LyricsViewState extends State<LyricsView> {
                 },
               ),
             ),
-            // Pill con el proveedor de las letras (KPoe / LRCLIB / lyrics.ovh)
-            if (widget.lyrics!.source != null &&
-                widget.lyrics!.source!.trim().isNotEmpty)
-              Positioned(
-                top: 8,
-                right: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.15),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    widget.lyrics!.source!,
-                    style: TextStyle(
-                      color: widget.textColor.withOpacity(0.55),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-              ),
           ],
         );
       },
