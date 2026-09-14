@@ -415,8 +415,12 @@ class _KaraokeLine extends StatelessWidget {
     );
 
     // Dividir texto en palabras para el layout estático (mismo Wrap que la
-    // línea activa para que el salto de línea no se mueva).
-    final words = text.split(' ');
+    // línea activa para que el salto de línea no se mueva). Split por
+    // whitespace (no solo espacio) para ignorar dobles espacios residuales.
+    final words = text
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
 
     // Calculamos el layout constante para ambas (activa e inactiva)
     // Usamos Wrap en ambas para que el salto de línea siempre caiga en el mismo lugar exacto.
@@ -475,12 +479,23 @@ class _KaraokeLine extends StatelessWidget {
         final current = position - offset;
 
         final wordWidgets = <Widget>[];
+        // Normalización de Scrup: cada palabra del proveedor se divide en
+        // piezas sin espacios internos (mismo timestamp) para que el layout
+        // tenga EXACTAMENTE un espacio entre tokens — arregla palabras tipo
+        // 'Han ' (espacio pegado del proveedor o del cache viejo).
+        final pieces = <(String, Duration, Duration)>[];
         for (int i = 0; i < tagWords!.length; i++) {
           final w = tagWords![i];
-          final wStart = w.timestamp;
           final wEnd = (i < tagWords!.length - 1)
               ? tagWords![i + 1].timestamp
               : endTime;
+          for (final piece in w.text.trim().split(RegExp(r'\s+'))) {
+            if (piece.isEmpty) continue;
+            pieces.add((piece, w.timestamp, wEnd));
+          }
+        }
+        for (int i = 0; i < pieces.length; i++) {
+          final (text, wStart, wEnd) = pieces[i];
 
           double wordProgress = 0.0;
           if (current >= wEnd) {
@@ -498,7 +513,7 @@ class _KaraokeLine extends StatelessWidget {
           wordWidgets.add(
             _KaraokeWord(
               // Solo añadir espacio si no es la última palabra para mantener el layout general
-              word: w.text + (i < tagWords!.length - 1 ? ' ' : ''),
+              word: text + (i < pieces.length - 1 ? ' ' : ''),
               progress: wordProgress,
               style: textStyle,
               activeColor: textColor,
@@ -519,8 +534,12 @@ class _KaraokeLine extends StatelessWidget {
   }
 
   Widget _buildSimpleActiveLine(TextStyle textStyle, List<Widget> _) {
-    // Generate simple text with active color
-    final wordsArray = text.split(' ');
+    // Generate simple text with active color (split por whitespace para
+    // ignorar dobles espacios residuales del proveedor/cache).
+    final wordsArray = text
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
     List<Widget> activeWords = [];
     for (int i = 0; i < wordsArray.length; i++) {
       activeWords.add(
