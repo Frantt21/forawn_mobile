@@ -34,25 +34,26 @@ class QueueSheet extends StatefulWidget {
 class _QueueSheetState extends State<QueueSheet> {
   final AudioPlayerService _player = AudioPlayerService();
 
-  Color get _accent => widget.dominantColor != null
-      ? Color(widget.dominantColor!)
-      : Colors.purpleAccent;
-
   @override
   Widget build(BuildContext context) {
+    // Mismo fondo que el contenedor de lyrics: color dominante puro
+    // (fallback #1C1C1E) con texto adaptado al brillo del color.
+    final backgroundColor = widget.dominantColor != null
+        ? Color(widget.dominantColor!)
+        : const Color(0xFF1C1C1E);
+    final isDark =
+        ThemeData.estimateBrightnessForColor(backgroundColor) ==
+        Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final handleColor = isDark ? Colors.white24 : Colors.black26;
+
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.88,
       ),
       decoration: BoxDecoration(
-        color: Color.lerp(
-              const Color(0xFF1C1C1E),
-              widget.dominantColor != null
-                  ? Color(widget.dominantColor!)
-                  : Colors.purpleAccent,
-              0.15,
-            ) ??
-            const Color(0xFF1C1C1E),
+        color: backgroundColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
@@ -67,7 +68,7 @@ class _QueueSheetState extends State<QueueSheet> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: handleColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -77,13 +78,13 @@ class _QueueSheetState extends State<QueueSheet> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
                 children: [
-                  Icon(Icons.queue_music_rounded, size: 18, color: _accent),
+                  Icon(Icons.queue_music_rounded, size: 18, color: textColor),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       LanguageService().getText('queue'),
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: textColor,
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
                       ),
@@ -96,7 +97,7 @@ class _QueueSheetState extends State<QueueSheet> {
                       return Text(
                         '$n',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
+                          color: secondaryTextColor,
                           fontSize: 12,
                         ),
                       );
@@ -120,14 +121,14 @@ class _QueueSheetState extends State<QueueSheet> {
                           Icon(
                             Icons.queue_music_rounded,
                             size: 40,
-                            color: _accent.withOpacity(0.4),
+                            color: textColor.withOpacity(0.4),
                           ),
                           const SizedBox(height: 12),
                           Text(
                             LanguageService().getText('queue_empty'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: secondaryTextColor,
                               fontSize: 13,
                             ),
                           ),
@@ -190,7 +191,7 @@ class _QueueSheetState extends State<QueueSheet> {
                             index: i,
                             song: song,
                             isCurrent: isCurrent,
-                            accent: _accent,
+                            accent: textColor,
                             onTap: () => _player.playQueueAt(i),
                           ),
                         );
@@ -242,7 +243,7 @@ class _QueueTrackRow extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: isCurrent
-                      ? Colors.white.withOpacity(0.1)
+                      ? accent.withOpacity(0.12)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -255,7 +256,7 @@ class _QueueTrackRow extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
+                        color: accent.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       alignment: Alignment.center,
@@ -271,7 +272,7 @@ class _QueueTrackRow extends StatelessWidget {
                                   : Text(
                                       '${index + 1}',
                                       style: TextStyle(
-                                        color: Colors.white.withOpacity(0.4),
+                                        color: accent.withOpacity(0.5),
                                         fontSize: 12,
                                       ),
                                     ),
@@ -281,7 +282,7 @@ class _QueueTrackRow extends StatelessWidget {
                               : Text(
                                   '${index + 1}',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.4),
+                                    color: accent.withOpacity(0.5),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -296,8 +297,10 @@ class _QueueTrackRow extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: isCurrent ? accent : Colors.white,
-                              fontWeight: FontWeight.w600,
+                              color: accent,
+                              fontWeight: isCurrent
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                               fontSize: 14,
                             ),
                           ),
@@ -306,7 +309,7 @@ class _QueueTrackRow extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.45),
+                              color: accent.withOpacity(0.6),
                               fontSize: 12,
                             ),
                           ),
@@ -325,7 +328,7 @@ class _QueueTrackRow extends StatelessWidget {
               child: Icon(
                 Icons.drag_indicator_rounded,
                 size: 20,
-                color: Colors.white.withOpacity(0.35),
+                color: accent.withOpacity(0.45),
               ),
             ),
           ),
