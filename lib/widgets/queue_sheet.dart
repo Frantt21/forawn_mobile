@@ -4,6 +4,8 @@
 // con asa arrastrable, lista REORDENABLE (drag grip), pista actual resaltada
 // con acento y swipe/tap para eliminar. Se abre desde el botón de cola del
 // reproductor (junto a lyrics/shuffle/repeat).
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../models/song.dart';
@@ -133,56 +135,67 @@ class _QueueSheetState extends State<QueueSheet> {
                       ),
                     );
                   }
-                  return ReorderableListView.builder(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                    buildDefaultDragHandles: false,
-                    proxyDecorator: (child, index, animation) =>
-                        AnimatedBuilder(
-                          animation: animation,
-                          builder: (_, child) => Transform.scale(
-                            scale: 1 + animation.value * 0.02,
-                            child: child,
+                  return Material(
+                    // Requerido: ReorderableListView/InkWell lo necesitan como
+                    // ancestro ("No Material widget found" al arrastrar).
+                    type: MaterialType.transparency,
+                    child: ReorderableListView.builder(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                      buildDefaultDragHandles: false,
+                      proxyDecorator: (child, index, animation) =>
+                          AnimatedBuilder(
+                            animation: animation,
+                            builder: (_, child) => Transform.scale(
+                              scale: 1 + animation.value * 0.02,
+                              child: child,
+                            ),
+                            // Material requerido: el proxy del arrastre se
+                            // renderiza en el Overlay raíz, fuera del Material
+                            // de la lista ("No Material widget found").
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: child,
+                            ),
                           ),
-                          child: child,
-                        ),
-                    itemCount: songs.length,
-                    onReorder: (oldIndex, newIndex) {
-                      setState(() {
-                        _player.reorderQueue(oldIndex, newIndex);
-                      });
-                    },
-                    itemBuilder: (context, i) {
-                      final song = songs[i];
-                      final isCurrent = i == currentIdx;
-                      return Dismissible(
-                        key: ValueKey('dismiss_${song.id}_$i'),
-                        direction: DismissDirection.endToStart,
-                        onDismissed: (_) {
-                          _player.removeFromQueue(i);
-                          setState(() {});
-                        },
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.25),
-                            borderRadius: BorderRadius.circular(12),
+                      itemCount: songs.length,
+                      onReorder: (oldIndex, newIndex) {
+                        setState(() {
+                          _player.reorderQueue(oldIndex, newIndex);
+                        });
+                      },
+                      itemBuilder: (context, i) {
+                        final song = songs[i];
+                        final isCurrent = i == currentIdx;
+                        return Dismissible(
+                          key: ValueKey('dismiss_${song.id}_$i'),
+                          direction: DismissDirection.endToStart,
+                          onDismissed: (_) {
+                            _player.removeFromQueue(i);
+                            setState(() {});
+                          },
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.25),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.redAccent,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.redAccent,
+                          child: _QueueTrackRow(
+                            key: ValueKey('${song.id}_$i'),
+                            index: i,
+                            song: song,
+                            isCurrent: isCurrent,
+                            accent: _accent,
+                            onTap: () => _player.playQueueAt(i),
                           ),
-                        ),
-                        child: _QueueTrackRow(
-                          key: ValueKey('${song.id}_$i'),
-                          index: i,
-                          song: song,
-                          isCurrent: isCurrent,
-                          accent: _accent,
-                          onTap: () => _player.playQueueAt(i),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   );
                 },
               ),
@@ -235,23 +248,34 @@ class _QueueTrackRow extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    // Artwork pequeño o número.
+                    // Artwork pequeño o número. artworkPath es una RUTA DE
+                    // ARCHIVO en caché (no un asset): usar Image.file con
+                    // errorBuilder por si el archivo temporal fue eliminado.
                     Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(8),
-                        image: song.artworkPath != null
-                            ? DecorationImage(
-                                image: AssetImage(song.artworkPath!),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
                       ),
                       alignment: Alignment.center,
+                      clipBehavior: Clip.antiAlias,
                       child: song.artworkPath != null
-                          ? null
+                          ? Image.file(
+                              File(song.artworkPath!),
+                              fit: BoxFit.cover,
+                              width: 40,
+                              height: 40,
+                              errorBuilder: (_, __, ___) => isCurrent
+                                  ? Icon(Icons.equalizer, color: accent, size: 16)
+                                  : Text(
+                                      '${index + 1}',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.4),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                            )
                           : isCurrent
                               ? Icon(Icons.equalizer, color: accent, size: 16)
                               : Text(
