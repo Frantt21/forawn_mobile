@@ -265,6 +265,7 @@ class YtDlpService {
       '--no-check-certificates',
       '-j',
       '--ignore-errors',
+      '--add-header', 'User-Agent: ${_uaForSite(url)}',
       url,
     ]);
 
@@ -378,7 +379,7 @@ class YtDlpService {
       '--replace-in-metadata', 'title', r'^\s+|\s+$', '',
       '--replace-in-metadata', 'artist', r'^\s+|\s+$', '',
       '--add-header', 'User-Agent: Mozilla/5.0',
-      '--add-header', 'Referer: https://www.youtube.com',
+      // Sin Referer fijo (descargas multi-plataforma; ver downloadVideo).
       '--print', 'after_move:filepath',
       watchUrl,
     ];
@@ -423,6 +424,43 @@ class YtDlpService {
   static String _literalReplacement(String value) =>
       value.replaceAll(r'\', r'\\');
 
+  /// Sitios con format_ids EFÍMEROS (Instagram, TikTok): los IDs se acuñan
+  /// por extracción, así que el ID del diálogo puede no existir en la
+  /// extracción de la descarga ("Requested format is not available").
+  /// En estos sitios la selección se hace por ALTURA, no por ID.
+  static const Set<String> _ephemeralFormatHosts = {
+    'instagram.com',
+    'instagr.am',
+    'cdninstagram.com',
+    'tiktok.com',
+    'tiktokv.com',
+  };
+
+  static bool _isEphemeralFormatSite(String url) {
+    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+    return _ephemeralFormatHosts.any(host.endsWith);
+  }
+
+  /// Versión pública para el screen (decide ID vs altura al encolar).
+  static bool isEphemeralFormatSite(String url) =>
+      _isEphemeralFormatSite(url);
+
+  /// true si la URL pertenece a YouTube (watch, youtu.be, shorts, music).
+  static bool _isYouTubeUrl(String url) {
+    final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+    return host.endsWith('youtube.com') ||
+        host.endsWith('youtu.be') ||
+        host.endsWith('youtube-nocookie.com');
+  }
+
+  /// UA por sitio: YouTube mantiene el UA genérico probado; el resto de
+  /// sitios (TikTok, Instagram, Twitter...) usa un UA de navegador móvil
+  /// porque varios devuelven 403 al UA genérico "Mozilla/5.0".
+  static String _uaForSite(String url) => _isYouTubeUrl(url)
+      ? 'Mozilla/5.0'
+      : 'Mozilla/5.0 (Linux; Android 14; SM-A156U) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';
+
   /// Descarga un vídeo de YouTube con la lógica del video_downloader de
   /// Forawn desktop, adaptada a Android:
   ///  - [formatId]: formato elegido por el usuario (del sondeo con
@@ -448,6 +486,21 @@ class YtDlpService {
     final outputTemplate = p.join(outDir, '$safeBase.%(ext)s');
     final sw = Stopwatch()..start();
 
+    // Selección de formato: para sitios con IDs efímeros se descarta el ID
+    // y se selecciona por altura de resolución (parseada de la etiqueta
+    // "720p • ..." del diálogo).
+    final ephemeral = _isEphemeralFormatSite(url);
+    final h = ephemeral
+        ? int.tryParse(
+            RegExp(r'(\d{3,4})p').firstMatch(formatId)?.group(1) ?? '',
+          )
+        : null;
+    final formatSpec = !ephemeral
+        ? '$formatId+bestaudio/$formatId/best'
+        : h != null
+            ? 'bv*[height<=$h]+ba/b[height<=$h]/b'
+            : 'bv*+ba/b';
+
     final args = <String>[
       '--no-playlist',
       '--no-warnings',
@@ -456,12 +509,14 @@ class YtDlpService {
       '--no-check-certificates',
       // Formato elegido; si es vídeo-only mux con el mejor audio (igual que
       // el DownloadManager de desktop hace con el format_id del usuario).
-      '-f', '$formatId+bestaudio/$formatId/best',
+      '-f', formatSpec,
       '--merge-output-format', 'mp4',
       '-o', outputTemplate,
       '--embed-metadata',
-      '--add-header', 'User-Agent: Mozilla/5.0',
-      '--add-header', 'Referer: https://www.youtube.com',
+      '--add-header', 'User-Agent: ${_uaForSite(url)}',
+      // Sin Referer fijo: el descargador acepta URLs de cualquier sitio
+      // soportado por yt-dlp (YouTube, Instagram, TikTok, Twitter, etc.) y
+      // un Referer de YouTube en otros dominios puede provocar 403.
       '--print', 'after_move:filepath',
       url,
     ];
@@ -523,7 +578,11 @@ class _EasedProgress {
   final void Function(double)? onProgress;
   double shown = 0.0; // último valor entregado a onProgress (monótono)
   double displayed = 0.0; // valor actual de la barra (easing)
-  double target = capAtRun; // valor real hacia el que nos acercamos
+
+  // CRÍTICO: target arranca en 0. Si arrancara en capAtRun, la barra correría
+  // sola de 0 a 90% aunque yt-dlp no reporte nada (archivos pequeños = salto
+  // 5% → 100% sin grados intermedios). El cap se aplica en followNative.
+  double target = 0.0;
   Timer? _ticker;
 
   _EasedProgress(this.onProgress) {

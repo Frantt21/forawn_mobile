@@ -84,6 +84,11 @@ class GlobalDownloadManager {
   // Map para trackear las descargas canceladas por el usuario.
   final Set<String> _cancelledDownloads = {};
 
+  // Throttle de notificación de progreso: el easing reporta cada ~120ms y
+  // Android agrupa notificaciones consecutivas (cada una puede vibrar suena
+  // omitirse). Máximo 1 update/segundo.
+  final Map<String, DateTime> _lastNotifProgress = {};
+
   final DownloadService _downloadService = DownloadService();
 
   bool _isInitialized = false;
@@ -317,6 +322,7 @@ class GlobalDownloadManager {
         print(
           '[GlobalDownloadManager] Descarga cancelada antes de iniciar: $downloadId',
         );
+        _lastNotifProgress.remove(downloadId);
         _activeDownloads.remove(downloadId);
         _notifyListeners();
         _processQueue();
@@ -342,6 +348,7 @@ class GlobalDownloadManager {
         print(
           '[GlobalDownloadManager] Descarga cancelada antes de iniciar: $downloadId',
         );
+        _lastNotifProgress.remove(downloadId);
         _activeDownloads.remove(downloadId);
         _notifyListeners();
         _processQueue();
@@ -364,12 +371,18 @@ class GlobalDownloadManager {
               _activeDownloads[downloadId]!.progress = progress;
               _notifyListeners();
               if (progress < 0.99) {
-                _showDownloadNotification(
-                  downloadId,
-                  track.title,
-                  'Descargando...',
-                  (progress * 100).toInt(),
-                );
+                final last = _lastNotifProgress[downloadId];
+                if (last == null ||
+                    DateTime.now().difference(last) >=
+                        const Duration(seconds: 1)) {
+                  _lastNotifProgress[downloadId] = DateTime.now();
+                  _showDownloadNotification(
+                    downloadId,
+                    track.title,
+                    'Descargando...',
+                    (progress * 100).toInt(),
+                  );
+                }
               }
             }
           },
@@ -384,15 +397,22 @@ class GlobalDownloadManager {
               _activeDownloads[downloadId]!.progress = progress;
               _notifyListeners();
 
-              // Actualizar notificación con progreso
+              // Actualizar notificación con progreso (throttle 1s: el easing
+              // dispara cada ~120ms).
               // Evitar actualizar al 100% aquí para no dejar la notificación "pegada" como ongoing
               if (progress < 0.99) {
-                _showDownloadNotification(
-                  downloadId,
-                  track.title,
-                  'Descargando...',
-                  (progress * 100).toInt(),
-                );
+                final last = _lastNotifProgress[downloadId];
+                if (last == null ||
+                    DateTime.now().difference(last) >=
+                        const Duration(seconds: 1)) {
+                  _lastNotifProgress[downloadId] = DateTime.now();
+                  _showDownloadNotification(
+                    downloadId,
+                    track.title,
+                    'Descargando...',
+                    (progress * 100).toInt(),
+                  );
+                }
               }
             }
           },
@@ -420,6 +440,7 @@ class GlobalDownloadManager {
         print(
           '[GlobalDownloadManager] Descarga completada pero estaba cancelada, limpiando: $downloadId',
         );
+        _lastNotifProgress.remove(downloadId);
         _activeDownloads.remove(downloadId);
         _notifyListeners();
         return;
@@ -485,7 +506,8 @@ class GlobalDownloadManager {
 
         // Remover de activas después de 3 segundos
         Future.delayed(const Duration(seconds: 3), () {
-          _activeDownloads.remove(downloadId);
+          _lastNotifProgress.remove(downloadId);
+        _activeDownloads.remove(downloadId);
           _notifyListeners();
         });
       }
@@ -496,6 +518,7 @@ class GlobalDownloadManager {
           '[GlobalDownloadManager] Cancelación capturada en catch: $downloadId',
         );
         _cancelledDownloads.remove(downloadId);
+        _lastNotifProgress.remove(downloadId);
         _activeDownloads.remove(downloadId);
         _notifyListeners();
         _notificationsPlugin.cancel(downloadId.hashCode);
@@ -535,7 +558,8 @@ class GlobalDownloadManager {
 
         // Remover de activas después de 5 segundos
         Future.delayed(const Duration(seconds: 5), () {
-          _activeDownloads.remove(downloadId);
+          _lastNotifProgress.remove(downloadId);
+        _activeDownloads.remove(downloadId);
           _notifyListeners();
         });
       }
@@ -558,6 +582,7 @@ class GlobalDownloadManager {
       // Si estaba en cola (sin proceso activo), sacarla directamente.
       final d = _activeDownloads[downloadId];
       if (d != null && d.phase == DownloadPhase.queued) {
+        _lastNotifProgress.remove(downloadId);
         _activeDownloads.remove(downloadId);
         _queuedParams.remove(downloadId);
         _notifyListeners();

@@ -364,7 +364,16 @@ class _VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
     );
 
     if (sel == true && chosenFormat != null && mounted) {
-      await _addToQueue(url, chosenFormat!);
+      // Sitios con format_ids efímeros (IG/TikTok): mandar la ALTURA
+      // ("720p") en lugar del ID, que puede no existir en la extracción de
+      // la descarga. YtDlpService lo convierte en -f "bv*[height<=...]+ba/b".
+      var fmt = chosenFormat!;
+      if (YtDlpService.isEphemeralFormatSite(url)) {
+        final label = _formatLabelsNotifier.value[chosenFormat] ?? '';
+        final hm = RegExp(r'(\d{3,4})p').firstMatch(label);
+        fmt = hm != null ? '${hm.group(1)}p' : 'best';
+      }
+      await _addToQueue(url, fmt);
     }
   }
 

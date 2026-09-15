@@ -131,7 +131,10 @@ class YtDlpHandler(private val context: Context) : EventChannel.StreamHandler {
                     val st =
                         YoutubeDL.getInstance().updateYoutubeDL(
                             context,
-                            YoutubeDL.UpdateChannel.STABLE,
+                            // NIGHTLY: las correcciones de extractores de
+                            // Instagram/TikTok/etc. aterrizan ahí antes; el
+                            // canal STABLE puede quedar semanas atrás.
+                            YoutubeDL.UpdateChannel.NIGHTLY,
                         )
                     status = st?.name?.takeIf { it.isNotBlank() } ?: "UPDATED"
                     Log.i(TAG, "yt-dlp update (librería) status=$status")
