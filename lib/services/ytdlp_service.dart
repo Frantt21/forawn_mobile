@@ -21,6 +21,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'search_cache_store.dart';
+
 class YtDlpException implements Exception {
   final String message;
   YtDlpException(this.message);
@@ -241,6 +243,22 @@ class YtDlpService {
     final cached = _videoMetaCache[url];
     if (cached != null) return cached;
 
+    // Caché persistente (TTL 2 días): re-inspeccionar el mismo video en otra
+    // sesión no relanza yt-dlp -j.
+    try {
+      final persisted = await SearchCacheStore().get(
+        SearchCacheStore.sourceVideo,
+        url,
+        0,
+      );
+      if (persisted != null) {
+        _videoMetaCache[url] = persisted;
+        return persisted;
+      }
+    } catch (_) {
+      // Caché ilegible: seguir con la consulta normal.
+    }
+
     final output = await _runYtDlp([
       '--no-playlist',
       '--no-warnings',
@@ -259,6 +277,11 @@ class YtDlpService {
         final decoded = jsonDecodeCompat(t);
         if (decoded != null) {
           _videoMetaCache[url] = decoded;
+          unawaited(
+            SearchCacheStore()
+                .put(SearchCacheStore.sourceVideo, url, 0, decoded)
+                .catchError((_) {}),
+          );
           return decoded;
         }
       } catch (_) {
