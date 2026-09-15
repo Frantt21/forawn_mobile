@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +10,7 @@ import '../services/language_service.dart';
 import '../services/metadata_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/audio_player_service.dart';
+import '../services/local_music_state_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -29,6 +32,154 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadNotificationPreference();
     _loadCrossfadeDuration();
     _loadVersion();
+  }
+
+  /// Recarga los artworks de TODA la librería: re-extrae carátula + color
+  /// dominante de cada archivo (ignora caché), guarda en el caché persistente
+  /// y notifica vía onMetadataUpdated para que librería, playlists y player
+  /// se sincronicen con los nuevos paths. El progreso viaja por el stream
+  /// global de metadata (MetadataService.progressStream).
+  Future<void> _reloadArtworks() async {
+    final songs = LocalMusicStateService().librarySongs;
+    if (songs.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(LanguageService().getText('reload_artworks_no_library')),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    final total = songs.length;
+    var cancelled = false;
+
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => StreamBuilder<Map<String, dynamic>>(
+          stream: MetadataService().progressStream,
+          builder: (context, snapshot) {
+            final data = snapshot.data;
+            final progress = (data?['progress'] as num?)?.toDouble() ?? 0.0;
+            final message = data?['message'] as String? ?? '';
+            return AlertDialog(
+              backgroundColor: Colors.grey[900],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: CircularProgressIndicator(
+                          value: progress > 0 ? progress : null,
+                          strokeWidth: 5,
+                          backgroundColor: Colors.white10,
+                          color: Colors.purpleAccent,
+                        ),
+                      ),
+                      Text(
+                        '${(progress * 100).toInt()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    message.isEmpty
+                        ? LanguageService().getText('reload_artworks_running')
+                        : '$message (${'${(progress * total).toInt()}'}/$total)',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () {
+                      cancelled = true;
+                      Navigator.of(dialogCtx).pop();
+                    },
+                    child: const Text('Cancelar'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    try {
+      // Pequeña pausa para que el diálogo se renderice
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      for (int i = 0; i < songs.length && !cancelled; i++) {
+        final song = songs[i];
+        final isSaf = song.filePath.startsWith('content://');
+        try {
+          // Progreso ANTES de procesar: el stream mueve loader y contador
+          MetadataService().emitProgress(
+            LanguageService().getText('reload_artworks_running'),
+            i / total,
+          );
+
+          // Re-extraer metadatos (artwork + color) directamente del archivo
+          await MetadataService().loadMetadata(
+            id: song.id,
+            filePath: isSaf ? null : song.filePath,
+            safUri: isSaf ? song.filePath : null,
+            forceReload: true,
+          );
+        } catch (e) {
+          print('[Settings] Error reloading artwork for ${song.title}: $e');
+        }
+
+        // Ceder el event loop: mantener el UI (diálogo) fluido
+        if (i % 5 == 0) {
+          await Future.delayed(Duration.zero);
+        }
+      }
+
+      if (!cancelled) {
+        MetadataService().emitProgressDone(
+          LanguageService().getText('reload_artworks_running'),
+        );
+        await Future.delayed(const Duration(milliseconds: 250));
+
+        if (mounted) {
+          // Cerrar el diálogo de progreso
+          Navigator.of(context, rootNavigator: true).pop();
+
+          // Sincronizar TODA la cola del player con los nuevos paths
+          await AudioPlayerService().refreshQueueMetadata();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(LanguageService().getText('reload_artworks_done')),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } finally {
+      // La suscripción al stream la gestiona el StreamBuilder del diálogo.
+    }
   }
 
   Future<void> _loadVersion() async {
@@ -480,6 +631,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           );
                         }
                       },
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+
+                  // Recargar artworks: re-extrae carátulas y colores de
+                  // todos los archivos de la librería (con diálogo de progreso).
+                  ListTile(
+                    leading: const Icon(
+                      Icons.image,
+                      color: Colors.orangeAccent,
+                    ),
+                    title: Text(
+                      LanguageService().getText('reload_artworks'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      LanguageService().getText('reload_artworks_desc'),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.refresh),
+                      color: Colors.orangeAccent,
+                      onPressed: _reloadArtworks,
                     ),
                     contentPadding: EdgeInsets.zero,
                   ),

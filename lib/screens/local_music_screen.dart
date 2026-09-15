@@ -276,6 +276,54 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
     }
   }
 
+  /// Recarga la librería (hold to reload / pull to refresh) mostrando el
+  /// mismo diálogo de progreso que al importar una carpeta (loader circular
+  /// con porcentaje y cantidad de canciones leídas). El escaneo corre en
+  /// background; el diálogo lo refleja vía MusicLibraryService.loadingStatus.
+  Future<void> _reloadLibraryWithDialog() async {
+    final folderPath = _musicState.currentFolderPath;
+    if (folderPath == null || folderPath.isEmpty) return;
+
+    if (!mounted) return;
+
+    bool dialogOpen = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => _buildLoadingDialog(),
+    ).then((_) => dialogOpen = false);
+
+    try {
+      // Pequeña pausa para que el diálogo se renderice antes del escaneo
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Rescan cache-first: re-lee el directorio (nuevos/borrados) sin
+      // re-extraer metadatos ni rotar artwork (ver loadFolder).
+      await _musicState.loadFolder(folderPath, rescan: true);
+
+      // Actualizar playlist del reproductor si es necesario
+      final songs = _musicState.librarySongs;
+      if (songs.isNotEmpty && _audioPlayer.currentSong == null) {
+        await _audioPlayer.loadPlaylist(
+          songs,
+          initialIndex: -1,
+          autoPlay: false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (dialogOpen && mounted) {
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
   Future<void> _pickFolder() async {
     final uri = await SafHelper.pickDirectory();
     if (uri != null) {
@@ -911,18 +959,11 @@ class _LocalMusicScreenState extends State<LocalMusicScreen>
 
     return RefreshIndicator(
       onRefresh: () async {
-        // Usar el método refresh del servicio para recargar
-        await _musicState.refresh();
-
-        // Actualizar playlist del reproductor si es necesario
-        final songs = _musicState.librarySongs;
-        if (songs.isNotEmpty && _audioPlayer.currentSong == null) {
-          await _audioPlayer.loadPlaylist(
-            songs,
-            initialIndex: -1,
-            autoPlay: false,
-          );
-        }
+        // Igual que forawn desktop: recargar la librería mostrando el
+        // diálogo de progreso (loader + cantidad de canciones) en vez de
+        // bloquear el UI con el escaneo. El Future se completa cuando
+        // termina toda la recarga.
+        await _reloadLibraryWithDialog();
       },
       child: CustomScrollView(
         key: PageStorageKey('song_list_${showHistory}_${songs.length}'),

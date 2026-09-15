@@ -170,6 +170,26 @@ class MusicMetadataCache {
         'timestamp': timestamp,
       };
 
+      // Protección del artwork: si esta lectura NO trajo bytes de carátula
+      // (MediaStore/SAF a veces devuelven tags sin arte), NO pisar el
+      // artwork_path/dominant_color válidos que ya había en la DB — era la
+      // causa de canciones que perdían su artwork tras un hot restart.
+      if (savedArtworkPath == null || dominantColor == null) {
+        try {
+          final existing = await dbHelper.getMetadata(key);
+          if (existing != null) {
+            if (savedArtworkPath == null &&
+                existing['artwork_path'] is String &&
+                (existing['artwork_path'] as String).isNotEmpty) {
+              row['artwork_path'] = existing['artwork_path'];
+            }
+            if (dominantColor == null && existing['dominant_color'] != null) {
+              row['dominant_color'] = existing['dominant_color'];
+            }
+          }
+        } catch (_) {}
+      }
+
       await dbHelper.insertMetadata(row);
 
       // 3. Actualizar memoria (Solo rutas, sin bytes)

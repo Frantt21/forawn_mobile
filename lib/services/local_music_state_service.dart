@@ -110,9 +110,19 @@ class LocalMusicStateService extends ChangeNotifier {
   }
 
   /// Carga una carpeta - puede ser llamado manualmente o en refresh
-  Future<void> loadFolder(String path, {bool forceReload = false}) async {
+  ///
+  /// - [forceReload]: re-extracte TODOS los metadatos desde los archivos
+  ///   (ignora caché). Costoso: además rota los archivos de artwork, lo que
+  ///   rompe las rutas que ya apuntan el reproductor/queues/playlists.
+  /// - [rescan]: re-escanea la carpeta (detecta archivos nuevos/eliminados)
+  ///   pero sirve los metadatos cache-first, sin re-extraer nada.
+  Future<void> loadFolder(
+    String path, {
+    bool forceReload = false,
+    bool rescan = false,
+  }) async {
     // Si ya está cargada la misma carpeta y no es force reload, skip
-    if (_currentFolderPath == path && _hasLoadedOnce && !forceReload) {
+    if (_currentFolderPath == path && _hasLoadedOnce && !forceReload && !rescan) {
       print('[LocalMusicState] Folder already loaded, skipping...');
       return;
     }
@@ -128,6 +138,7 @@ class LocalMusicStateService extends ChangeNotifier {
         // Esto fuerza la recarga de metadatos desde el caché
         currentSongs: forceReload ? null : _librarySongs,
         forceRefetchMetadata: forceReload,
+        rescan: rescan,
       );
 
       _librarySongs = songs;
@@ -147,11 +158,13 @@ class LocalMusicStateService extends ChangeNotifier {
     }
   }
 
-  /// Refresca la carpeta actual (para pull-to-refresh)
+  /// Refresca la carpeta actual (pull-to-refresh / hold to reload).
+  /// Re-escanea el directorio para detectar cambios, pero los metadatos
+  /// existentes se sirven del caché: NO re-extrae ni rota artwork.
   Future<void> refresh() async {
     if (_currentFolderPath != null) {
       print('[LocalMusicState] Refreshing current folder...');
-      await loadFolder(_currentFolderPath!, forceReload: true);
+      await loadFolder(_currentFolderPath!, rescan: true);
     }
   }
 

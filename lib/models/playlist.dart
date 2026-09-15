@@ -237,6 +237,15 @@ class Playlist {
     }
   }
 
+  /// Reemplaza la Song de la cola cuyo filePath coincida (metadata refresh).
+  /// Devuelve true si se encontró y actualizó.
+  bool updateSongByPath(String filePath, Song updatedSong) {
+    final index = _songs.indexWhere((s) => s.filePath == filePath);
+    if (index == -1) return false;
+    _songs[index] = updatedSong;
+    return true;
+  }
+
   void _resetShuffledIndices() {
     _shuffledIndices = List.generate(_songs.length, (i) => i);
   }

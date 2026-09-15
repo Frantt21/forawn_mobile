@@ -26,10 +26,18 @@ class MusicLibraryService {
 
   /// Escanea una carpeta en busca de canciones
   /// Soporta rutas normales y URIs de SAF (content://)
+  ///
+  /// - [forceRefetchMetadata]: ignora el caché y re-extrae todo desde los
+  ///   archivos (costoso; rota archivos de artwork).
+  /// - [rescan]: re-lee el directorio (archivos nuevos/eliminados) pero los
+  ///   metadatos de canciones existentes se sirven cache-first: primero se
+  ///   usa la Song previa (artworkPath intacto), luego el caché persistente,
+  ///   y solo como último recurso se re-extrae del archivo.
   static Future<List<Song>> scanFolder(
     String pathOrUri, {
     List<Song>? currentSongs,
     bool forceRefetchMetadata = false,
+    bool rescan = false,
   }) async {
     final List<Song> songs = [];
     final Map<String, Song> existingMap = {};
@@ -151,16 +159,48 @@ class MusicLibraryService {
               0.1 + (0.8 * (processed / total)),
             );
 
+            // Ceder el event loop: permite que el diálogo de progreso y el
+            // UI se sigan renderizando durante el escaneo (antes el bucle
+            // sin yields bloqueaba los frames y congelaba la app).
+            if (processed % 5 == 0) {
+              await Future.delayed(Duration.zero);
+            }
+
             // _listAudioFilesSafe returns files, so we can cast directly
             var song = await Song.fromFile(entity);
             if (song != null) {
-              // Cargar metadatos reales
-              final metadata = await MetadataService().loadMetadata(
+              // 1. Rescan: reutilizar la Song previa intacta (mismo path =
+              //    mismos metadatos) sin tocar caché ni archivo. SOLO si su
+              //    artwork sigue vivo: si falta el path o el archivo fue
+              //    rotado/evictado, cae al flujo de reparación de abajo.
+              final existing = existingMap[song.filePath];
+              if (rescan && existing != null && _artworkIsLive(existing.artworkPath)) {
+                songs.add(existing);
+                processed++;
+                continue;
+              }
+
+              // 2. Cargar metadatos (caché-first salvo forceRefetch)
+              var needForce = forceRefetchMetadata;
+              SongMetadata? metadata = await MetadataService().loadMetadata(
                 id: song.id,
                 filePath: song.filePath,
-                forceReload: forceRefetchMetadata,
-                preserveColor: forceRefetchMetadata,
+                forceReload: needForce,
+                preserveColor: needForce,
               );
+
+              // 3. Reparación: el caché devolvió un artwork muerto (archivo
+              //    rotado/evictado por Android) → re-extraer del archivo UNA
+              //    vez y guardar el path nuevo en el caché.
+              if (!needForce &&
+                  metadata != null &&
+                  !_artworkIsLive(metadata.artworkPath)) {
+                metadata = await MetadataService().loadMetadata(
+                  id: song.id,
+                  filePath: song.filePath,
+                  forceReload: true,
+                );
+              }
 
               if (metadata != null) {
                 song = song.copyWith(
@@ -192,6 +232,19 @@ class MusicLibraryService {
     } catch (e) {
       print('[MusicLibrary] Error scanning folder: $e');
       return [];
+    }
+  }
+
+  /// True si el artwork de la Song es utilizable: tiene path Y el archivo
+  /// existe en disco. Los paths de artwork viven en el directorio de caché
+  /// de Android, que el sistema puede recortar en cualquier momento — un
+  /// path viejo apuntando a un archivo borrado NO es utilizable.
+  static bool _artworkIsLive(String? artworkPath) {
+    if (artworkPath == null || artworkPath.isEmpty) return false;
+    try {
+      return File(artworkPath).existsSync();
+    } catch (_) {
+      return false;
     }
   }
 

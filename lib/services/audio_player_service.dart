@@ -807,6 +807,37 @@ class AudioPlayerService {
     }
   }
 
+  /// Re-sincroniza TODA la cola con los metadatos cacheados (título,
+  /// artwork, color). Usado tras una recarga de artworks para que la cola
+  /// del player también vea los nuevos paths, no solo la librería.
+  Future<void> refreshQueueMetadata() async {
+    var changed = false;
+    final queue = List<Song>.from(_playlist.songs);
+    for (int i = 0; i < queue.length; i++) {
+      final song = queue[i];
+      final cached = await MusicMetadataCache.get(song.id);
+      if (cached == null) continue;
+
+      final updated = song.copyWith(
+        title: cached.title,
+        artist: cached.artist,
+        album: cached.album ?? song.album,
+        artworkPath: cached.artworkPath,
+        artworkUri: cached.artworkUri,
+        dominantColor: cached.dominantColor ?? song.dominantColor,
+      );
+      if (_playlist.updateSongByPath(song.filePath, updated)) {
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      final current = _playlist.currentSong;
+      if (current != null) _currentSongSubject.add(current);
+      _playlistSubject.add(_playlist);
+    }
+  }
+
   // --- Crossfade Methods ---
 
   AudioPlayer _getActivePlayer() {

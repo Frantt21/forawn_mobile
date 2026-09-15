@@ -71,6 +71,21 @@ class MetadataService {
       StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get progressStream => _progressController.stream;
 
+  /// Emite progreso de operaciones de metadata por el stream global
+  /// ({'message': String, 'progress': double 0..1}). Lo consumen los
+  /// diálogos de progreso (p. ej. la recarga de artworks en Settings).
+  void emitProgress(String message, double progress) {
+    if (!_progressController.isClosed) {
+      _progressController.add({
+        'message': message,
+        'progress': progress.clamp(0.0, 1.0),
+      });
+    }
+  }
+
+  /// Emite estado completado (progress = 1.0)
+  void emitProgressDone(String message) => emitProgress(message, 1.0);
+
   /// Carga metadatos con prioridad y retry
   ///
   /// Parámetros:
@@ -166,13 +181,16 @@ class MetadataService {
             artworkData: artworkBytes, // Se guarda en disco y se libera
             artworkUri: rawMetadata['artworkUri'],
             dominantColor: dominantColor,
+            filePath: filePath,
           );
           print(
             '[MetadataService] Success! Helper saved metadata for $id to DB/File',
           );
 
-          // Notificar cambio
-          onMetadataUpdated.value = id;
+          // Notificar cambio. IMPORTANTE: notificar con el FILE PATH, no con
+          // el id hash — todos los listeners (librería, historial,
+          // playlists, player) comparan s.filePath == valor notificado.
+          onMetadataUpdated.value = filePath ?? safUri ?? id;
 
           // Cargar desde caché para obtener la RUTA del archivo, no los bytes
           final cachedMetadata = await MusicMetadataCache.get(id);
