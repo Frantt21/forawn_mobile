@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -55,78 +56,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final total = songs.length;
     var cancelled = false;
+    var dialogOpen = false;
+    final runningText = LanguageService().getText('reload_artworks_running');
+    // Capturamos el navigator raíz ANTES de abrir el diálogo: si el usuario
+    // navega fuera de Settings mientras corre el reload, el pop sigue siendo
+    // posible (el navigator vive en la raíz de la app, no en este screen).
+    final rootNav = Navigator.of(context, rootNavigator: true);
 
     unawaited(
-      showDialog(
+      showGeneralDialog(
         context: context,
         barrierDismissible: false,
-        builder: (dialogCtx) => StreamBuilder<Map<String, dynamic>>(
+        barrierColor: Colors.black.withOpacity(0.5),
+        pageBuilder: (dialogCtx, _, __) => StreamBuilder<Map<String, dynamic>>(
           stream: MetadataService().progressStream,
           builder: (context, snapshot) {
             final data = snapshot.data;
             final progress = (data?['progress'] as num?)?.toDouble() ?? 0.0;
             final message = data?['message'] as String? ?? '';
-            return AlertDialog(
-              backgroundColor: Colors.grey[900],
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    alignment: Alignment.center,
+            // Mismo estilo que el diálogo de carga de librería
+            // (local_music_screen): backdrop blur + contenedor oscuro con
+            // borde sutil + loader circular de 80px con porcentaje.
+            return BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900]!.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        width: 72,
-                        height: 72,
-                        child: CircularProgressIndicator(
-                          value: progress > 0 ? progress : null,
-                          strokeWidth: 5,
-                          backgroundColor: Colors.white10,
-                          color: Colors.purpleAccent,
-                        ),
-                      ),
                       Text(
-                        '${(progress * 100).toInt()}%',
+                        runningText,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Circular Progress con porcentaje
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            height: 80,
+                            child: CircularProgressIndicator(
+                              value: progress > 0 ? progress : null,
+                              strokeWidth: 6,
+                              backgroundColor: Colors.white10,
+                              color: Colors.purpleAccent,
+                            ),
+                          ),
+                          Text(
+                            '${(progress * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      Text(
+                        message.isEmpty
+                            ? runningText
+                            : '$message (${(progress * total).toInt()}/$total)',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 14,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    message.isEmpty
-                        ? LanguageService().getText('reload_artworks_running')
-                        : '$message (${'${(progress * total).toInt()}'}/$total)',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () {
-                      cancelled = true;
-                      Navigator.of(dialogCtx).pop();
-                    },
-                    child: const Text('Cancelar'),
-                  ),
-                ],
+                ),
               ),
             );
           },
         ),
-      ),
+      ).then((_) => dialogOpen = false),
     );
 
     try {
-      // Pequeña pausa para que el diálogo se renderice
+      // Pequeña pausa para que el diálogo se renderice y marcarlo abierto
       await Future.delayed(const Duration(milliseconds: 100));
+      dialogOpen = true;
 
       for (int i = 0; i < songs.length && !cancelled; i++) {
         final song = songs[i];
@@ -156,15 +186,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
 
       if (!cancelled) {
-        MetadataService().emitProgressDone(
-          LanguageService().getText('reload_artworks_running'),
-        );
-        await Future.delayed(const Duration(milliseconds: 250));
+        MetadataService().emitProgressDone(runningText);
+        // Deja que el stream entregue el estado final (100%) antes de cerrar
+        await Future.delayed(const Duration(milliseconds: 400));
+
+        // Cierra el diálogo: showGeneralDialog no es dismissible y no tiene
+        // botón de cancelar, esta es su única vía de cierre.
+        if (dialogOpen) {
+          rootNav.pop();
+          dialogOpen = false;
+          await Future.delayed(const Duration(milliseconds: 150));
+        }
 
         if (mounted) {
-          // Cerrar el diálogo de progreso
-          Navigator.of(context, rootNavigator: true).pop();
-
           // Sincronizar TODA la cola del player con los nuevos paths
           await AudioPlayerService().refreshQueueMetadata();
 
@@ -178,6 +212,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     } finally {
+      // Safety net: si por alguna ruta el diálogo quedó abierto, ciérralo.
+      if (dialogOpen) {
+        rootNav.pop();
+        dialogOpen = false;
+      }
       // La suscripción al stream la gestiona el StreamBuilder del diálogo.
     }
   }
