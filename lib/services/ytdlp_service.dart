@@ -21,6 +21,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'cookies_service.dart';
+import 'language_service.dart';
 import 'search_cache_store.dart';
 
 class YtDlpException implements Exception {
@@ -146,6 +148,49 @@ class YtDlpService {
   }
 
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Autenticación (cookies del usuario)
+  // ---------------------------------------------------------------------------
+
+  /// Argumentos de autenticación para yt-dlp: si el usuario configuró
+  /// cookies en Ajustes se pasa `--cookies <archivo>` (Instagram y otros
+  /// sitios devuelven "empty media response ... use --cookies" sin sesión).
+  /// Sin cookies configuradas la lista va vacía: la descarga sigue siendo
+  /// anónima, igual que antes de esta función.
+  Future<List<String>> _cookieArgs() async {
+    try {
+      final path = await CookiesService().cookieFile();
+      return path == null ? const <String>[] : ['--cookies', path];
+    } catch (_) {
+      return const <String>[];
+    }
+  }
+
+  /// Añade a los errores de "muro de login" una pista accionable: yt-dlp
+  /// responde en inglés y con instrucciones de línea de comandos
+  /// (--cookies-from-browser) que en el móvil no aplican. La pista cambia
+  /// según haya o no cookies guardadas.
+  static Future<String> _withAuthHint(String message) async {
+    final lower = message.toLowerCase();
+    final needsSession = lower.contains('empty media response') ||
+        lower.contains('use --cookies') ||
+        lower.contains('--cookies-from-browser') ||
+        lower.contains('login required') ||
+        lower.contains('login_required') ||
+        lower.contains('rate-limit reached') ||
+        lower.contains('sign in to confirm');
+    if (!needsSession) return message;
+    // Con cookies ya configuradas el fallo no es la falta de sesión sino el
+    // bloqueo temporal por IP que Instagram aplica a las peticiones
+    // anónimas (yt-dlp responde igual: "empty media response").
+    final hasCookies = await CookiesService().hasCookies();
+    final key = hasCookies
+        ? 'cookies_still_blocked_hint'
+        : 'need_cookies_hint';
+    return '$message\n\n${LanguageService().getText(key)}';
+  }
+
+  // ---------------------------------------------------------------------------
   // Progreso con easing compartido (audio y video)
   // ---------------------------------------------------------------------------
 
@@ -192,9 +237,11 @@ class YtDlpService {
       if (exitCode != 0) {
         final msg = output.toString().trim();
         throw YtDlpException(
-          msg.isNotEmpty
-              ? msg.substring(0, msg.length.clamp(0, 500))
-              : 'yt-dlp terminó con código $exitCode',
+          await _withAuthHint(
+            msg.isNotEmpty
+                ? msg.substring(0, msg.length.clamp(0, 500))
+                : 'yt-dlp terminó con código $exitCode',
+          ),
         );
       }
       return output.toString();
@@ -266,6 +313,7 @@ class YtDlpService {
       '-j',
       '--ignore-errors',
       '--add-header', 'User-Agent: ${_uaForSite(url)}',
+      ...await _cookieArgs(),
       url,
     ]);
 
@@ -380,6 +428,7 @@ class YtDlpService {
       '--replace-in-metadata', 'artist', r'^\s+|\s+$', '',
       '--add-header', 'User-Agent: Mozilla/5.0',
       // Sin Referer fijo (descargas multi-plataforma; ver downloadVideo).
+      ...await _cookieArgs(),
       '--print', 'after_move:filepath',
       watchUrl,
     ];
@@ -517,6 +566,7 @@ class YtDlpService {
       // Sin Referer fijo: el descargador acepta URLs de cualquier sitio
       // soportado por yt-dlp (YouTube, Instagram, TikTok, Twitter, etc.) y
       // un Referer de YouTube en otros dominios puede provocar 403.
+      ...await _cookieArgs(),
       '--print', 'after_move:filepath',
       url,
     ];

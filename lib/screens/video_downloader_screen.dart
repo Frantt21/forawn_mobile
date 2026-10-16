@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/spotify_track.dart';
 import '../services/global_download_manager.dart';
 import '../services/language_service.dart';
+import '../services/saf_helper.dart';
 import '../services/ytdlp_service.dart';
 import '../widgets/app_search_field.dart';
 import 'download_history_screen.dart';
@@ -58,6 +59,44 @@ class _VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
         setState(() => _treeUri = prefs.getString('saf_tree_uri'));
       }
     } catch (_) {}
+  }
+
+  /// Elige la carpeta destino (SAF) y la guarda en 'saf_tree_uri', la MISMA
+  /// preferencia que usan el descargador de música y el resto de pantallas,
+  /// para que todas las descargas caigan en el mismo sitio.
+  Future<void> _pickFolder() async {
+    try {
+      final picked = await SafHelper.pickDirectory();
+      if (picked == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('saf_tree_uri', picked);
+      if (!mounted) return;
+      setState(() => _treeUri = picked);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LanguageService().getText('folder_selected'))),
+      );
+    } catch (e) {
+      debugPrint('[VideoDownloader] Error al seleccionar carpeta: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LanguageService().getText('folder_select_error')),
+        ),
+      );
+    }
+  }
+
+  /// Mantener pulsado el icono: muestra la carpeta actual o avisa que no hay
+  /// ninguna seleccionada (se descargará en Download/).
+  void _showCurrentFolder() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _treeUri ?? LanguageService().getText('no_folder_selected'),
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   bool _isValidUrl(String s) {
@@ -431,6 +470,30 @@ class _VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
               );
             },
             tooltip: LanguageService().getText('download_history'),
+          ),
+          // Botón de carpeta: mismo gesto que en el descargador de música
+          // (tocar = elegir, mantener pulsado = ver la carpeta actual).
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Tooltip(
+              message: _treeUri == null
+                  ? LanguageService().getText('select_folder')
+                  : LanguageService().getText('folder_selected_tooltip'),
+              // El GestureDetector va DENTRO del Tooltip a propósito: si va
+              // fuera, el recognizer del Tooltip (más interno) se queda con el
+              // long-press y el aviso con la carpeta elegida nunca aparece.
+              child: GestureDetector(
+                onTap: _pickFolder,
+                onLongPress: _showCurrentFolder,
+                child: Icon(
+                  Icons.folder_open,
+                  color: _treeUri == null
+                      ? Theme.of(context).appBarTheme.iconTheme?.color ??
+                            Colors.white
+                      : Colors.purpleAccent,
+                ),
+              ),
+            ),
           ),
         ],
       ),

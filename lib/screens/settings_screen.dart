@@ -12,6 +12,7 @@ import '../services/metadata_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/local_music_state_service.dart';
+import '../services/cookies_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -27,12 +28,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const String _notificationsKey = 'notifications_enabled';
   static const String _crossfadeKey = 'crossfade_duration';
 
+  /// true si el usuario tiene cookies de sesión configuradas para yt-dlp.
+  bool _hasCookies = false;
+
+  /// Campo de texto del diálogo de cookies. Vive con el State (y se libera
+  /// en [dispose]) en vez de con el diálogo: al cerrarse, el TextField sigue
+  /// montado durante la animación de salida y no debe recibir un controller
+  /// ya destruido.
+  final TextEditingController _cookiesController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _loadNotificationPreference();
     _loadCrossfadeDuration();
     _loadVersion();
+    _loadCookies();
+  }
+
+  @override
+  void dispose() {
+    _cookiesController.dispose();
+    super.dispose();
   }
 
   /// Recarga los artworks de TODA la librería: re-extrae carátula + color
@@ -592,9 +609,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   ListTile(
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
                     leading: const Icon(
                       Icons.accessibility_new,
                       color: Colors.greenAccent,
@@ -625,6 +639,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildSectionTitle(LanguageService().getText('downloads_section')),
+            const SizedBox(height: 12),
+            _buildSettingCard(
+              child: ListTile(
+                leading: const Icon(Icons.cookie, color: Colors.amberAccent),
+                title: Text(
+                  LanguageService().getText('cookies'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                subtitle: Text(
+                  _hasCookies
+                      ? LanguageService().getText('cookies_configured')
+                      : LanguageService().getText('cookies_desc'),
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.vpn_key),
+                  color: Colors.amberAccent,
+                  tooltip: LanguageService().getText('cookies'),
+                  onPressed: _showCookiesDialog,
+                ),
+                onTap: _showCookiesDialog,
+                contentPadding: EdgeInsets.zero,
               ),
             ),
             const SizedBox(height: 24),
@@ -802,6 +845,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _loadCookies() async {
+    final has = await CookiesService().hasCookies();
+    if (!mounted) return;
+    setState(() => _hasCookies = has);
+  }
+
+  /// Diálogo para pegar o borrar las cookies de sesión que yt-dlp envía a
+  /// los sitios con muro de login (Instagram responde "sent an empty media
+  /// response ... use --cookies" sin ellas).
+  Future<void> _showCookiesDialog() async {
+    final initial = await CookiesService().raw();
+    if (!mounted) return;
+
+    final controller = _cookiesController..text = initial;
+    var clearRequested = false;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: const Color.fromARGB(255, 34, 34, 34),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(LanguageService().getText('cookies')),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    LanguageService().getText('cookies_hint'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    maxLines: 4,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: LanguageService().getText('cookies_field_hint'),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  // Aviso en vivo cuando lo pegado no trae sessionid (sin él
+                  // Instagram sigue pidiendo login).
+                  if (controller.text.trim().isNotEmpty &&
+                      !CookiesService.containsSessionId(controller.text)) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      LanguageService().getText('cookies_no_sessionid'),
+                      style: const TextStyle(
+                        color: Colors.orangeAccent,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (initial.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  clearRequested = true;
+                  Navigator.pop(dialogContext);
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                child: Text(LanguageService().getText('delete')),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(LanguageService().getText('cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text),
+              child: Text(LanguageService().getText('save')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (clearRequested) {
+      await CookiesService().clear();
+    } else if (result != null && result.trim().isNotEmpty) {
+      final text = result.trim();
+      // Un texto que no produce ninguna cookie (ni header ni cookies.txt)
+      // haría fallar TODAS las descargas con un error de formato en yt-dlp.
+      if (!CookiesService.isUsable(text)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(LanguageService().getText('cookies_invalid')),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      await CookiesService().save(text);
+    } else {
+      return;
+    }
+
+    await _loadCookies();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            LanguageService().getText(
+              clearRequested ? 'cookies_cleared' : 'cookies_saved',
+            ),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4.0),
@@ -817,18 +989,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Tarjeta contenedora de las secciones. Es un [Material] (no un Container
+  /// con color): los ListTile pintan su fondo e ink splashes en el Material
+  /// más cercano, y un DecoratedBox intermedio los oculta — el framework
+  /// reporta ese caso como error en debug.
   Widget _buildSettingCard({required Widget child, Color? borderColor}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 45, 45, 45),
-        borderRadius: BorderRadius.circular(16),
-        // border: Border.all(
-        //   color: borderColor ?? Colors.white.withOpacity(0.1),
-        //   width: 1,
-        // ),
+    return Material(
+      color: const Color.fromARGB(255, 45, 45, 45),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: child,
       ),
-      child: child,
     );
   }
 

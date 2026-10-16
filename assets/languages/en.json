@@ -293,5 +293,17 @@
   "enter_url_desc": "Enter a video URL (YouTube, TikTok, Instagram, X...) to start",
   "added_to_queue": "Added to download queue",
   "queue": "Queue",
-  "queue_empty": "Queue is empty"
+  "queue_empty": "Queue is empty",
+  "downloads_section": "Downloads",
+  "cookies": "Session cookies",
+  "cookies_desc": "Paste your Instagram cookies to download posts that require login",
+  "cookies_configured": "Session saved — Instagram posts work",
+  "cookies_hint": "Instagram asks for a session (\"sent an empty media response\") on posts that need login. Get the cookies from a computer where you are logged in:\n\n1. Open instagram.com and log in.\n2. Press F12 > Application > Cookies > https://www.instagram.com.\n3. Copy the sessionid value, or the whole Cookie header, or paste the extension's export (its JSON or .txt file both work).\n4. Paste it here and save.",
+  "cookies_field_hint": "sessionid=... ; csrftoken=... (or the extension's JSON/.txt)",
+  "cookies_no_sessionid": "Heads up: no sessionid found. Without it Instagram keeps asking for login.",
+  "cookies_saved": "Cookies saved — retry the download",
+  "cookies_cleared": "Cookies deleted",
+  "cookies_invalid": "Could not recognize the cookies: paste a sessionid value, a Cookie header, a cookies.txt or the extension's JSON",
+  "need_cookies_hint": "This site requires a session: paste your Instagram cookies in Settings > Downloads > Session cookies and retry.",
+  "cookies_still_blocked_hint": "Instagram rejected the request even though a session is saved: this is usually a temporary limit on your connection. Retry in a few minutes, switch network (Wi-Fi / mobile data) or refresh your cookies in Settings > Downloads."
 }

@@ -293,5 +293,17 @@
   "enter_url_desc": "Ingresa una URL de video (YouTube, TikTok, Instagram, X...) para empezar",
   "added_to_queue": "Anadido a la cola de descargas",
   "queue": "Cola",
-  "queue_empty": "La cola está vacía"
+  "queue_empty": "La cola está vacía",
+  "downloads_section": "Descargas",
+  "cookies": "Cookies de sesión",
+  "cookies_desc": "Pegá tus cookies de Instagram para descargar posts que piden iniciar sesión",
+  "cookies_configured": "Sesión guardada — los posts de Instagram funcionan",
+  "cookies_hint": "Instagram exige una sesión (\"sent an empty media response\") en los posts que requieren login. Sacá las cookies de un navegador donde tengas la sesión abierta:\n\n1. Abrí instagram.com en una computadora e iniciá sesión.\n2. F12 > Application > Cookies > https://www.instagram.com.\n3. Copiá el valor de sessionid, o todo el header Cookie, o pegá el export de la extensión (sirve su archivo JSON o su .txt).\n4. Pegalo acá y guardá.",
+  "cookies_field_hint": "sessionid=... ; csrftoken=... (o el JSON/.txt de la extensión)",
+  "cookies_no_sessionid": "Aviso: no encontré sessionid. Sin él Instagram sigue pidiendo login.",
+  "cookies_saved": "Cookies guardadas — reintentá la descarga",
+  "cookies_cleared": "Cookies borradas",
+  "cookies_invalid": "No pude reconocer las cookies: pegá el valor de sessionid, un header Cookie, un cookies.txt o el JSON de la extensión",
+  "need_cookies_hint": "Este sitio exige una sesión: pegá tus cookies de Instagram en Ajustes > Descargas > Cookies de sesión y reintentá.",
+  "cookies_still_blocked_hint": "Instagram rechaza la petición aunque ya hay una sesión guardada: suele ser un límite temporal de tu conexión. Reintentá en unos minutos, cambiá de red (Wi-Fi / datos) o actualizá las cookies desde Ajustes > Descargas."
 }
